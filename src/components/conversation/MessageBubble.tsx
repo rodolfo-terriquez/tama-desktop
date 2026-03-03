@@ -1,0 +1,137 @@
+import { useState, type ReactNode } from "react";
+import { translateToEnglish } from "@/services/claude";
+import { speak } from "@/services/tts";
+import { Volume2, Languages, Loader2 } from "lucide-react";
+import type { Message } from "@/types";
+
+function renderMarkdown(text: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  const regex = /\*\*(.+?)\*\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    parts.push(<strong key={match.index}>{match[1]}</strong>);
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts;
+}
+
+interface MessageBubbleProps {
+  message: Message;
+  isSpeaking?: boolean;
+}
+
+export function MessageBubble({ message, isSpeaking: externalSpeaking }: MessageBubbleProps) {
+  const [translation, setTranslation] = useState<string | null>(null);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const isUser = message.role === "user";
+  const isAssistant = message.role === "assistant";
+  const showGlow = isAssistant && (isPlaying || externalSpeaking);
+
+  const handleTranslate = async () => {
+    if (translation) {
+      setShowTranslation(!showTranslation);
+      return;
+    }
+
+    setIsTranslating(true);
+    try {
+      const result = await translateToEnglish(message.content);
+      setTranslation(result);
+      setShowTranslation(true);
+    } catch (err) {
+      console.error("Translation error:", err);
+      setTranslation("Failed to translate");
+      setShowTranslation(true);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const handleReplay = async () => {
+    setIsPlaying(true);
+    try {
+      await speak(message.content);
+    } catch (err) {
+      console.error("Replay error:", err);
+    } finally {
+      setIsPlaying(false);
+    }
+  };
+
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div className={`relative max-w-[80%] ${showGlow ? "speaking-glow" : ""}`}>
+        {showGlow && (
+          <div
+            className="absolute -inset-[2px] rounded-xl opacity-75 blur-[3px] animate-gradient-rotate"
+            style={{
+              background: "conic-gradient(from var(--gradient-angle, 0deg), #6366f1, #a855f7, #ec4899, #6366f1)",
+            }}
+          />
+        )}
+        <div
+          className={`relative rounded-lg px-4 py-2 ${
+            isUser ? "bg-primary text-primary-foreground" : "bg-muted"
+          }`}
+        >
+          <p className="text-lg">{renderMarkdown(message.content)}</p>
+
+          {isAssistant && (
+            <>
+              {showTranslation && translation && (
+                <p className="text-sm mt-2 pt-2 border-t border-current/20 opacity-80 italic">
+                  {renderMarkdown(translation)}
+                </p>
+              )}
+              <div className="flex items-center justify-end mt-2">
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center size-7 opacity-60 hover:opacity-100 hover:bg-black/5 rounded transition-opacity"
+                    onClick={handleReplay}
+                    disabled={isPlaying}
+                    title="Replay audio"
+                    data-1p-ignore
+                  >
+                    {isPlaying ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Volume2 className="size-3.5" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center size-7 opacity-60 hover:opacity-100 hover:bg-black/5 rounded transition-opacity"
+                    onClick={handleTranslate}
+                    disabled={isTranslating}
+                    title={showTranslation ? "Show Japanese" : "Translate to English"}
+                    data-1p-ignore
+                  >
+                    {isTranslating ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Languages className="size-3.5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,27 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Tauri
+src-tauri/target
+
+# VOICEVOX engine binary (~1.9GB, downloaded at runtime)
+voicevox-engine/
+
+# macOS
+.DS_Store
+
+# Environment / secrets
+.env
+.env.*
+.env.local
+
+# Logs
+*.log
+
+# Old browser-based VAD assets (no longer used; VAD runs natively in Rust)
+public/ort-wasm-simd-threaded*.wasm
+public/silero_vad*.onnx
+public/vad.worklet.bundle.min.js
