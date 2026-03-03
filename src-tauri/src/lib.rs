@@ -99,11 +99,13 @@ pub fn run() {
                 )?;
             }
 
-            // Auto-load Whisper model at startup if already downloaded
+            // Auto-load Whisper model and auto-start VOICEVOX at startup
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let state = handle.state::<WhisperModelState>();
-                whisper::auto_load_if_downloaded(&handle, &state).await;
+                let whisper_state = handle.state::<WhisperModelState>();
+                whisper::auto_load_if_downloaded(&handle, &whisper_state).await;
+
+                tts_manager::auto_start_voicevox(&handle).await;
             });
 
             Ok(())

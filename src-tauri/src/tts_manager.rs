@@ -212,6 +212,65 @@ fn find_voicevox_path(app: &AppHandle) -> Option<PathBuf> {
     found
 }
 
+// ── Auto-start on app launch ─────────────────────────────────────────
+
+pub async fn auto_start_voicevox(app: &AppHandle) {
+    if is_voicevox_running().await {
+        eprintln!("[tama] VOICEVOX already running");
+        return;
+    }
+
+    let voicevox_path = match find_voicevox_path(app) {
+        Some(p) => p,
+        None => {
+            eprintln!("[tama] VOICEVOX not installed, skipping auto-start");
+            return;
+        }
+    };
+
+    eprintln!("[tama] Auto-starting VOICEVOX from: {}", voicevox_path.display());
+
+    let child = if voicevox_path.extension().is_some_and(|e| e == "app")
+        || voicevox_path.to_string_lossy().contains(".app")
+    {
+        Command::new("open")
+            .args(["-a", &voicevox_path.to_string_lossy(), "--args", "--no-window"])
+            .spawn()
+    } else {
+        let engine_dir = match voicevox_path.parent() {
+            Some(d) => d.to_path_buf(),
+            None => return,
+        };
+        Command::new(&voicevox_path)
+            .args(["--host", "127.0.0.1"])
+            .current_dir(&engine_dir)
+            .env("DYLD_LIBRARY_PATH", &engine_dir)
+            .spawn()
+    };
+
+    match child {
+        Ok(child) => {
+            let state = app.state::<TTSProcessState>();
+            if let Ok(mut pid_lock) = state.voicevox_pid.lock() {
+                *pid_lock = Some(child.id());
+            }
+
+            for _ in 0..60 {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                if is_voicevox_running().await {
+                    eprintln!("[tama] VOICEVOX auto-started successfully");
+                    let _ = app.emit("voicevox-status-changed", true);
+                    return;
+                }
+            }
+            eprintln!("[tama] VOICEVOX launched but did not respond in 30s");
+        }
+        Err(e) => {
+            eprintln!("[tama] Failed to auto-start VOICEVOX: {e}");
+        }
+    }
+}
+
 // ── HTTP / process helpers ──────────────────────────────────────────
 
 async fn is_voicevox_running() -> bool {
@@ -441,6 +500,7 @@ pub async fn start_voicevox(
         tokio::time::sleep(Duration::from_millis(500)).await;
         if is_voicevox_running().await {
             log::info!("VOICEVOX started successfully");
+            let _ = app.emit("voicevox-status-changed", true);
             return Ok(());
         }
     }
@@ -449,7 +509,7 @@ pub async fn start_voicevox(
 }
 
 #[tauri::command]
-pub async fn stop_voicevox(state: State<'_, TTSProcessState>) -> Result<(), String> {
+pub async fn stop_voicevox(app: AppHandle, state: State<'_, TTSProcessState>) -> Result<(), String> {
     let pid = find_pid_on_port(VOICEVOX_PORT);
     if let Some(pid) = pid {
         tokio::task::spawn_blocking(move || kill_pid(pid))
@@ -461,6 +521,7 @@ pub async fn stop_voicevox(state: State<'_, TTSProcessState>) -> Result<(), Stri
     *pid_lock = None;
 
     log::info!("VOICEVOX stopped");
+    let _ = app.emit("voicevox-status-changed", false);
     Ok(())
 }
 

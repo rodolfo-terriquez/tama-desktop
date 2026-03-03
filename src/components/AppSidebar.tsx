@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Settings, BookOpen, Home, Library, History, MessagesSquare } from "lucide-react";
+import { listen } from "@tauri-apps/api/event";
 import { getStoredEngineType, getEngine, getDefaultVoiceId, getAllVoiceOptions } from "@/services/tts";
 import type { TTSEngineType } from "@/services/tts";
 import { getLLMProvider, getOpenRouterModel, hasApiKey } from "@/services/claude";
@@ -67,9 +68,15 @@ function useStatusInfo() {
     };
     window.addEventListener("tts-engine-changed", onEngineChanged);
 
+    let unlistenVoicevox: (() => void) | undefined;
+    listen("voicevox-status-changed", () => {
+      check();
+    }).then((fn) => { unlistenVoicevox = fn; });
+
     return () => {
       clearInterval(interval);
       window.removeEventListener("tts-engine-changed", onEngineChanged);
+      unlistenVoicevox?.();
     };
   }, [check]);
 
