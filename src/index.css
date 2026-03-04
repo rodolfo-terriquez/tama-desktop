@@ -121,6 +121,18 @@
   body {
     @apply bg-background text-foreground;
     }
+  body::before {
+    content: "";
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--border);
+    z-index: 9999;
+    pointer-events: none;
+    }
 }
 
 /* Hide scrollbar utility */

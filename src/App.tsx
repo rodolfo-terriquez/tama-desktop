@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ConversationScreen } from "@/components/conversation/ConversationScreen";
 import { VoiceModeScreen } from "@/components/conversation/VoiceModeScreen";
 import { FeedbackScreen } from "@/components/feedback/FeedbackScreen";
 import { FlashcardReview } from "@/components/flashcard/FlashcardReview";
@@ -11,21 +10,27 @@ import { Settings } from "@/components/Settings";
 import { OngoingChatList } from "@/components/ongoing/OngoingChatList";
 import { OngoingChatScreen } from "@/components/ongoing/OngoingChatScreen";
 import { AppSidebar } from "@/components/AppSidebar";
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { hasApiKey } from "@/services/claude";
 import { hasOpenAIApiKey } from "@/services/openai";
 import type { Message, Scenario } from "@/types";
 
 type Screen = "home" | "scenario-select" | "conversation" | "flashcards" | "history" | "settings" | "session-complete" | "ongoing-chats" | "ongoing-chat";
-type ConversationMode = "classic" | "voice";
+
+function ExpandButton() {
+  const { open } = useSidebar();
+  if (open) return null;
+  return (
+    <SidebarTrigger className="fixed top-2 left-2 z-50" />
+  );
+}
 
 function App() {
   const [needsApiKey, setNeedsApiKey] = useState(
     !hasApiKey() || !hasOpenAIApiKey()
   );
   const [currentScreen, setCurrentScreen] = useState<Screen>("home");
-  const [conversationMode, setConversationMode] = useState<ConversationMode>("voice");
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [lastSession, setLastSession] = useState<{
     messages: Message[];
@@ -46,10 +51,6 @@ function App() {
     setSelectedScenario(null);
     setLastSession(null);
     setCurrentScreen("scenario-select");
-  };
-
-  const handleModeChange = (mode: "voice" | "classic") => {
-    setConversationMode(mode);
   };
 
   const handleNavigate = (screen: string) => {
@@ -84,7 +85,6 @@ function App() {
           <ScenarioPicker
             onSelect={(scenario) => {
               setSelectedScenario(scenario);
-              setConversationMode("voice");
               setCurrentScreen("conversation");
             }}
             onBack={() => setCurrentScreen("home")}
@@ -97,22 +97,17 @@ function App() {
             <ScenarioPicker
               onSelect={(scenario) => {
                 setSelectedScenario(scenario);
-                setConversationMode("voice");
                 setCurrentScreen("conversation");
               }}
               onBack={() => setCurrentScreen("home")}
             />
           );
         }
-        const modeProps = {
-          scenario: selectedScenario,
-          onEndSession: handleSessionEnd,
-          onModeChange: handleModeChange,
-        };
-        return conversationMode === "voice" ? (
-          <VoiceModeScreen {...modeProps} />
-        ) : (
-          <ConversationScreen {...modeProps} />
+        return (
+          <VoiceModeScreen
+            scenario={selectedScenario}
+            onEndSession={handleSessionEnd}
+          />
         );
       }
 
@@ -165,21 +160,6 @@ function App() {
     }
   };
 
-  const getHeaderTitle = () => {
-    switch (currentScreen) {
-      case "home": return "Home";
-      case "scenario-select": return "Choose Scenario";
-      case "conversation": return selectedScenario?.title ?? "Practice";
-      case "ongoing-chats": return "Conversations";
-      case "ongoing-chat": return "Chat";
-      case "flashcards": return "Flashcards";
-      case "history": return "Session History";
-      case "settings": return "Settings";
-      case "session-complete": return "Session Complete";
-      default: return "";
-    }
-  };
-
   return (
     <TooltipProvider>
       <SidebarProvider>
@@ -188,11 +168,8 @@ function App() {
           onNavigate={handleNavigate}
         />
         <SidebarInset>
-          <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-            <SidebarTrigger className="-ml-1" />
-            <span className="text-sm font-medium">{getHeaderTitle()}</span>
-          </header>
-          <main className="flex-1 h-[calc(100vh-3rem)] overflow-auto">
+          <ExpandButton />
+          <main className="flex-1 h-screen overflow-auto">
             {renderContent()}
           </main>
         </SidebarInset>

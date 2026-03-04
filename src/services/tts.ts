@@ -181,6 +181,18 @@ export function isPlaying(): boolean {
 const EMOJI_RE =
   /[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200d\ufe0f]/gu;
 
+const CJK_SPACE_RE =
+  /([\u3000-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF])\s+([\u3000-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF])/g;
+
+function stripSpacesBetweenJapanese(text: string): string {
+  let prev = "";
+  while (prev !== text) {
+    prev = text;
+    text = text.replace(CJK_SPACE_RE, "$1$2");
+  }
+  return text;
+}
+
 function stripEmoji(text: string): string {
   return text.replace(EMOJI_RE, "").replace(/\s{2,}/g, " ").trim();
 }
@@ -259,7 +271,7 @@ export async function speak(text: string, options?: SpeakOptions): Promise<void>
     amplitudeSampleRate: options?.amplitudeSampleRate,
   };
 
-  text = stripEmoji(text);
+  text = stripSpacesBetweenJapanese(stripEmoji(text));
   if (!text) return;
 
   const sentences = splitIntoSentences(text);

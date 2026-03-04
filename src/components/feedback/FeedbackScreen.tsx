@@ -36,23 +36,46 @@ export function FeedbackScreen({
   const [sessionSaved, setSessionSaved] = useState(false);
 
   const parseFeedback = useCallback((raw: string): SessionFeedback => {
-    const cleaned = raw.replace(/```json\s*/, "").replace(/```\s*$/, "").trim();
-    const parsed = JSON.parse(cleaned);
+    let cleaned = raw.replace(/```json\s*/, "").replace(/```\s*$/, "").trim();
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      // Attempt to repair truncated JSON by closing open strings/arrays/objects
+      let repaired = cleaned;
+      const openBraces = (repaired.match(/{/g) || []).length;
+      const closeBraces = (repaired.match(/}/g) || []).length;
+      const openBrackets = (repaired.match(/\[/g) || []).length;
+      const closeBrackets = (repaired.match(/]/g) || []).length;
+
+      // Close any unterminated string
+      const quoteCount = (repaired.match(/"/g) || []).length;
+      if (quoteCount % 2 !== 0) repaired += '"';
+
+      // Remove trailing comma or colon
+      repaired = repaired.replace(/[,:\s]+$/, "");
+
+      for (let i = 0; i < openBrackets - closeBrackets; i++) repaired += "]";
+      for (let i = 0; i < openBraces - closeBraces; i++) repaired += "}";
+
+      parsed = JSON.parse(repaired);
+    }
 
     return {
       grammar_points: Array.isArray(parsed.grammar_points) ? parsed.grammar_points : [],
       vocabulary: Array.isArray(parsed.vocabulary) ? parsed.vocabulary : [],
       fluency_notes: Array.isArray(parsed.fluency_notes) ? parsed.fluency_notes : [],
       summary: {
-        topics_covered: Array.isArray(parsed.summary?.topics_covered)
-          ? parsed.summary.topics_covered
+        topics_covered: Array.isArray((parsed.summary as Record<string, unknown>)?.topics_covered)
+          ? (parsed.summary as Record<string, unknown>).topics_covered as string[]
           : [],
         performance_rating: ["needs_work", "good", "excellent"].includes(
-          parsed.summary?.performance_rating
+          (parsed.summary as Record<string, unknown>)?.performance_rating as string
         )
-          ? parsed.summary.performance_rating
+          ? ((parsed.summary as Record<string, unknown>).performance_rating as "needs_work" | "good" | "excellent")
           : "good",
-        next_session_hint: parsed.summary?.next_session_hint || "",
+        next_session_hint: ((parsed.summary as Record<string, unknown>)?.next_session_hint as string) || "",
       },
     };
   }, []);

@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { MessageBubble } from "@/components/conversation/MessageBubble";
+import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
+import { TranscriptBubbles } from "@/components/conversation/TranscriptBubbles";
+import { useVADRecorder } from "@/hooks/useVADRecorder";
 import {
   sendMessage,
   buildOngoingChatPrompt,
@@ -11,12 +14,14 @@ import {
   ONGOING_CHAT_SUMMARIZE_THRESHOLD,
   ONGOING_CHAT_KEEP_AFTER_SUMMARIZE,
 } from "@/services/claude";
-import { initializeTTS, speak } from "@/services/tts";
+import { initializeTTS, speak, stopCurrentAudio } from "@/services/tts";
 import { getOngoingChat, saveOngoingChat, getUserProfile } from "@/services/storage";
-import type { Message, OngoingChat } from "@/types";
+import type { Message, OngoingChat, UserProfile } from "@/types";
 import { v4 as uuidv4 } from "uuid";
-import { Loader2, ClipboardCheck, LogOut, Send } from "lucide-react";
+import { Loader2, ClipboardCheck, LogOut, Send, Mic, Keyboard } from "lucide-react";
 import { OngoingFeedbackDialog } from "@/components/ongoing/OngoingFeedbackDialog";
+
+type InputMode = "text" | "voice";
 
 interface OngoingChatScreenProps {
   chatId: string;
@@ -32,18 +37,25 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [ttsAvailable, setTtsAvailable] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [inputMode, setInputMode] = useState<InputMode>("text");
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  // Voice mode state
+  const [voiceConvState, setVoiceConvState] = useState<
+    "idle" | "listening" | "transcribing" | "thinking" | "speaking"
+  >("idle");
+  const [amplitude, setAmplitude] = useState(0);
+  const [showCaptions, setShowCaptions] = useState(true);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<Message[]>([]);
+  const sessionEndedRef = useRef(false);
 
-  // Keep ref in sync
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
-  // Check TTS availability
   useEffect(() => {
     initializeTTS().then((r) => setTtsAvailable(r.available)).catch(() => {});
+    getUserProfile().then(setUserProfile);
   }, []);
 
   useEffect(() => {
@@ -57,10 +69,11 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
     return () => { cancelled = true; };
   }, [chatId]);
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+    if (inputMode === "text") {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isLoading, inputMode]);
 
   const persistMessages = useCallback(
     async (updatedMessages: Message[]) => {
@@ -77,7 +90,7 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
     [chat]
   );
 
-  const handleUserMessage = useCallback(
+  const sendAndRespond = useCallback(
     async (text: string) => {
       if (!text.trim() || !chat) return;
 
@@ -94,7 +107,7 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
       setMessages(withUser);
 
       try {
-        const profile = await getUserProfile();
+        const profile = userProfile || (await getUserProfile());
         const systemPrompt = buildOngoingChatPrompt(
           chat,
           profile.jlpt_level,
@@ -104,6 +117,8 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
 
         const contextMessages = getContextMessages(withUser);
         const response = await sendMessage(contextMessages, systemPrompt);
+
+        if (sessionEndedRef.current) return;
 
         const assistantMessage: Message = {
           id: uuidv4(),
@@ -115,17 +130,6 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
         const withAssistant = [...withUser, assistantMessage];
         setMessages(withAssistant);
 
-        if (ttsAvailable) {
-          setSpeakingMessageId(assistantMessage.id);
-          try {
-            await speak(response);
-          } catch (err) {
-            console.error("TTS error:", err);
-          } finally {
-            setSpeakingMessageId(null);
-          }
-        }
-
         const updated: OngoingChat = {
           ...chat,
           messages: withAssistant,
@@ -134,52 +138,135 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
         };
         setChat(updated);
         await saveOngoingChat(updated);
+
+        return { assistantMessage, response };
       } catch (err) {
         console.error("Error sending message:", err);
         setError(err instanceof Error ? err.message : "Failed to send message");
         await persistMessages(withUser);
+        return undefined;
       } finally {
         setIsLoading(false);
       }
     },
-    [chat, persistMessages, ttsAvailable]
+    [chat, persistMessages, userProfile]
   );
 
-  const handleEndSession = useCallback(async () => {
-    if (!chat) {
-      onBack();
-      return;
-    }
+  // --- Text mode handler ---
+  const handleTextSubmit = useCallback(
+    async (text: string) => {
+      const result = await sendAndRespond(text);
+      if (result && ttsAvailable) {
+        setSpeakingMessageId(result.assistantMessage.id);
+        try {
+          await speak(result.response);
+        } catch (err) {
+          console.error("TTS error:", err);
+        } finally {
+          setSpeakingMessageId(null);
+        }
+      }
+    },
+    [sendAndRespond, ttsAvailable]
+  );
 
-    // Check if summarization is needed
+  // --- Voice mode handler ---
+  const handleVoiceTranscription = useCallback(
+    async (transcript: string) => {
+      if (sessionEndedRef.current) return;
+      if (!transcript?.trim()) {
+        setVoiceConvState("listening");
+        return;
+      }
+
+      setVoiceConvState("thinking");
+      const result = await sendAndRespond(transcript);
+
+      if (sessionEndedRef.current) return;
+
+      if (result && ttsAvailable) {
+        setVoiceConvState("speaking");
+        try {
+          await speak(result.response, { onAmplitude: setAmplitude });
+        } catch (err) {
+          console.error("TTS error:", err);
+        }
+      }
+
+      if (sessionEndedRef.current) return;
+      setVoiceConvState("listening");
+      setAmplitude(0);
+    },
+    [sendAndRespond, ttsAvailable]
+  );
+
+  const {
+    isListening,
+    isSpeaking: userIsSpeaking,
+    start: startVAD,
+    stop: stopVAD,
+    pause: pauseVAD,
+    resume: resumeVAD,
+  } = useVADRecorder({
+    onSpeechStart: () => {
+      if (voiceConvState === "speaking") {
+        stopCurrentAudio();
+        setVoiceConvState("listening");
+      }
+    },
+    onSpeechEnd: () => {
+      setVoiceConvState("transcribing");
+    },
+    onTranscription: handleVoiceTranscription,
+    onAmplitude: setAmplitude,
+  });
+
+  useEffect(() => {
+    if (inputMode !== "voice") return;
+    if (voiceConvState === "listening" && isListening) {
+      resumeVAD();
+    } else if (voiceConvState !== "listening" && isListening) {
+      pauseVAD();
+    }
+  }, [voiceConvState, inputMode, isListening, pauseVAD, resumeVAD]);
+
+  const handleSwitchToVoice = useCallback(async () => {
+    setInputMode("voice");
+    setVoiceConvState("listening");
+    await startVAD();
+  }, [startVAD]);
+
+  const handleSwitchToText = useCallback(() => {
+    stopVAD();
+    stopCurrentAudio();
+    setInputMode("text");
+    setVoiceConvState("idle");
+    setAmplitude(0);
+  }, [stopVAD]);
+
+  const handleEndSession = useCallback(async () => {
+    if (!chat) { onBack(); return; }
+
+    sessionEndedRef.current = true;
+    stopVAD();
+    stopCurrentAudio();
+
     if (messagesRef.current.length > ONGOING_CHAT_SUMMARIZE_THRESHOLD) {
       setIsSummarizing(true);
       try {
         const messagesToSummarize = messagesRef.current.slice(
-          0,
-          messagesRef.current.length - ONGOING_CHAT_KEEP_AFTER_SUMMARIZE
+          0, messagesRef.current.length - ONGOING_CHAT_KEEP_AFTER_SUMMARIZE
         );
-        const keptMessages = messagesRef.current.slice(
-          -ONGOING_CHAT_KEEP_AFTER_SUMMARIZE
-        );
-
-        const newSummary = await summarizeConversation(
-          chat.summary,
-          messagesToSummarize
-        );
-
-        const updated: OngoingChat = {
-          ...chat,
-          messages: keptMessages,
-          summary: newSummary,
-          lastActiveAt: new Date().toISOString(),
-        };
-        await saveOngoingChat(updated);
-      } catch (err) {
-        console.error("Summarization failed, saving all messages:", err);
+        const keptMessages = messagesRef.current.slice(-ONGOING_CHAT_KEEP_AFTER_SUMMARIZE);
+        const newSummary = await summarizeConversation(chat.summary, messagesToSummarize);
         await saveOngoingChat({
-          ...chat,
-          messages: messagesRef.current,
+          ...chat, messages: keptMessages, summary: newSummary,
+          lastActiveAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error("Summarization failed:", err);
+        await saveOngoingChat({
+          ...chat, messages: messagesRef.current,
           lastActiveAt: new Date().toISOString(),
         });
       } finally {
@@ -187,14 +274,12 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
       }
     } else {
       await saveOngoingChat({
-        ...chat,
-        messages: messagesRef.current,
+        ...chat, messages: messagesRef.current,
         lastActiveAt: new Date().toISOString(),
       });
     }
-
     onBack();
-  }, [chat, onBack]);
+  }, [chat, onBack, stopVAD]);
 
   const newMessageCount = chat ? chat.totalMessages - (chat.lastFeedbackAtTotal ?? 0) : 0;
   const feedbackMessages = chat
@@ -204,10 +289,7 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
 
   const handleFeedbackGenerated = useCallback(async () => {
     if (!chat) return;
-    const updated: OngoingChat = {
-      ...chat,
-      lastFeedbackAtTotal: chat.totalMessages,
-    };
+    const updated: OngoingChat = { ...chat, lastFeedbackAtTotal: chat.totalMessages };
     setChat(updated);
     await saveOngoingChat(updated);
   }, [chat]);
@@ -224,23 +306,67 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
         <Loader2 className="size-8 animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
-          Summarizing conversation history...
-        </p>
+        <p className="text-sm text-muted-foreground">Summarizing conversation history...</p>
       </div>
     );
   }
 
+  // ── Voice mode layout ──
+  if (inputMode === "voice") {
+    const hasTranscript = showCaptions && messages.length > 0;
+
+    return (
+      <div className="flex flex-col h-screen max-w-2xl mx-auto overflow-hidden">
+        {error && (
+          <Alert variant="destructive" className="mx-4 mt-2 mb-0">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className={`flex flex-col items-center justify-center ${hasTranscript ? "py-6 flex-shrink-0" : "flex-1 min-h-0"}`}>
+          <VoiceVisualizer
+            amplitude={amplitude}
+            isSpeaking={voiceConvState === "speaking"}
+            isListening={voiceConvState === "listening" && isListening}
+            isUserSpeaking={userIsSpeaking}
+            isProcessing={voiceConvState === "transcribing" || voiceConvState === "thinking"}
+            size={120}
+          />
+        </div>
+
+        {hasTranscript && (
+          <div className="flex-1 min-h-0 flex flex-col px-4">
+            <div className="flex-1 min-h-0">
+              <TranscriptBubbles messages={messages} visibleCount={4} />
+            </div>
+          </div>
+        )}
+
+        <div className="flex-shrink-0 flex justify-center gap-3 py-3 px-4">
+          <Button variant="ghost" size="sm" onClick={() => setShowCaptions(!showCaptions)}>
+            {showCaptions ? "Hide Transcript" : "Show Transcript"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleSwitchToText}>
+            <Keyboard className="size-4 mr-1" />
+            Text
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleEndSession}>
+            End Session
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Text mode layout ──
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)] max-w-2xl mx-auto p-4 overflow-hidden">
-      {/* Error display */}
+    <div className="flex flex-col h-screen max-w-2xl mx-auto p-4 overflow-hidden">
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {/* Messages */}
       <div className="flex-1 min-h-0 overflow-y-auto mb-4 border rounded-lg">
         <div className="space-y-4 p-4">
           {chat.summary && messages.length === 0 && (
@@ -277,14 +403,13 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
         </div>
       </div>
 
-      {/* Input + actions */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           const form = e.target as HTMLFormElement;
           const input = form.elements.namedItem("textInput") as HTMLInputElement;
           if (input.value.trim()) {
-            handleUserMessage(input.value.trim());
+            handleTextSubmit(input.value.trim());
             input.value = "";
           }
         }}
@@ -298,6 +423,15 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
         />
         <Button type="submit" disabled={isLoading} size="icon" title="Send">
           <Send className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={handleSwitchToVoice}
+          title="Switch to voice"
+        >
+          <Mic className="size-4" />
         </Button>
         <Button
           type="button"

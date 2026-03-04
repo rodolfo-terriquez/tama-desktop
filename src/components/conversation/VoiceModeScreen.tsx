@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
 import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
 import { TranscriptBubbles } from "@/components/conversation/TranscriptBubbles";
+import { MessageBubble } from "@/components/conversation/MessageBubble";
 import { useVADRecorder } from "@/hooks/useVADRecorder";
 import {
   initializeTTS,
@@ -15,8 +17,9 @@ import { sendMessageWithTools, buildScenarioPrompt } from "@/services/claude";
 import { getUserProfile } from "@/services/storage";
 import type { Message, Scenario, UserProfile } from "@/types";
 import { v4 as uuidv4 } from "uuid";
+import { Send, Mic, Keyboard, LogOut } from "lucide-react";
 
-type ScreenState = "setup" | "conversation";
+type InputMode = "voice" | "text";
 
 type ConversationState =
   | "idle"
@@ -28,14 +31,13 @@ type ConversationState =
 interface VoiceModeScreenProps {
   scenario: Scenario;
   onEndSession?: (messages: Message[], scenario: Scenario) => void;
-  onModeChange?: (mode: "voice" | "classic") => void;
 }
 
-export function VoiceModeScreen({ scenario, onEndSession, onModeChange }: VoiceModeScreenProps) {
+export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [screenState, setScreenState] = useState<ScreenState>("setup");
-  const [conversationState, setConversationState] =
-    useState<ConversationState>("idle");
+  const [started, setStarted] = useState(false);
+  const [inputMode, setInputMode] = useState<InputMode>("voice");
+  const [conversationState, setConversationState] = useState<ConversationState>("idle");
   const [amplitude, setAmplitude] = useState(0);
   const [ttsStatus, setTtsStatus] = useState<{
     available: boolean;
@@ -44,42 +46,52 @@ export function VoiceModeScreen({ scenario, onEndSession, onModeChange }: VoiceM
   }>({ available: false, speakerName: "", checked: false });
   const [error, setError] = useState<string | null>(null);
   const [showCaptions, setShowCaptions] = useState(false);
-  const [currentTranscript, setCurrentTranscript] = useState<string>("");
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
 
   const messagesRef = useRef<Message[]>([]);
   const sessionEndedRef = useRef(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => { getUserProfile().then(setUserProfile); }, []);
 
   useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  useEffect(() => {
-    getUserProfile().then(setUserProfile);
+    async function checkTTS() {
+      try {
+        const result = await initializeTTS();
+        setTtsStatus({ available: result.available, speakerName: result.speakerName, checked: true });
+      } catch {
+        setTtsStatus({ available: false, speakerName: "", checked: true });
+      }
+    }
+    checkTTS();
   }, []);
 
-  const handleTranscription = useCallback(
-    async (transcript: string) => {
-      if (screenState !== "conversation" || sessionEndedRef.current) return;
-      if (!transcript || !transcript.trim()) {
-        setConversationState("listening");
-        return;
-      }
+  useEffect(() => {
+    if (inputMode === "text") {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isLoading, inputMode]);
 
-      setConversationState("transcribing");
-      setCurrentTranscript(transcript);
+  // --- Shared send logic ---
+  const sendAndRespond = useCallback(
+    async (text: string): Promise<{ response: string; assistantMessage: Message } | undefined> => {
+      if (!text.trim()) return undefined;
+
+      setError(null);
+      setIsLoading(true);
+
+      const userMessage: Message = {
+        id: uuidv4(),
+        role: "user",
+        content: text.trim(),
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
 
       try {
-        const userMessage: Message = {
-          id: uuidv4(),
-          role: "user",
-          content: transcript.trim(),
-          timestamp: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, userMessage]);
-
-        setConversationState("thinking");
-
         const systemPrompt = buildScenarioPrompt(
           scenario,
           userProfile?.jlpt_level || "N5",
@@ -91,7 +103,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onModeChange }: VoiceM
         const allMessages = [...messagesRef.current, userMessage];
         const response = await sendMessageWithTools(allMessages, systemPrompt);
 
-        if (sessionEndedRef.current) return;
+        if (sessionEndedRef.current) return undefined;
 
         const assistantMessage: Message = {
           id: uuidv4(),
@@ -101,34 +113,69 @@ export function VoiceModeScreen({ scenario, onEndSession, onModeChange }: VoiceM
         };
         setMessages((prev) => [...prev, assistantMessage]);
 
-        if (ttsStatus.available && !sessionEndedRef.current) {
-          setConversationState("speaking");
-          try {
-            await speak(response, {
-              onAmplitude: setAmplitude,
-            });
-          } catch (err) {
-            console.error("TTS error:", err);
-          }
-        }
-
-        if (sessionEndedRef.current) return;
-
-        setConversationState("listening");
-        setAmplitude(0);
+        return { response, assistantMessage };
       } catch (err) {
-        if (sessionEndedRef.current) return;
-        console.error("Error processing speech:", err);
-        const errMsg = err instanceof Error ? err.message : "Failed to process speech";
+        if (sessionEndedRef.current) return undefined;
+        const errMsg = err instanceof Error ? err.message : "Failed to process";
         const friendlyMsg = errMsg.includes("No text content")
-          ? "The AI didn't respond with text. Please try speaking again."
+          ? "The AI didn't respond with text. Please try again."
           : errMsg;
         setError(friendlyMsg);
-        setConversationState("listening");
         setTimeout(() => setError(null), 5000);
+        return undefined;
+      } finally {
+        setIsLoading(false);
       }
     },
-    [screenState, scenario, ttsStatus.available, userProfile]
+    [scenario, userProfile]
+  );
+
+  // --- Voice transcription handler ---
+  const handleVoiceTranscription = useCallback(
+    async (transcript: string) => {
+      if (sessionEndedRef.current) return;
+      if (!transcript?.trim()) {
+        setConversationState("listening");
+        return;
+      }
+
+      setConversationState("thinking");
+      const result = await sendAndRespond(transcript);
+
+      if (sessionEndedRef.current) return;
+
+      if (result && ttsStatus.available) {
+        setConversationState("speaking");
+        try {
+          await speak(result.response, { onAmplitude: setAmplitude });
+        } catch (err) {
+          console.error("TTS error:", err);
+        }
+      }
+
+      if (sessionEndedRef.current) return;
+      setConversationState("listening");
+      setAmplitude(0);
+    },
+    [sendAndRespond, ttsStatus.available]
+  );
+
+  // --- Text submit handler ---
+  const handleTextSubmit = useCallback(
+    async (text: string) => {
+      const result = await sendAndRespond(text);
+      if (result && ttsStatus.available) {
+        setSpeakingMessageId(result.assistantMessage.id);
+        try {
+          await speak(result.response);
+        } catch (err) {
+          console.error("TTS error:", err);
+        } finally {
+          setSpeakingMessageId(null);
+        }
+      }
+    },
+    [sendAndRespond, ttsStatus.available]
   );
 
   const {
@@ -151,43 +198,28 @@ export function VoiceModeScreen({ scenario, onEndSession, onModeChange }: VoiceM
     onSpeechEnd: () => {
       setConversationState("transcribing");
     },
-    onTranscription: handleTranscription,
+    onTranscription: handleVoiceTranscription,
     onAmplitude: setAmplitude,
   });
 
   useEffect(() => {
-    async function checkTTS() {
-      try {
-        const result = await initializeTTS();
-        setTtsStatus({
-          available: result.available,
-          speakerName: result.speakerName,
-          checked: true,
-        });
-      } catch (err) {
-        console.error("TTS check failed:", err);
-        setTtsStatus({ available: false, speakerName: "", checked: true });
-      }
-    }
-    checkTTS();
-  }, []);
-
-  useEffect(() => {
-    if (screenState !== "conversation") return;
-
+    if (inputMode !== "voice" || !started) return;
     if (conversationState === "listening" && isListening) {
       resumeVAD();
     } else if (conversationState !== "listening" && isListening) {
       pauseVAD();
     }
-  }, [conversationState, screenState, isListening, pauseVAD, resumeVAD]);
+  }, [conversationState, inputMode, started, isListening, pauseVAD, resumeVAD]);
 
+  // --- Start session (always starts in voice mode) ---
   const handleStartConversation = useCallback(async () => {
-    setScreenState("conversation");
+    setStarted(true);
     setError(null);
     setConversationState("thinking");
 
     try {
+      await startVAD();
+
       const systemPrompt = buildScenarioPrompt(
         scenario,
         userProfile?.jlpt_level || "N5",
@@ -209,9 +241,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onModeChange }: VoiceM
       if (ttsStatus.available) {
         setConversationState("speaking");
         try {
-          await speak(response, {
-            onAmplitude: setAmplitude,
-          });
+          await speak(response, { onAmplitude: setAmplitude });
         } catch (err) {
           console.error("TTS error:", err);
         }
@@ -219,16 +249,33 @@ export function VoiceModeScreen({ scenario, onEndSession, onModeChange }: VoiceM
 
       setConversationState("listening");
       setAmplitude(0);
-      await startVAD();
     } catch (err) {
       console.error("Error starting session:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to start conversation"
-      );
+      setError(err instanceof Error ? err.message : "Failed to start conversation");
       setConversationState("idle");
     }
   }, [scenario, ttsStatus.available, startVAD, userProfile]);
 
+  // --- Mode switching ---
+  const handleSwitchToText = useCallback(() => {
+    pauseVAD();
+    stopCurrentAudio();
+    setInputMode("text");
+    setConversationState("idle");
+    setAmplitude(0);
+  }, [pauseVAD]);
+
+  const handleSwitchToVoice = useCallback(async () => {
+    setInputMode("voice");
+    setConversationState("listening");
+    if (!isListening) {
+      await startVAD();
+    } else {
+      resumeVAD();
+    }
+  }, [isListening, startVAD, resumeVAD]);
+
+  // --- End session ---
   const endSession = useCallback(() => {
     sessionEndedRef.current = true;
     stopVAD();
@@ -238,27 +285,8 @@ export function VoiceModeScreen({ scenario, onEndSession, onModeChange }: VoiceM
     }
   }, [messages, scenario, onEndSession, stopVAD]);
 
-  const getStatusText = () => {
-    if (userIsSpeaking) {
-      return "Listening...";
-    }
-    switch (conversationState) {
-      case "idle":
-        return "Ready to start";
-      case "listening":
-        return isListening ? "Speak now..." : "Starting microphone...";
-      case "transcribing":
-        return "Processing your speech...";
-      case "thinking":
-        return "Thinking...";
-      case "speaking":
-        return "Speaking...";
-      default:
-        return "";
-    }
-  };
-
-  if (screenState === "setup") {
+  // ── Setup screen ──
+  if (!started) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4">
         <Card className="w-full max-w-lg">
@@ -274,12 +302,8 @@ export function VoiceModeScreen({ scenario, onEndSession, onModeChange }: VoiceM
             <p className="text-muted-foreground">{scenario.description}</p>
 
             <div className="text-sm space-y-2">
-              <p>
-                <strong>Setting:</strong> {scenario.setting}
-              </p>
-              <p>
-                <strong>Your partner:</strong> {scenario.character_role}
-              </p>
+              <p><strong>Setting:</strong> {scenario.setting}</p>
+              <p><strong>Your partner:</strong> {scenario.character_role}</p>
               <div>
                 <strong>Objectives:</strong>
                 <ul className="list-disc list-inside mt-1">
@@ -305,30 +329,14 @@ export function VoiceModeScreen({ scenario, onEndSession, onModeChange }: VoiceM
                 </span>
               )}
               {ttsStatus.checked && (
-                <span
-                  className={`px-2 py-1 rounded ${
-                    ttsStatus.available
-                      ? "bg-green-100 text-green-800"
-                      : "bg-red-100 text-red-800"
-                  }`}
-                >
+                <span className={`px-2 py-1 rounded ${ttsStatus.available ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                   {ttsStatus.available
                     ? `TTS: ${ttsStatus.speakerName}`
                     : `TTS: ${getStoredEngineType() === "voicevox" ? "VOICEVOX" : "SBV2"} not running`}
                 </span>
               )}
-              <span
-                className={`px-2 py-1 rounded ${
-                  vadSupported
-                    ? "bg-green-100 text-green-800"
-                    : "bg-red-100 text-red-800"
-                }`}
-              >
-                {vadLoading
-                  ? "Mic: Loading..."
-                  : vadSupported
-                  ? "Mic: Ready"
-                  : "Mic: Not supported"}
+              <span className={`px-2 py-1 rounded ${vadSupported ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                {vadLoading ? "Mic: Loading..." : vadSupported ? "Mic: Ready" : "Mic: Not supported"}
               </span>
             </div>
 
@@ -336,23 +344,6 @@ export function VoiceModeScreen({ scenario, onEndSession, onModeChange }: VoiceM
               <Alert variant="destructive">
                 <AlertDescription>{vadError || error}</AlertDescription>
               </Alert>
-            )}
-
-            {onModeChange && (
-              <div className="flex rounded-lg border overflow-hidden">
-                <button
-                  className="flex-1 py-2 text-sm font-medium bg-primary text-primary-foreground"
-                  disabled
-                >
-                  Voice
-                </button>
-                <button
-                  className="flex-1 py-2 text-sm font-medium hover:bg-muted transition-colors"
-                  onClick={() => onModeChange("classic")}
-                >
-                  Text
-                </button>
-              </div>
             )}
 
             <Button
@@ -369,69 +360,124 @@ export function VoiceModeScreen({ scenario, onEndSession, onModeChange }: VoiceM
     );
   }
 
-  return (
-    <div className="flex flex-col h-full max-w-2xl mx-auto p-4 overflow-hidden">
-      <div className="flex justify-between items-center mb-2">
-        <div className="text-sm text-muted-foreground">{scenario.title_ja}</div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowCaptions(!showCaptions)}
-        >
-          {showCaptions ? "Hide Transcript" : "Show Transcript"}
-        </Button>
-      </div>
+  // ── Voice mode ──
+  if (inputMode === "voice") {
+    const hasTranscript = showCaptions && messages.length > 0;
 
-      {error && (
-        <Alert variant="destructive" className="mb-2">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+    return (
+      <div className="flex flex-col h-full max-w-2xl mx-auto overflow-hidden">
+        {error && (
+          <Alert variant="destructive" className="mx-4 mt-2 mb-0">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-      <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-        <div className="flex-shrink-0">
+        <div className={`flex flex-col items-center justify-center ${hasTranscript ? "py-6 flex-shrink-0" : "flex-1 min-h-0"}`}>
           <VoiceVisualizer
             amplitude={amplitude}
             isSpeaking={conversationState === "speaking"}
             isListening={conversationState === "listening" && isListening}
             isUserSpeaking={userIsSpeaking}
-            isProcessing={
-              conversationState === "transcribing" ||
-              conversationState === "thinking"
-            }
-            size={200}
+            isProcessing={conversationState === "transcribing" || conversationState === "thinking"}
+            size={120}
           />
         </div>
 
-        <p className="mt-4 text-lg text-muted-foreground">{getStatusText()}</p>
-
-        {currentTranscript && conversationState === "thinking" && (
-          <p className="mt-2 text-sm text-muted-foreground italic max-w-md text-center">
-            "{currentTranscript}"
-          </p>
-        )}
-
-        {showCaptions && messages.length > 0 && (
-          <div className="mt-6 w-full flex-1 min-h-0 max-h-64">
-            <TranscriptBubbles messages={messages} visibleCount={3} />
+        {hasTranscript && (
+          <div className="flex-1 min-h-0 flex flex-col px-4">
+            <div className="flex-1 min-h-0">
+              <TranscriptBubbles messages={messages} visibleCount={4} />
+            </div>
           </div>
         )}
 
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={endSession}
-          className="mt-6 flex-shrink-0"
-        >
-          End Conversation
-        </Button>
+        <div className="flex-shrink-0 flex justify-center gap-3 py-3 px-4">
+          <Button variant="ghost" size="sm" onClick={() => setShowCaptions(!showCaptions)}>
+            {showCaptions ? "Hide Transcript" : "Show Transcript"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleSwitchToText}>
+            <Keyboard className="size-4 mr-1" />
+            Text
+          </Button>
+          <Button variant="outline" size="sm" onClick={endSession}>
+            End Conversation
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Text mode ──
+  return (
+    <div className="flex flex-col h-full max-w-2xl mx-auto p-4 overflow-hidden">
+      {error && (
+        <Alert variant="destructive" className="mb-4 shrink-0">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="flex-1 min-h-0 overflow-y-auto mb-4 border rounded-lg">
+        <div className="space-y-4 p-4">
+          {messages.map((message) => (
+            <MessageBubble
+              key={message.id}
+              message={message}
+              isSpeaking={message.id === speakingMessageId}
+            />
+          ))}
+
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-muted rounded-lg px-4 py-2">
+                <p className="text-muted-foreground">...</p>
+              </div>
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
       </div>
 
-      <div className="mt-4 flex justify-center text-xs text-muted-foreground">
-        {ttsStatus.available && (
-          <span>TTS: {ttsStatus.speakerName}</span>
-        )}
-      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const form = e.target as HTMLFormElement;
+          const input = form.elements.namedItem("textInput") as HTMLInputElement;
+          if (input.value.trim()) {
+            handleTextSubmit(input.value.trim());
+            input.value = "";
+          }
+        }}
+        className="flex gap-1.5 shrink-0"
+      >
+        <Input
+          name="textInput"
+          placeholder="Type in Japanese..."
+          disabled={isLoading}
+          className="flex-1"
+        />
+        <Button type="submit" disabled={isLoading} size="icon" title="Send">
+          <Send className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={handleSwitchToVoice}
+          title="Switch to voice"
+        >
+          <Mic className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={endSession}
+          title="End session"
+        >
+          <LogOut className="size-4" />
+        </Button>
+      </form>
     </div>
   );
 }

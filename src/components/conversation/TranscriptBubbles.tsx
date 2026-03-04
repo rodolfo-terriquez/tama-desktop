@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { Message } from "@/types";
+import { Volume2, Languages, Loader2 } from "lucide-react";
+import { speak } from "@/services/tts";
 import { translateToEnglish } from "@/services/claude";
+import type { Message } from "@/types";
 
 function renderMarkdown(text: string): ReactNode[] {
   const parts: ReactNode[] = [];
@@ -25,7 +27,6 @@ function renderMarkdown(text: string): ReactNode[] {
 
 interface TranscriptBubblesProps {
   messages: Message[];
-  /** Number of recent messages to show with full opacity */
   visibleCount?: number;
 }
 
@@ -34,96 +35,89 @@ export function TranscriptBubbles({
   visibleCount = 3,
 }: TranscriptBubblesProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // Store translations keyed by message ID
   const [translations, setTranslations] = useState<Record<string, string>>({});
-  // Track which messages are showing translation
   const [showTranslation, setShowTranslation] = useState<Record<string, boolean>>({});
-  // Track which messages are currently loading translation
   const [loadingTranslation, setLoadingTranslation] = useState<Record<string, boolean>>({});
+  const [playingId, setPlayingId] = useState<string | null>(null);
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [messages]);
 
-  // Calculate opacity for each message based on position
   const getOpacity = (index: number): number => {
     const reverseIndex = messages.length - 1 - index;
-    if (reverseIndex < visibleCount) {
-      return 1;
-    }
-    // Fade out older messages
+    if (reverseIndex < visibleCount) return 1;
     const fadeSteps = 3;
     const fadeIndex = reverseIndex - visibleCount;
-    if (fadeIndex >= fadeSteps) {
-      return 0.15;
-    }
+    if (fadeIndex >= fadeSteps) return 0.15;
     return 1 - (fadeIndex / fadeSteps) * 0.7;
   };
 
-  // Handle clicking on a bubble to translate
-  const handleBubbleClick = async (message: Message) => {
-    // Only translate AI messages (user already knows what they said)
-    if (message.role === "user") return;
+  const handleTranslate = async (message: Message) => {
+    const id = message.id;
 
-    const messageId = message.id;
-
-    // If already showing translation, toggle it off
-    if (showTranslation[messageId]) {
-      setShowTranslation((prev) => ({ ...prev, [messageId]: false }));
+    if (showTranslation[id]) {
+      setShowTranslation((prev) => ({ ...prev, [id]: false }));
+      return;
+    }
+    if (translations[id]) {
+      setShowTranslation((prev) => ({ ...prev, [id]: true }));
       return;
     }
 
-    // If we already have the translation, just show it
-    if (translations[messageId]) {
-      setShowTranslation((prev) => ({ ...prev, [messageId]: true }));
-      return;
-    }
-
-    // Fetch translation
-    setLoadingTranslation((prev) => ({ ...prev, [messageId]: true }));
+    setLoadingTranslation((prev) => ({ ...prev, [id]: true }));
     try {
       const translation = await translateToEnglish(message.content);
-      setTranslations((prev) => ({ ...prev, [messageId]: translation }));
-      setShowTranslation((prev) => ({ ...prev, [messageId]: true }));
+      setTranslations((prev) => ({ ...prev, [id]: translation }));
+      setShowTranslation((prev) => ({ ...prev, [id]: true }));
     } catch (err) {
       console.error("Translation error:", err);
     } finally {
-      setLoadingTranslation((prev) => ({ ...prev, [messageId]: false }));
+      setLoadingTranslation((prev) => ({ ...prev, [id]: false }));
     }
   };
 
-  if (messages.length === 0) {
-    return null;
-  }
+  const handleReplay = async (message: Message) => {
+    setPlayingId(message.id);
+    try {
+      await speak(message.content);
+    } catch (err) {
+      console.error("Replay error:", err);
+    } finally {
+      setPlayingId(null);
+    }
+  };
+
+  if (messages.length === 0) return null;
 
   return (
     <div
       ref={containerRef}
-      className="w-full max-w-md mx-auto max-h-48 overflow-y-auto scroll-smooth px-2 scrollbar-none"
+      className="w-full max-w-md mx-auto h-full overflow-y-auto scroll-smooth px-2 scrollbar-none"
       style={{
         maskImage:
-          "linear-gradient(to bottom, transparent 0%, black 15%, black 100%)",
+          "linear-gradient(to bottom, transparent 0%, black 10%, black 100%)",
         WebkitMaskImage:
-          "linear-gradient(to bottom, transparent 0%, black 15%, black 100%)",
-        scrollbarWidth: "none", // Firefox
-        msOverflowStyle: "none", // IE/Edge
+          "linear-gradient(to bottom, transparent 0%, black 10%, black 100%)",
+        scrollbarWidth: "none",
+        msOverflowStyle: "none",
       }}
     >
       <div className="space-y-3 py-4">
         {messages.map((message, index) => {
           const isUser = message.role === "user";
           const opacity = getOpacity(index);
-          const messageId = message.id;
-          const isShowingTranslation = showTranslation[messageId];
-          const isLoading = loadingTranslation[messageId];
-          const translation = translations[messageId];
+          const id = message.id;
+          const isShowingTranslation = showTranslation[id];
+          const isLoadingTranslation = loadingTranslation[id];
+          const translation = translations[id];
+          const isPlaying = playingId === id;
 
           return (
             <div
-              key={messageId}
+              key={id}
               className={`flex ${isUser ? "justify-end" : "justify-start"}`}
               style={{
                 opacity,
@@ -131,33 +125,54 @@ export function TranscriptBubbles({
               }}
             >
               <div
-                onClick={() => handleBubbleClick(message)}
                 className={`max-w-[85%] px-4 py-2 rounded-2xl text-sm ${
                   isUser
                     ? "bg-blue-500 text-white rounded-br-md"
-                    : "bg-gray-100 text-gray-900 rounded-bl-md dark:bg-gray-800 dark:text-gray-100 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    : "bg-gray-100 text-gray-900 rounded-bl-md dark:bg-gray-800 dark:text-gray-100"
                 }`}
               >
                 <div>{renderMarkdown(message.content)}</div>
 
-                {/* Loading indicator */}
-                {isLoading && (
-                  <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 italic">
-                    Translating...
-                  </div>
-                )}
-
-                {/* Translation */}
                 {isShowingTranslation && translation && (
                   <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300">
                     {renderMarkdown(translation)}
                   </div>
                 )}
 
-                {/* Hint for AI messages */}
-                {!isUser && !isShowingTranslation && !isLoading && (
-                  <div className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
-                    Tap to translate
+                {isLoadingTranslation && (
+                  <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 italic">
+                    Translating...
+                  </div>
+                )}
+
+                {!isUser && (
+                  <div className="flex items-center justify-end mt-1.5 gap-0.5">
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center size-6 opacity-40 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-opacity"
+                      onClick={() => handleReplay(message)}
+                      disabled={isPlaying}
+                      title="Replay audio"
+                    >
+                      {isPlaying ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Volume2 className="size-3" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center size-6 opacity-40 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-opacity"
+                      onClick={() => handleTranslate(message)}
+                      disabled={isLoadingTranslation}
+                      title={isShowingTranslation ? "Hide translation" : "Translate"}
+                    >
+                      {isLoadingTranslation ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Languages className="size-3" />
+                      )}
+                    </button>
                   </div>
                 )}
               </div>

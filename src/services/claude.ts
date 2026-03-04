@@ -452,6 +452,7 @@ IMPORTANT RULES:
 5. ${lengthRule}
 6. If the user makes a mistake, gently incorporate the correction into your response without breaking character
 7. Do NOT add parenthetical translations, romaji readings, or English glosses. The student has a translate button they can use.
+8. Write Japanese text CONTINUOUSLY without spaces between words, exactly as natural Japanese is written. Only use punctuation (。、！？) to separate clauses — NEVER insert spaces between Japanese words.
 
 TOOLS:
 You have tools available to look up the student's profile and their SRS vocabulary.
@@ -570,7 +571,7 @@ Be encouraging but honest.`;
     const result = await callOpenRouter(
       systemPrompt,
       [{ role: "user", content: userMessage }],
-      { maxTokens: 2048 }
+      { maxTokens: 4096 }
     );
     if (!result.text) throw new ClaudeError("No text content in feedback response");
     return result.text;
@@ -579,7 +580,7 @@ Be encouraging but honest.`;
   const result = await callAnthropic(
     systemPrompt,
     [{ role: "user", content: userMessage }],
-    { maxTokens: 2048 }
+    { maxTokens: 4096 }
   );
   if (!result.text) throw new ClaudeError("No text content in feedback response");
   return result.text;

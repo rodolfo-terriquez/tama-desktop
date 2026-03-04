@@ -19,7 +19,7 @@ import {
   deleteOngoingChat,
 } from "@/services/storage";
 import type { OngoingChat } from "@/types";
-import { Plus, Pencil, Trash2, MessageSquare } from "lucide-react";
+import { Plus, Pencil, Trash2, MessageSquare, Check, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface OngoingChatListProps {
@@ -78,11 +78,23 @@ export function OngoingChatList({ onSelectChat, onBack }: OngoingChatListProps) 
     setDialogOpen(false);
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const handleDeleteClick = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!window.confirm("Delete this chat? All conversation history will be lost.")) return;
+    setConfirmDeleteId(id);
+  };
+
+  const handleDeleteConfirm = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
     await deleteOngoingChat(id);
+    setConfirmDeleteId(null);
     await refreshChats();
+  };
+
+  const handleDeleteCancel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmDeleteId(null);
   };
 
   const handleQuickCreate = async (preset: typeof DEFAULT_PERSONAS[number]) => {
@@ -141,22 +153,47 @@ export function OngoingChatList({ onSelectChat, onBack }: OngoingChatListProps) 
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      onClick={(e) => openEditDialog(e, chat)}
-                    >
-                      <Pencil className="size-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-destructive hover:text-destructive"
-                      onClick={(e) => handleDelete(e, chat.id)}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
+                    {confirmDeleteId === chat.id ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-destructive hover:text-destructive"
+                          onClick={(e) => handleDeleteConfirm(e, chat.id)}
+                          title="Confirm delete"
+                        >
+                          <Check className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          onClick={handleDeleteCancel}
+                          title="Cancel"
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          onClick={(e) => openEditDialog(e, chat)}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-destructive hover:text-destructive"
+                          onClick={(e) => handleDeleteClick(e, chat.id)}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </CardContent>

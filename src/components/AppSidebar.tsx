@@ -9,6 +9,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import {
   Tooltip,
@@ -183,6 +184,7 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
               ))}
             </TooltipContent>
           </Tooltip>
+          <SidebarTrigger className="ml-auto" />
         </div>
       </SidebarHeader>
 
