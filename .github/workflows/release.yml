@@ -18,8 +18,8 @@ jobs:
           - platform: macos-14
             args: --target aarch64-apple-darwin
             rust_target: aarch64-apple-darwin
-          # macOS Intel - use Intel runner (macos-13)
-          - platform: macos-13
+          # macOS Intel - use macos-12 (Intel runner)
+          - platform: macos-12
             args: --target x86_64-apple-darwin
             rust_target: x86_64-apple-darwin
           # Linux x64
