@@ -38,6 +38,8 @@ export function useVADRecorder(
   const [error, setError] = useState<string | null>(null);
 
   const isPausedRef = useRef(false);
+  // Track if current speech segment started while paused (i.e., it's AI voice feedback)
+  const speechStartedWhilePausedRef = useRef(false);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
 
   const onSpeechStartRef = useRef(onSpeechStart);
@@ -71,6 +73,8 @@ export function useVADRecorder(
 
       unlisteners.push(
         await listen("voice-speech-start", () => {
+          // Track if this speech segment started while paused (likely AI voice feedback)
+          speechStartedWhilePausedRef.current = isPausedRef.current;
           if (!isPausedRef.current) {
             setIsSpeaking(true);
             onSpeechStartRef.current?.();
@@ -81,13 +85,22 @@ export function useVADRecorder(
       unlisteners.push(
         await listen("voice-speech-end", () => {
           setIsSpeaking(false);
-          onSpeechEndRef.current?.();
+          // Only trigger onSpeechEnd if this speech segment started while NOT paused
+          // This filters out AI voice feedback that was picked up by the microphone
+          if (!speechStartedWhilePausedRef.current) {
+            onSpeechEndRef.current?.();
+          }
+          speechStartedWhilePausedRef.current = false;
         })
       );
 
       unlisteners.push(
         await listen<{ text: string }>("voice-transcription", (event) => {
-          onTranscriptionRef.current?.(event.payload.text);
+          // Only process transcription if speech started while NOT paused
+          // This prevents AI from responding to its own voice
+          if (!speechStartedWhilePausedRef.current && !isPausedRef.current) {
+            onTranscriptionRef.current?.(event.payload.text);
+          }
         })
       );
 

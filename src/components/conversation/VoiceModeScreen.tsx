@@ -52,9 +52,11 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
 
   const messagesRef = useRef<Message[]>([]);
   const sessionEndedRef = useRef(false);
+  const conversationStateRef = useRef<ConversationState>("idle");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => { conversationStateRef.current = conversationState; }, [conversationState]);
   useEffect(() => { getUserProfile().then(setUserProfile); }, []);
 
   useEffect(() => {
@@ -134,6 +136,15 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
   const handleVoiceTranscription = useCallback(
     async (transcript: string) => {
       if (sessionEndedRef.current) return;
+      
+      // Guard against processing transcription while AI is speaking or thinking
+      // This prevents the AI from responding to its own voice (audio feedback loop)
+      const currentState = conversationStateRef.current;
+      if (currentState === "speaking" || currentState === "thinking") {
+        console.log("Ignoring transcription during", currentState, "state");
+        return;
+      }
+      
       if (!transcript?.trim()) {
         setConversationState("listening");
         return;
