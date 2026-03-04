@@ -65,7 +65,9 @@ jobs:
             patchelf \
             libasound2-dev \
             libclang-dev \
-            clang
+            clang \
+            llvm
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> $GITHUB_ENV
 
       # macOS: Install LLVM/Clang for whisper-rs bindgen
       - name: Install LLVM (macOS)
