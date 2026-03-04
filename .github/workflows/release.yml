@@ -14,12 +14,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS ARM (Apple Silicon M1+)
-          - platform: macos-latest
+          # macOS ARM (Apple Silicon M1+) - must use ARM runner (macos-14)
+          - platform: macos-14
             args: --target aarch64-apple-darwin
             rust_target: aarch64-apple-darwin
-          # macOS Intel
-          - platform: macos-latest
+          # macOS Intel - use Intel runner (macos-13)
+          - platform: macos-13
             args: --target x86_64-apple-darwin
             rust_target: x86_64-apple-darwin
           # Linux x64
@@ -69,7 +69,7 @@ jobs:
 
       # macOS: Install LLVM/Clang for whisper-rs bindgen
       - name: Install LLVM (macOS)
-        if: matrix.platform == 'macos-latest'
+        if: startsWith(matrix.platform, 'macos')
         run: |
           brew install llvm
           echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> $GITHUB_ENV
