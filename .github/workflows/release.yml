@@ -73,6 +73,8 @@ jobs:
         run: |
           brew install llvm
           echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> $GITHUB_ENV
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
+          echo "BINDGEN_EXTRA_CLANG_ARGS=-isysroot $(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
 
       # Windows: Install LLVM/Clang for whisper-rs bindgen
       - name: Install LLVM (Windows)
@@ -88,8 +90,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Required for whisper-rs bindgen
           LIBCLANG_PATH: ${{ env.LIBCLANG_PATH }}
+          SDKROOT: ${{ env.SDKROOT }}
+          BINDGEN_EXTRA_CLANG_ARGS: ${{ env.BINDGEN_EXTRA_CLANG_ARGS }}
         with:
           releaseId: ${{ github.event.release.id }}
           args: ${{ matrix.args }}
