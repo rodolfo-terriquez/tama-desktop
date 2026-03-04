@@ -54,6 +54,9 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
   const sessionEndedRef = useRef(false);
   const conversationStateRef = useRef<ConversationState>("idle");
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Refs for VAD controls so handlers can call them synchronously without waiting for state/effect cycle
+  const pauseVADRef = useRef<() => void>(() => {});
+  const resumeVADRef = useRef<() => void>(() => {});
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { conversationStateRef.current = conversationState; }, [conversationState]);
@@ -156,17 +159,22 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
       if (sessionEndedRef.current) return;
 
       if (result && ttsStatus.available) {
+        // Pause VAD synchronously BEFORE speaking to prevent mic picking up TTS audio
+        pauseVADRef.current();
         setConversationState("speaking");
         try {
           await speak(result.response, { onAmplitude: setAmplitude });
         } catch (err) {
           console.error("TTS error:", err);
         }
+        // Wait for audio to fully clear before resuming mic
+        await new Promise((r) => setTimeout(r, 600));
       }
 
       if (sessionEndedRef.current) return;
-      setConversationState("listening");
       setAmplitude(0);
+      resumeVADRef.current();
+      setConversationState("listening");
     },
     [sendAndRespond, ttsStatus.available]
   );
@@ -213,14 +221,20 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
     onAmplitude: setAmplitude,
   });
 
+  // Keep refs in sync so handlers can call pause/resume synchronously
+  useEffect(() => { pauseVADRef.current = pauseVAD; }, [pauseVAD]);
+  useEffect(() => { resumeVADRef.current = resumeVAD; }, [resumeVAD]);
+
+  // Only pause Rust audio capture when the AI is actually speaking (TTS active).
+  // Do NOT pause during "transcribing" or "thinking" — that would cause the
+  // user's own transcription to be dropped by the JS isPausedRef check.
+  // The explicit pauseVADRef.current() call before speak() handles TTS gating.
   useEffect(() => {
     if (inputMode !== "voice" || !started) return;
     if (conversationState === "listening" && isListening) {
       resumeVAD();
-    } else if (conversationState !== "listening" && isListening) {
-      pauseVAD();
     }
-  }, [conversationState, inputMode, started, isListening, pauseVAD, resumeVAD]);
+  }, [conversationState, inputMode, started, isListening, resumeVAD]);
 
   // --- Start session (always starts in voice mode) ---
   const handleStartConversation = useCallback(async () => {
@@ -250,16 +264,21 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
       setMessages([assistantMessage]);
 
       if (ttsStatus.available) {
+        // Pause VAD synchronously BEFORE speaking to prevent mic picking up TTS audio
+        pauseVADRef.current();
         setConversationState("speaking");
         try {
           await speak(response, { onAmplitude: setAmplitude });
         } catch (err) {
           console.error("TTS error:", err);
         }
+        // Wait for audio to fully clear before resuming mic
+        await new Promise((r) => setTimeout(r, 600));
       }
 
-      setConversationState("listening");
       setAmplitude(0);
+      resumeVADRef.current();
+      setConversationState("listening");
     } catch (err) {
       console.error("Error starting session:", err);
       setError(err instanceof Error ? err.message : "Failed to start conversation");

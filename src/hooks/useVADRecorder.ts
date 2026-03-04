@@ -38,8 +38,6 @@ export function useVADRecorder(
   const [error, setError] = useState<string | null>(null);
 
   const isPausedRef = useRef(false);
-  // Track if current speech segment started while paused (i.e., it's AI voice feedback)
-  const speechStartedWhilePausedRef = useRef(false);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
 
   const onSpeechStartRef = useRef(onSpeechStart);
@@ -73,8 +71,6 @@ export function useVADRecorder(
 
       unlisteners.push(
         await listen("voice-speech-start", () => {
-          // Track if this speech segment started while paused (likely AI voice feedback)
-          speechStartedWhilePausedRef.current = isPausedRef.current;
           if (!isPausedRef.current) {
             setIsSpeaking(true);
             onSpeechStartRef.current?.();
@@ -85,22 +81,17 @@ export function useVADRecorder(
       unlisteners.push(
         await listen("voice-speech-end", () => {
           setIsSpeaking(false);
-          // Only trigger onSpeechEnd if this speech segment started while NOT paused
-          // This filters out AI voice feedback that was picked up by the microphone
-          if (!speechStartedWhilePausedRef.current) {
+          if (!isPausedRef.current) {
             onSpeechEndRef.current?.();
           }
-          speechStartedWhilePausedRef.current = false;
         })
       );
 
       unlisteners.push(
         await listen<{ text: string }>("voice-transcription", (event) => {
-          // Only process transcription if speech started while NOT paused
-          // This prevents AI from responding to its own voice
-          if (!speechStartedWhilePausedRef.current && !isPausedRef.current) {
-            onTranscriptionRef.current?.(event.payload.text);
-          }
+          // Rust guarantees this is never emitted for audio captured while paused,
+          // so no JS-side filter needed here.
+          onTranscriptionRef.current?.(event.payload.text);
         })
       );
 
@@ -151,10 +142,14 @@ export function useVADRecorder(
     isPausedRef.current = true;
     setIsSpeaking(false);
     onAmplitudeRef.current?.(0);
+    // Tell Rust to discard all audio — the only reliable way to prevent
+    // TTS audio feedback from being captured and transcribed
+    invoke("pause_voice_session").catch(() => {});
   }, []);
 
   const resume = useCallback(() => {
     isPausedRef.current = false;
+    invoke("resume_voice_session").catch(() => {});
   }, []);
 
   useEffect(() => {

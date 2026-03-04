@@ -124,6 +124,8 @@ pub fn run() {
             tts_manager::stop_sbv2,
             voice_session::start_voice_session,
             voice_session::stop_voice_session,
+            voice_session::pause_voice_session,
+            voice_session::resume_voice_session,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

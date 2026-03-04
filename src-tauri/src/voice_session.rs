@@ -60,12 +60,14 @@ struct ErrorPayload {
 
 pub struct VoiceSessionState {
     handle: Mutex<Option<SessionHandle>>,
+    paused: Arc<AtomicBool>,
 }
 
 impl VoiceSessionState {
     pub fn new() -> Self {
         Self {
             handle: Mutex::new(None),
+            paused: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -201,6 +203,7 @@ fn run_worker(
     app: AppHandle,
     whisper_ctx: Arc<whisper_rs::WhisperContext>,
     shutdown: Arc<AtomicBool>,
+    paused: Arc<AtomicBool>,
     vad_model_path: String,
     ready_tx: mpsc::SyncSender<Result<(), String>>,
 ) {
@@ -314,6 +317,21 @@ fn run_worker(
             Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         };
+
+        // While paused (AI is speaking via TTS), discard all audio and reset VAD
+        // state so the AI's voice is never captured or transcribed.
+        if paused.load(Ordering::Relaxed) {
+            if is_speech {
+                is_speech = false;
+                speech_buf.clear();
+                pre_speech_ring.clear();
+                consecutive_speech = 0;
+                speech_frame_count = 0;
+                total_frame_count = 0;
+                vad.reset();
+            }
+            continue;
+        }
 
         let rms = (raw.iter().map(|s| s * s).sum::<f32>() / raw.len().max(1) as f32).sqrt();
 
@@ -617,11 +635,15 @@ pub async fn start_voice_session(
     let shutdown = Arc::new(AtomicBool::new(false));
     let (ready_tx, ready_rx) = mpsc::sync_channel::<Result<(), String>>(1);
 
+    // Reset paused state on session start
+    voice_state.paused.store(false, Ordering::SeqCst);
+
     let worker_shutdown = shutdown.clone();
+    let worker_paused = voice_state.paused.clone();
     let worker_app = app.clone();
     let worker_ctx = whisper_ctx.clone();
     let worker = std::thread::spawn(move || {
-        run_worker(worker_app, worker_ctx, worker_shutdown, vad_path_str, ready_tx);
+        run_worker(worker_app, worker_ctx, worker_shutdown, worker_paused, vad_path_str, ready_tx);
     });
 
     // Wait for the worker to signal success or failure
@@ -645,6 +667,7 @@ pub async fn start_voice_session(
 pub async fn stop_voice_session(
     voice_state: State<'_, VoiceSessionState>,
 ) -> Result<(), String> {
+    voice_state.paused.store(false, Ordering::SeqCst);
     let mut lock = voice_state.handle.lock().map_err(|e| e.to_string())?;
     if let Some(mut handle) = lock.take() {
         handle.shutdown.store(true, Ordering::SeqCst);
@@ -653,6 +676,24 @@ pub async fn stop_voice_session(
         }
         log::info!("Voice session stopped");
     }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn pause_voice_session(
+    voice_state: State<'_, VoiceSessionState>,
+) -> Result<(), String> {
+    voice_state.paused.store(true, Ordering::SeqCst);
+    log::info!("Voice session paused");
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn resume_voice_session(
+    voice_state: State<'_, VoiceSessionState>,
+) -> Result<(), String> {
+    voice_state.paused.store(false, Ordering::SeqCst);
+    log::info!("Voice session resumed");
     Ok(())
 }
 
