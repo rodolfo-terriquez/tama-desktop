@@ -67,7 +67,13 @@ jobs:
             libclang-dev \
             clang \
             llvm
-          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> $GITHUB_ENV
+          # llvm-config may be versioned (e.g. llvm-config-14) on Ubuntu 22.04
+          LLVM_CONFIG=$(which llvm-config 2>/dev/null || which llvm-config-14 2>/dev/null || echo "")
+          if [ -n "$LLVM_CONFIG" ]; then
+            echo "LIBCLANG_PATH=$($LLVM_CONFIG --libdir)" >> $GITHUB_ENV
+          else
+            echo "LIBCLANG_PATH=/usr/lib/llvm-14/lib" >> $GITHUB_ENV
+          fi
 
       # macOS: Install LLVM/Clang for whisper-rs bindgen
       - name: Install LLVM (macOS)
