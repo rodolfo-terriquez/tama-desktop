@@ -80,9 +80,14 @@ jobs:
         if: startsWith(matrix.platform, 'macos')
         run: |
           brew install llvm
-          echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> $GITHUB_ENV
-          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
-          echo "BINDGEN_EXTRA_CLANG_ARGS=-isysroot $(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
+          LLVM_PREFIX=$(brew --prefix llvm)
+          SDK_PATH=$(xcrun --sdk macosx --show-sdk-path)
+          echo "LIBCLANG_PATH=${LLVM_PREFIX}/lib" >> $GITHUB_ENV
+          echo "SDKROOT=${SDK_PATH}" >> $GITHUB_ENV
+          # Tell bindgen to use the correct SDK and target architecture
+          echo "BINDGEN_EXTRA_CLANG_ARGS=-isysroot ${SDK_PATH} --target=${{ matrix.rust_target }}" >> $GITHUB_ENV
+          # Set MACOSX_DEPLOYMENT_TARGET to ensure consistent builds
+          echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
 
       # Windows: Install LLVM/Clang for whisper-rs bindgen
       - name: Install LLVM (Windows)
@@ -94,6 +99,13 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # Clean whisper-rs-sys to force fresh bindgen on macOS
+      - name: Clean whisper-rs build artifacts (macOS)
+        if: startsWith(matrix.platform, 'macos')
+        run: |
+          cd src-tauri
+          cargo clean -p whisper-rs-sys 2>/dev/null || true
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -101,6 +113,7 @@ jobs:
           LIBCLANG_PATH: ${{ env.LIBCLANG_PATH }}
           SDKROOT: ${{ env.SDKROOT }}
           BINDGEN_EXTRA_CLANG_ARGS: ${{ env.BINDGEN_EXTRA_CLANG_ARGS }}
+          MACOSX_DEPLOYMENT_TARGET: ${{ env.MACOSX_DEPLOYMENT_TARGET }}
         with:
           releaseId: ${{ github.event.release.id }}
           args: ${{ matrix.args }}
