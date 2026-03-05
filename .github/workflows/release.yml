@@ -14,14 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS ARM (Apple Silicon M1+) - must use ARM runner (macos-14)
+          # macOS ARM (Apple Silicon M1+)
           - platform: macos-14
             args: --target aarch64-apple-darwin
             rust_target: aarch64-apple-darwin
-          # macOS Intel - use macos-12 (Intel runner)
-          - platform: macos-12
-            args: --target x86_64-apple-darwin
-            rust_target: x86_64-apple-darwin
           # Linux x64
           - platform: ubuntu-22.04
             args: ""
