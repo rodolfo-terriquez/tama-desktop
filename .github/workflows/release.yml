@@ -114,6 +114,9 @@ jobs:
           SDKROOT: ${{ env.SDKROOT }}
           BINDGEN_EXTRA_CLANG_ARGS: ${{ env.BINDGEN_EXTRA_CLANG_ARGS }}
           MACOSX_DEPLOYMENT_TARGET: ${{ env.MACOSX_DEPLOYMENT_TARGET }}
+          # Skip bindgen for whisper-rs-sys and use pre-built bindings
+          # This avoids struct size mismatches on GitHub ARM runners
+          WHISPER_DONT_GENERATE_BINDINGS: "1"
         with:
           releaseId: ${{ github.event.release.id }}
           args: ${{ matrix.args }}
