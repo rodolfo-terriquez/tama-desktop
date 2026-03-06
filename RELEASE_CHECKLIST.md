@@ -13,6 +13,11 @@ Use this checklist when publishing a new GitHub release and auto-update artifact
 4. In GitHub: `Settings -> Secrets and variables -> Actions -> Repository secrets`, add:
    - `TAURI_SIGNING_PRIVATE_KEY`: full file contents of your private key
    - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: key password (empty is OK if key has no password)
+   - safest way (avoids copy/paste corruption):
+   ```bash
+   gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri-keys/tama-updater.key
+   gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD --body 'YOUR_PASSWORD_HERE'
+   ```
 5. Confirm updater public key in [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json) matches your private key.
 
 ## Per-release checklist
@@ -56,3 +61,4 @@ Use this checklist when publishing a new GitHub release and auto-update artifact
 1. Never commit the private key to the repository.
 2. Keep the same private key for all future releases.
 3. If the private key changes, users on older versions may fail to verify updates.
+4. If CI shows `failed to decode base64 secret key` or `Invalid symbol ...`, re-set `TAURI_SIGNING_PRIVATE_KEY` using `gh secret set ... < keyfile` (do not paste from terminal output).

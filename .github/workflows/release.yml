@@ -54,6 +54,52 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
+      - name: Validate updater signing secret (release only)
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "::error::Missing TAURI_SIGNING_PRIVATE_KEY repository secret."
+            exit 1
+          fi
+
+          KEY_CLEAN="$(printf '%s' "${TAURI_SIGNING_PRIVATE_KEY}" | tr -d '\r')"
+
+          # If the secret was pasted with literal \n characters, Tauri cannot parse it.
+          if printf '%s' "${KEY_CLEAN}" | grep -q '\\n'; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY contains literal \\n characters. Store it as real multi-line text."
+            echo "::error::Recommended: gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri-keys/tama-updater.key"
+            exit 1
+          fi
+
+          LINE1="$(printf '%s\n' "${KEY_CLEAN}" | sed -n '1p')"
+          LINE2="$(printf '%s\n' "${KEY_CLEAN}" | sed -n '2p' | tr -d '[:space:]')"
+
+          if ! printf '%s' "${LINE1}" | grep -Eq '^untrusted comment: minisign (encrypted )?secret key$'; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY header line is invalid."
+            exit 1
+          fi
+
+          if [ -z "${LINE2}" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY payload line is missing."
+            exit 1
+          fi
+
+          # Catches copy/paste corruption like trailing '%' from shell prompts.
+          if ! printf '%s' "${LINE2}" | grep -Eq '^[A-Za-z0-9+/=]+$'; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY payload contains non-base64 characters."
+            exit 1
+          fi
+
+          if [ $(( ${#LINE2} % 4 )) -ne 0 ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY payload has invalid base64 length."
+            exit 1
+          fi
+
       # Linux dependencies
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
