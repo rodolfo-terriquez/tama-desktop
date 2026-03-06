@@ -69,6 +69,22 @@ jobs:
 
           KEY_CLEAN="$(printf '%s' "${TAURI_SIGNING_PRIVATE_KEY}" | tr -d '\r')"
 
+          decode_base64_portable() {
+            if printf '%s' "$1" | base64 --decode >/dev/null 2>&1; then
+              printf '%s' "$1" | base64 --decode
+              return 0
+            fi
+            if printf '%s' "$1" | base64 -d >/dev/null 2>&1; then
+              printf '%s' "$1" | base64 -d
+              return 0
+            fi
+            if printf '%s' "$1" | base64 -D >/dev/null 2>&1; then
+              printf '%s' "$1" | base64 -D
+              return 0
+            fi
+            return 1
+          }
+
           # If the secret was pasted with literal \n characters, Tauri cannot parse it.
           if printf '%s' "${KEY_CLEAN}" | grep -q '\\n'; then
             echo "::error::TAURI_SIGNING_PRIVATE_KEY contains literal \\n characters. Store it as real multi-line text."
@@ -76,12 +92,34 @@ jobs:
             exit 1
           fi
 
-          LINE1="$(printf '%s\n' "${KEY_CLEAN}" | sed -n '1p')"
+          # Some setups accidentally save the entire key text as one base64 line.
+          # Decode it for validation if needed.
+          KEY_LINE1="$(printf '%s\n' "${KEY_CLEAN}" | sed -n '1p')"
+          if ! printf '%s' "${KEY_LINE1}" | grep -Eq '^untrusted comment: (mini|r)sign (encrypted )?secret key$'; then
+            if KEY_DECODED="$(decode_base64_portable "${KEY_CLEAN}")"; then
+              KEY_DECODED="$(printf '%s' "${KEY_DECODED}" | tr -d '\r')"
+              DECODED_LINE1="$(printf '%s\n' "${KEY_DECODED}" | sed -n '1p')"
+              if printf '%s' "${DECODED_LINE1}" | grep -Eq '^untrusted comment: (mini|r)sign (encrypted )?secret key$'; then
+                KEY_CLEAN="${KEY_DECODED}"
+              fi
+            fi
+          fi
+
+          LINE1="$(printf '%s\n' "${KEY_CLEAN}" | sed -n '1p' | sed -E 's/[[:space:]]+$//')"
           LINE2="$(printf '%s\n' "${KEY_CLEAN}" | sed -n '2p' | tr -d '[:space:]')"
 
-          if ! printf '%s' "${LINE1}" | grep -Eq '^untrusted comment: minisign (encrypted )?secret key$'; then
-            echo "::error::TAURI_SIGNING_PRIVATE_KEY header line is invalid."
-            exit 1
+          # Some UIs/pastes collapse the key into a single line: "<header> <payload>"
+          if [ -z "${LINE2}" ] && printf '%s' "${KEY_CLEAN}" | grep -Eq '^untrusted comment: (mini|r)sign (encrypted )?secret key[[:space:]]+[A-Za-z0-9+/=]+$'; then
+            LINE1="$(printf '%s' "${KEY_CLEAN}" | sed -E 's/[[:space:]]+[A-Za-z0-9+/=]+$//' | sed -E 's/[[:space:]]+$//')"
+            LINE2="$(printf '%s' "${KEY_CLEAN}" | sed -E 's/^.*[[:space:]]([A-Za-z0-9+/=]+)$/\1/' | tr -d '[:space:]')"
+          fi
+
+          if ! printf '%s' "${LINE1}" | grep -Eq '^untrusted comment: (mini|r)sign (encrypted )?secret key$'; then
+            # Last fallback: accept if header appears as a prefix with extra whitespace/bytes.
+            if ! printf '%s' "${LINE1}" | grep -Eq '^untrusted comment: (mini|r)sign (encrypted )?secret key([[:space:]]|$)'; then
+              echo "::error::TAURI_SIGNING_PRIVATE_KEY header line is invalid."
+              exit 1
+            fi
           fi
 
           if [ -z "${LINE2}" ]; then
