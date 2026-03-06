@@ -91,7 +91,7 @@ function App() {
   const renderContent = () => {
     switch (currentScreen) {
       case "settings":
-        return <Settings onBack={() => setCurrentScreen("home")} />;
+        return <Settings />;
 
       case "session-complete":
         if (!lastSession) return null;
@@ -114,7 +114,6 @@ function App() {
               setSelectedScenario(scenario);
               setCurrentScreen("conversation");
             }}
-            onBack={() => setCurrentScreen("home")}
           />
         );
 
@@ -126,7 +125,6 @@ function App() {
                 setSelectedScenario(scenario);
                 setCurrentScreen("conversation");
               }}
-              onBack={() => setCurrentScreen("home")}
             />
           );
         }
@@ -145,7 +143,6 @@ function App() {
               setSelectedOngoingChatId(chatId);
               setCurrentScreen("ongoing-chat");
             }}
-            onBack={() => setCurrentScreen("home")}
           />
         );
 
@@ -170,7 +167,6 @@ function App() {
       case "history":
         return (
           <SessionHistory
-            onBack={() => setCurrentScreen("home")}
             onExportVocabulary={() => {}}
           />
         );

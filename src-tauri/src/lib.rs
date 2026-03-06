@@ -3,6 +3,10 @@ mod voice_session;
 mod whisper;
 
 use tauri::Manager;
+#[cfg(desktop)]
+use tauri::menu::{
+    AboutMetadataBuilder, Menu, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID, WINDOW_SUBMENU_ID,
+};
 use tauri_plugin_sql::{Migration, MigrationKind};
 use tts_manager::TTSProcessState;
 use voice_session::VoiceSessionState;
@@ -79,9 +83,102 @@ CREATE TABLE IF NOT EXISTS ongoing_chats (
     }]
 }
 
+#[cfg(desktop)]
+fn build_app_menu<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
+    #[cfg(target_os = "macos")]
+    {
+        let pkg_info = app_handle.package_info();
+        let app_name = "Tama";
+        let about_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png")).ok();
+        let about_metadata = AboutMetadataBuilder::new()
+            .name(Some(app_name))
+            .version(Some(pkg_info.version.to_string()))
+            .short_version(None::<String>)
+            .credits(Some("Made by Rodolfo Terriquez"))
+            .icon(about_icon)
+            .build();
+
+        let window_menu = Submenu::with_id_and_items(
+            app_handle,
+            WINDOW_SUBMENU_ID,
+            "Window",
+            true,
+            &[
+                &PredefinedMenuItem::minimize(app_handle, None)?,
+                &PredefinedMenuItem::maximize(app_handle, None)?,
+                &PredefinedMenuItem::separator(app_handle)?,
+                &PredefinedMenuItem::close_window(app_handle, None)?,
+            ],
+        )?;
+
+        let help_menu = Submenu::with_id_and_items(
+            app_handle,
+            HELP_SUBMENU_ID,
+            "Help",
+            true,
+            &[],
+        )?;
+
+        return Menu::with_items(
+            app_handle,
+            &[
+                &Submenu::with_items(
+                    app_handle,
+                    app_name,
+                    true,
+                    &[
+                        &PredefinedMenuItem::about(app_handle, Some("About Tama"), Some(about_metadata))?,
+                        &PredefinedMenuItem::separator(app_handle)?,
+                        &PredefinedMenuItem::services(app_handle, None)?,
+                        &PredefinedMenuItem::separator(app_handle)?,
+                        &PredefinedMenuItem::hide(app_handle, None)?,
+                        &PredefinedMenuItem::hide_others(app_handle, None)?,
+                        &PredefinedMenuItem::separator(app_handle)?,
+                        &PredefinedMenuItem::quit(app_handle, None)?,
+                    ],
+                )?,
+                &Submenu::with_items(
+                    app_handle,
+                    "File",
+                    true,
+                    &[&PredefinedMenuItem::close_window(app_handle, None)?],
+                )?,
+                &Submenu::with_items(
+                    app_handle,
+                    "Edit",
+                    true,
+                    &[
+                        &PredefinedMenuItem::undo(app_handle, None)?,
+                        &PredefinedMenuItem::redo(app_handle, None)?,
+                        &PredefinedMenuItem::separator(app_handle)?,
+                        &PredefinedMenuItem::cut(app_handle, None)?,
+                        &PredefinedMenuItem::copy(app_handle, None)?,
+                        &PredefinedMenuItem::paste(app_handle, None)?,
+                        &PredefinedMenuItem::select_all(app_handle, None)?,
+                    ],
+                )?,
+                &Submenu::with_items(
+                    app_handle,
+                    "View",
+                    true,
+                    &[&PredefinedMenuItem::fullscreen(app_handle, None)?],
+                )?,
+                &window_menu,
+                &help_menu,
+            ],
+        );
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Menu::default(app_handle)
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .menu(build_app_menu)
         .manage(WhisperModelState::new())
         .manage(TTSProcessState::new())
         .manage(VoiceSessionState::new())

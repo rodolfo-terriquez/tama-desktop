@@ -9,7 +9,6 @@ import { format, formatDistanceToNow } from "date-fns";
 import type { Session } from "@/types";
 
 interface SessionHistoryProps {
-  onBack: () => void;
   onExportVocabulary: () => void;
 }
 
@@ -46,7 +45,7 @@ async function exportAnki() {
   URL.revokeObjectURL(url);
 }
 
-export function SessionHistory({ onBack, onExportVocabulary }: SessionHistoryProps) {
+export function SessionHistory({ onExportVocabulary }: SessionHistoryProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [vocabCount, setVocabCount] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -71,11 +70,7 @@ export function SessionHistory({ onBack, onExportVocabulary }: SessionHistoryPro
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto p-4">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          Back
-        </Button>
-        <div className="flex-1" />
+      <div className="flex items-center justify-between gap-2 mb-4">
         <span className="text-sm text-muted-foreground">
           {sessions.length} session{sessions.length !== 1 && "s"} · {vocabCount} word{vocabCount !== 1 && "s"}
         </span>

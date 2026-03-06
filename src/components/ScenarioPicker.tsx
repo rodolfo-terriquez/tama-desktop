@@ -16,10 +16,9 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 
 interface ScenarioPickerProps {
   onSelect: (scenario: Scenario) => void;
-  onBack: () => void;
 }
 
-export function ScenarioPicker({ onSelect, onBack }: ScenarioPickerProps) {
+export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
   const [ranked, setRanked] = useState<Awaited<ReturnType<typeof getRecommendedScenarios>>>([]);
   const [customScenarios, setCustomScenarios] = useState<Scenario[]>([]);
   const [formOpen, setFormOpen] = useState(false);
@@ -68,11 +67,7 @@ export function ScenarioPicker({ onSelect, onBack }: ScenarioPickerProps) {
 
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto p-4">
-      <div className="flex items-center gap-2 mb-4">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          Back
-        </Button>
-        <div className="flex-1" />
+      <div className="flex items-center justify-end mb-4">
         <Button size="sm" onClick={handleSurpriseMe}>
           Surprise Me
         </Button>

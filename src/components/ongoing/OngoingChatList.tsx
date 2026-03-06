@@ -24,7 +24,6 @@ import { formatDistanceToNow } from "date-fns";
 
 interface OngoingChatListProps {
   onSelectChat: (chatId: string) => void;
-  onBack: () => void;
 }
 
 const DEFAULT_PERSONAS = [
@@ -33,7 +32,7 @@ const DEFAULT_PERSONAS = [
   { name: "Sakura", persona: "An office worker in Osaka who is into fashion and travel" },
 ];
 
-export function OngoingChatList({ onSelectChat, onBack }: OngoingChatListProps) {
+export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
   const [chats, setChats] = useState<OngoingChat[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingChat, setEditingChat] = useState<OngoingChat | null>(null);
@@ -109,11 +108,7 @@ export function OngoingChatList({ onSelectChat, onBack }: OngoingChatListProps) 
 
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto p-4">
-      <div className="flex items-center gap-2 mb-4">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          Back
-        </Button>
-        <div className="flex-1" />
+      <div className="flex items-center justify-end mb-4">
         <Button size="sm" onClick={openCreateDialog}>
           <Plus className="size-4 mr-1" />
           New Chat

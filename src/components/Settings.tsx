@@ -49,10 +49,6 @@ import { SBV2Control } from "@/components/SBV2Control";
 import { clearAllData, getUserProfile, updateUserProfile } from "@/services/storage";
 import type { JLPTLevel, ResponseLength } from "@/types";
 
-interface SettingsProps {
-  onBack: () => void;
-}
-
 const JLPT_LEVELS: { value: JLPTLevel; label: string; description: string }[] = [
   { value: "N5", label: "N5 - Beginner", description: "Basic phrases, hiragana, katakana, ~100 kanji" },
   { value: "N4", label: "N4 - Elementary", description: "Basic conversations, ~300 kanji" },
@@ -129,7 +125,7 @@ function groupVoicesBySpeaker(voices: VoiceOption[]): SpeakerGroup[] {
   }));
 }
 
-export function Settings({ onBack }: SettingsProps) {
+export function Settings() {
   const [anthropicKey, setAnthropicKeyState] = useState("");
   const [openaiKey, setOpenaiKeyState] = useState("");
   const [openrouterKey, setOpenrouterKeyState] = useState("");
@@ -473,13 +469,6 @@ export function Settings({ onBack }: SettingsProps) {
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-lg mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center">
-          <Button variant="outline" size="sm" onClick={onBack}>
-            Back
-          </Button>
-        </div>
-
         {/* Toast message — fixed position so it doesn't shift layout */}
         {message && (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
