@@ -77,14 +77,14 @@ jobs:
           fi
           echo "BINDGEN_EXTRA_CLANG_ARGS=--target=${{ matrix.bindgen_target }}" >> $GITHUB_ENV
 
-      # macOS: Install LLVM/Clang for whisper-rs bindgen
-      - name: Install LLVM (macOS)
+      # macOS: Use Xcode's libclang for whisper-rs bindgen (more stable than brew llvm)
+      - name: Configure Clang (macOS)
         if: startsWith(matrix.platform, 'macos')
         run: |
-          brew install llvm
-          LLVM_PREFIX=$(brew --prefix llvm)
           SDK_PATH=$(xcrun --sdk macosx --show-sdk-path)
-          echo "LIBCLANG_PATH=${LLVM_PREFIX}/lib" >> $GITHUB_ENV
+          XCODE_CLANG_LIB="$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib"
+          test -f "${XCODE_CLANG_LIB}/libclang.dylib"
+          echo "LIBCLANG_PATH=${XCODE_CLANG_LIB}" >> $GITHUB_ENV
           echo "SDKROOT=${SDK_PATH}" >> $GITHUB_ENV
           # Tell bindgen to use the correct SDK and target architecture
           echo "BINDGEN_EXTRA_CLANG_ARGS=-isysroot ${SDK_PATH} --target=${{ matrix.bindgen_target }}" >> $GITHUB_ENV
@@ -101,37 +101,6 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
-
-      - name: Patch whisper-rs-sys bindgen layout tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd src-tauri
-          cargo fetch
-          BUILD_RS_FILES="$(find "$HOME/.cargo/registry/src" -type f -path '*/whisper-rs-sys-*/build.rs')"
-          if [ -z "${BUILD_RS_FILES}" ]; then
-            echo "whisper-rs-sys build.rs not found"
-            exit 1
-          fi
-          while IFS= read -r BUILD_RS; do
-            if grep -q "layout_tests(false)" "${BUILD_RS}"; then
-              echo "Already patched: ${BUILD_RS}"
-              continue
-            fi
-            sed -i.bak \
-              's/\.parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))/.parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))\
-              .layout_tests(false)/' \
-              "${BUILD_RS}"
-            echo "Patched file: ${BUILD_RS}"
-            grep -n "layout_tests" "${BUILD_RS}"
-          done <<< "${BUILD_RS_FILES}"
-
-      # Clean whisper-rs-sys to force fresh bindgen on macOS
-      - name: Clean whisper-rs build artifacts (macOS)
-        if: startsWith(matrix.platform, 'macos')
-        run: |
-          cd src-tauri
-          cargo clean -p whisper-rs-sys 2>/dev/null || true
 
       - name: Build Tauri app (release upload)
         if: github.event_name == 'release'
