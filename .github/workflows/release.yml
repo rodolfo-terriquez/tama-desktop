@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch:
   release:
     types: [created]
 
@@ -18,16 +19,25 @@ jobs:
           - platform: macos-14
             args: --target aarch64-apple-darwin
             rust_target: aarch64-apple-darwin
+            bindgen_target: aarch64-apple-darwin
+          # macOS Intel
+          - platform: macos-12
+            args: --target x86_64-apple-darwin
+            rust_target: x86_64-apple-darwin
+            bindgen_target: x86_64-apple-darwin
           # Linux x64
           - platform: ubuntu-22.04
             args: ""
-            rust_target: ""
+            rust_target: x86_64-unknown-linux-gnu
+            bindgen_target: x86_64-unknown-linux-gnu
           # Windows x64
           - platform: windows-latest
             args: ""
-            rust_target: ""
+            rust_target: x86_64-pc-windows-msvc
+            bindgen_target: x86_64-pc-windows-msvc
 
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
@@ -70,6 +80,7 @@ jobs:
           else
             echo "LIBCLANG_PATH=/usr/lib/llvm-14/lib" >> $GITHUB_ENV
           fi
+          echo "BINDGEN_EXTRA_CLANG_ARGS=--target=${{ matrix.bindgen_target }}" >> $GITHUB_ENV
 
       # macOS: Install LLVM/Clang for whisper-rs bindgen
       - name: Install LLVM (macOS)
@@ -81,7 +92,7 @@ jobs:
           echo "LIBCLANG_PATH=${LLVM_PREFIX}/lib" >> $GITHUB_ENV
           echo "SDKROOT=${SDK_PATH}" >> $GITHUB_ENV
           # Tell bindgen to use the correct SDK and target architecture
-          echo "BINDGEN_EXTRA_CLANG_ARGS=-isysroot ${SDK_PATH} --target=${{ matrix.rust_target }}" >> $GITHUB_ENV
+          echo "BINDGEN_EXTRA_CLANG_ARGS=-isysroot ${SDK_PATH} --target=${{ matrix.bindgen_target }}" >> $GITHUB_ENV
           # Set MACOSX_DEPLOYMENT_TARGET to ensure consistent builds
           echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
 
@@ -91,6 +102,7 @@ jobs:
         run: |
           choco install llvm -y
           echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
+          echo "BINDGEN_EXTRA_CLANG_ARGS=--target=${{ matrix.bindgen_target }}" >> $env:GITHUB_ENV
 
       - name: Install frontend dependencies
         run: npm ci
@@ -102,17 +114,26 @@ jobs:
           cd src-tauri
           cargo clean -p whisper-rs-sys 2>/dev/null || true
 
-      - name: Build Tauri app
+      - name: Build Tauri app (release upload)
+        if: github.event_name == 'release'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           LIBCLANG_PATH: ${{ env.LIBCLANG_PATH }}
           SDKROOT: ${{ env.SDKROOT }}
           BINDGEN_EXTRA_CLANG_ARGS: ${{ env.BINDGEN_EXTRA_CLANG_ARGS }}
           MACOSX_DEPLOYMENT_TARGET: ${{ env.MACOSX_DEPLOYMENT_TARGET }}
-          # Skip bindgen for whisper-rs-sys and use pre-built bindings
-          # This avoids struct size mismatches on GitHub ARM runners
-          WHISPER_DONT_GENERATE_BINDINGS: "1"
         with:
           releaseId: ${{ github.event.release.id }}
           args: ${{ matrix.args }}
+
+      - name: Build Tauri app (manual preflight)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          LIBCLANG_PATH: ${{ env.LIBCLANG_PATH }}
+          SDKROOT: ${{ env.SDKROOT }}
+          BINDGEN_EXTRA_CLANG_ARGS: ${{ env.BINDGEN_EXTRA_CLANG_ARGS }}
+          MACOSX_DEPLOYMENT_TARGET: ${{ env.MACOSX_DEPLOYMENT_TARGET }}
+        run: npm run tauri build -- ${{ matrix.args }}

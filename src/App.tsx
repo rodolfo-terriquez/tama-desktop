@@ -1,10 +1,11 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import { AppSidebar } from "@/components/AppSidebar";
 import { SidebarProvider, SidebarInset, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { hasApiKey } from "@/services/claude";
 import { hasOpenAIApiKey } from "@/services/openai";
+import { checkForAppUpdatesOnLaunch } from "@/services/updater";
 import type { Message, Scenario } from "@/types";
 
 type Screen = "home" | "scenario-select" | "conversation" | "flashcards" | "history" | "settings" | "session-complete" | "ongoing-chats" | "ongoing-chat";
@@ -64,6 +65,10 @@ function App() {
     scenario: Scenario;
   } | null>(null);
   const [selectedOngoingChatId, setSelectedOngoingChatId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void checkForAppUpdatesOnLaunch();
+  }, []);
 
   const handleApiKeyComplete = () => {
     setNeedsApiKey(false);
