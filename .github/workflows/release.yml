@@ -20,11 +20,6 @@ jobs:
             args: --target aarch64-apple-darwin
             rust_target: aarch64-apple-darwin
             bindgen_target: aarch64-apple-darwin
-          # macOS Intel
-          - platform: macos-12
-            args: --target x86_64-apple-darwin
-            rust_target: x86_64-apple-darwin
-            bindgen_target: x86_64-apple-darwin
           # Linux x64
           - platform: ubuntu-22.04
             args: ""
@@ -106,6 +101,30 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Patch whisper-rs-sys bindgen layout tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src-tauri
+          cargo fetch
+          BUILD_RS_FILES="$(find "$HOME/.cargo/registry/src" -type f -path '*/whisper-rs-sys-*/build.rs')"
+          if [ -z "${BUILD_RS_FILES}" ]; then
+            echo "whisper-rs-sys build.rs not found"
+            exit 1
+          fi
+          while IFS= read -r BUILD_RS; do
+            if grep -q "layout_tests(false)" "${BUILD_RS}"; then
+              echo "Already patched: ${BUILD_RS}"
+              continue
+            fi
+            sed -i.bak \
+              's/\.parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))/.parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))\
+              .layout_tests(false)/' \
+              "${BUILD_RS}"
+            echo "Patched file: ${BUILD_RS}"
+            grep -n "layout_tests" "${BUILD_RS}"
+          done <<< "${BUILD_RS_FILES}"
 
       # Clean whisper-rs-sys to force fresh bindgen on macOS
       - name: Clean whisper-rs build artifacts (macOS)

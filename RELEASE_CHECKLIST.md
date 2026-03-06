@@ -40,7 +40,6 @@ Use this checklist when publishing a new GitHub release and auto-update artifact
 4. Run against your target branch.
 5. Confirm all matrix builds pass:
    - `macos-14` (Apple Silicon)
-   - `macos-12` (Intel)
    - `ubuntu-22.04`
    - `windows-latest`
 6. If preflight is green, publish the actual GitHub Release to upload artifacts.
