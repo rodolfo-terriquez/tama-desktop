@@ -10,6 +10,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Tooltip,
@@ -128,6 +129,10 @@ function useStatusInfo() {
 
 export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
   const { dotClass, dotColor, tooltipLines } = useStatusInfo();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+  const labelFadeClass =
+    "group-data-[collapsible=icon]:[&>span:last-child]:opacity-0 [&>span:last-child]:transition-opacity [&>span:last-child]:duration-100";
 
   const navItems = [
     {
@@ -163,40 +168,48 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
   ];
 
   return (
-    <Sidebar>
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold">Tama</h1>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                role={dotColor !== "green" ? "button" : undefined}
-                tabIndex={dotColor !== "green" ? 0 : undefined}
-                onClick={dotColor !== "green" ? () => onNavigate("settings") : undefined}
-                className={`h-2 w-2 shrink-0 rounded-full ${dotClass} ${
-                  dotColor !== "green" ? "cursor-pointer" : "cursor-default"
-                }`}
-              />
-            </TooltipTrigger>
-            <TooltipContent side="right" className="text-xs space-y-0.5">
-              {tooltipLines.map((line, i) => (
-                <div key={i}>{line}</div>
-              ))}
-            </TooltipContent>
-          </Tooltip>
-          <SidebarTrigger className="ml-auto" />
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="p-2">
+        <div className="flex h-8 items-center gap-2">
+          {isCollapsed ? (
+            <SidebarTrigger className="size-8" />
+          ) : (
+            <>
+              <h1 className="text-xl font-bold">Tama</h1>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    role={dotColor !== "green" ? "button" : undefined}
+                    tabIndex={dotColor !== "green" ? 0 : undefined}
+                    onClick={dotColor !== "green" ? () => onNavigate("settings") : undefined}
+                    className={`h-2 w-2 shrink-0 rounded-full ${dotClass} ${
+                      dotColor !== "green" ? "cursor-pointer" : "cursor-default"
+                    }`}
+                  />
+                </TooltipTrigger>
+                <TooltipContent side="right" className="text-xs space-y-0.5">
+                  {tooltipLines.map((line, i) => (
+                    <div key={i}>{line}</div>
+                  ))}
+                </TooltipContent>
+              </Tooltip>
+              <SidebarTrigger className="ml-auto" />
+            </>
+          )}
         </div>
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
+        <SidebarGroup className="p-2">
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1">
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.id}>
                   <SidebarMenuButton
                     isActive={item.isActive}
                     onClick={() => onNavigate(item.id)}
+                    tooltip={item.title}
+                    className={labelFadeClass}
                   >
                     <item.icon className="h-4 w-4" />
                     <span>{item.title}</span>
@@ -209,12 +222,14 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
 
       </SidebarContent>
 
-      <SidebarFooter>
+      <SidebarFooter className="p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               isActive={currentScreen === "settings"}
               onClick={() => onNavigate("settings")}
+              tooltip="Settings"
+              className={labelFadeClass}
             >
               <Settings className="h-4 w-4" />
               <span>Settings</span>

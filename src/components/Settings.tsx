@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,6 +110,9 @@ const STYLE_ENGLISH_NAMES: Record<string, string> = {
   "なみだめ": "Teary",
 };
 
+const SELECT_CLASSNAME =
+  "h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]";
+
 function groupVoicesBySpeaker(voices: VoiceOption[]): SpeakerGroup[] {
   const groups = new Map<string, VoiceOption[]>();
 
@@ -157,6 +160,41 @@ export function Settings({ onBack }: SettingsProps) {
   const [whisperDownloading, setWhisperDownloading] = useState(false);
   const [whisperProgress, setWhisperProgress] = useState<DownloadProgress | null>(null);
   const [whisperDeleting, setWhisperDeleting] = useState(false);
+
+  const selectedJlptInfo = useMemo(
+    () => JLPT_LEVELS.find((level) => level.value === jlptLevel),
+    [jlptLevel]
+  );
+
+  const speakerGroups = useMemo(
+    () => groupVoicesBySpeaker(voiceOptions),
+    [voiceOptions]
+  );
+
+  const selectedVoice = useMemo(
+    () => voiceOptions.find((voice) => voice.id === selectedVoiceId) ?? null,
+    [voiceOptions, selectedVoiceId]
+  );
+
+  const selectedSpeakerName = useMemo(() => {
+    if (speakerGroups.length === 0) return "";
+    const preferred = selectedVoice?.speakerName;
+    if (preferred && speakerGroups.some((group) => group.speakerName === preferred)) {
+      return preferred;
+    }
+    return speakerGroups[0].speakerName;
+  }, [speakerGroups, selectedVoice]);
+
+  const selectedSpeaker = useMemo(
+    () => speakerGroups.find((group) => group.speakerName === selectedSpeakerName) ?? null,
+    [speakerGroups, selectedSpeakerName]
+  );
+
+  const selectedStyleId = useMemo(() => {
+    if (!selectedSpeaker || selectedSpeaker.styles.length === 0) return "";
+    const hasSelectedStyle = selectedSpeaker.styles.some((style) => style.id === selectedVoiceId);
+    return hasSelectedStyle ? selectedVoiceId : selectedSpeaker.styles[0].id;
+  }, [selectedSpeaker, selectedVoiceId]);
 
   useEffect(() => {
     const existingAnthropicKey = getApiKey();
@@ -271,6 +309,18 @@ export function Settings({ onBack }: SettingsProps) {
       setMessage({ type: "success", text: `Voice changed to ${voice.name}` });
       setTimeout(() => setMessage(null), 3000);
     }
+  };
+
+  const handleSpeakerChange = (speakerName: string) => {
+    const group = speakerGroups.find((entry) => entry.speakerName === speakerName);
+    if (!group || group.styles.length === 0) return;
+
+    const preferredStyleName = selectedVoice?.styleName;
+    const nextVoice =
+      group.styles.find((style) => style.styleName === preferredStyleName) ??
+      group.styles[0];
+
+    handleVoiceChange(nextVoice.id);
   };
 
   const handleEngineChange = (engine: TTSEngineType) => {
@@ -454,22 +504,26 @@ export function Settings({ onBack }: SettingsProps) {
             <p className="text-sm text-muted-foreground">
               Set your current Japanese proficiency level. The AI will adjust vocabulary and grammar complexity accordingly.
             </p>
-            
-            <div className="space-y-2">
-              {JLPT_LEVELS.map((level) => (
-                <button
-                  key={level.value}
-                  onClick={() => handleJlptChange(level.value)}
-                  className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                    jlptLevel === level.value
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50"
-                  }`}
-                >
-                  <div className="font-medium">{level.label}</div>
-                  <div className="text-xs text-muted-foreground">{level.description}</div>
-                </button>
-              ))}
+
+            <div className="space-y-1.5">
+              <label htmlFor="jlpt-level-select" className="text-sm font-medium">
+                Current Level
+              </label>
+              <select
+                id="jlpt-level-select"
+                value={jlptLevel}
+                onChange={(e) => handleJlptChange(e.target.value as JLPTLevel)}
+                className={SELECT_CLASSNAME}
+              >
+                {JLPT_LEVELS.map((level) => (
+                  <option key={level.value} value={level.value}>
+                    {level.label}
+                  </option>
+                ))}
+              </select>
+              {selectedJlptInfo && (
+                <p className="text-xs text-muted-foreground">{selectedJlptInfo.description}</p>
+              )}
             </div>
 
             <div className="flex items-center gap-3 pt-2">
@@ -699,44 +753,58 @@ export function Settings({ onBack }: SettingsProps) {
               <p className="text-sm text-muted-foreground">No voices available</p>
             ) : (
               <>
-                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                  {groupVoicesBySpeaker(voiceOptions).map((group) => (
-                    <div key={group.speakerName} className="space-y-1">
-                      <div className="px-1 pb-1">
-                        <span className="text-sm font-medium">{group.englishName}</span>
-                        {group.englishName !== group.speakerName && (
-                          <span className="text-xs text-muted-foreground ml-1.5">
-                            {group.speakerName}
-                          </span>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {group.styles.map((voice) => {
-                          const styleEn = STYLE_ENGLISH_NAMES[voice.styleName];
-                          return (
-                            <button
-                              key={voice.id}
-                              onClick={() => handleVoiceChange(voice.id)}
-                              className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
-                                selectedVoiceId === voice.id
-                                  ? "border-primary bg-primary/5 font-medium"
-                                  : "border-border hover:border-primary/50"
-                              }`}
-                            >
-                              <span>{styleEn ?? voice.styleName}</span>
-                              {styleEn && (
-                                <span className="text-xs text-muted-foreground ml-1">
-                                  {voice.styleName}
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label htmlFor="voice-speaker-select" className="text-sm font-medium">
+                      Voice
+                    </label>
+                    <select
+                      id="voice-speaker-select"
+                      value={selectedSpeakerName}
+                      onChange={(e) => handleSpeakerChange(e.target.value)}
+                      className={SELECT_CLASSNAME}
+                    >
+                      {speakerGroups.map((group) => (
+                        <option key={group.speakerName} value={group.speakerName}>
+                          {group.englishName !== group.speakerName
+                            ? `${group.englishName} (${group.speakerName})`
+                            : group.englishName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="voice-style-select" className="text-sm font-medium">
+                      Style
+                    </label>
+                    <select
+                      id="voice-style-select"
+                      value={selectedStyleId}
+                      onChange={(e) => handleVoiceChange(e.target.value)}
+                      className={SELECT_CLASSNAME}
+                      disabled={!selectedSpeaker || selectedSpeaker.styles.length === 0}
+                    >
+                      {selectedSpeaker?.styles.map((voice) => {
+                        const styleEn = STYLE_ENGLISH_NAMES[voice.styleName];
+                        return (
+                          <option key={voice.id} value={voice.id}>
+                            {styleEn && styleEn !== voice.styleName
+                              ? `${styleEn} (${voice.styleName})`
+                              : voice.styleName}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  {selectedVoice && (
+                    <p className="text-xs text-muted-foreground">
+                      Selected: {selectedVoice.name}
+                    </p>
+                  )}
                 </div>
-                
+
                 <div className="flex gap-2">
                   <Button
                     variant="outline"

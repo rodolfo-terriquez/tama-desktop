@@ -179,7 +179,7 @@ export function isPlaying(): boolean {
 // ── Text cleaning ────────────────────────────────────────
 
 const EMOJI_RE =
-  /[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200d\ufe0f]/gu;
+  /\p{Emoji_Presentation}|\p{Extended_Pictographic}|\u200D|\uFE0F/gu;
 
 const CJK_SPACE_RE =
   /([\u3000-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF])\s+([\u3000-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF])/g;

@@ -36,7 +36,7 @@ export function FeedbackScreen({
   const [sessionSaved, setSessionSaved] = useState(false);
 
   const parseFeedback = useCallback((raw: string): SessionFeedback => {
-    let cleaned = raw.replace(/```json\s*/, "").replace(/```\s*$/, "").trim();
+    const cleaned = raw.replace(/```json\s*/, "").replace(/```\s*$/, "").trim();
 
     let parsed: Record<string, unknown>;
     try {
