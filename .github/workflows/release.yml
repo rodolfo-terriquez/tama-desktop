@@ -114,14 +114,13 @@ jobs:
             PAYLOAD_COMPACT="$(printf '%s' "${KEY_CLEAN}" | sed -E 's/^untrusted comment: (mini|r)sign (encrypted )?secret key[[:space:]]+//' | tr -d '[:space:]')"
           fi
 
-          if ! printf '%s' "${LINE1}" | grep -Eq '^untrusted comment: (mini|r)sign (encrypted )?secret key$'; then
-            echo "::error::TAURI_SIGNING_PRIVATE_KEY header line is invalid."
-            exit 1
-          fi
-
+          # Also allow payload-only format in case secret is stored as just line 2.
           if [ -z "${PAYLOAD_COMPACT}" ]; then
-            echo "::error::TAURI_SIGNING_PRIVATE_KEY payload line is missing."
-            exit 1
+            if printf '%s' "${LINE1}" | grep -Eq '^untrusted comment: (mini|r)sign (encrypted )?secret key$'; then
+              echo "::error::TAURI_SIGNING_PRIVATE_KEY payload line is missing."
+              exit 1
+            fi
+            PAYLOAD_COMPACT="$(printf '%s' "${KEY_CLEAN}" | tr -d '[:space:]')"
           fi
 
           # Catches copy/paste corruption like trailing '%' from shell prompts.
@@ -135,14 +134,9 @@ jobs:
             exit 1
           fi
 
-          # Normalize to strict two-line format and export as the canonical
-          # variable consumed by Tauri in later steps.
-          {
-            echo "TAURI_SIGNING_PRIVATE_KEY<<EOF"
-            printf '%s\n' "${LINE1}"
-            printf '%s\n' "${PAYLOAD_COMPACT}"
-            echo "EOF"
-          } >> "$GITHUB_ENV"
+          # Tauri updater signing expects TAURI_SIGNING_PRIVATE_KEY to contain
+          # the base64 payload only (no "untrusted comment" header line).
+          echo "TAURI_SIGNING_PRIVATE_KEY=${PAYLOAD_COMPACT}" >> "$GITHUB_ENV"
 
       # Linux dependencies
       - name: Install Linux dependencies
