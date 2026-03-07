@@ -79,6 +79,49 @@ export class ClaudeError extends Error {
   }
 }
 
+function extractApiErrorMessage(errorText: string): string | null {
+  const trimmed = errorText.trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    if (typeof parsed.message === "string" && parsed.message.trim()) {
+      return parsed.message.trim();
+    }
+    if (typeof parsed.error === "string" && parsed.error.trim()) {
+      return parsed.error.trim();
+    }
+    if (parsed.error && typeof parsed.error === "object") {
+      const nested = parsed.error as Record<string, unknown>;
+      if (typeof nested.message === "string" && nested.message.trim()) {
+        return nested.message.trim();
+      }
+      if (typeof nested.type === "string" && nested.type.trim()) {
+        return nested.type.trim();
+      }
+    }
+  } catch {
+    // Not JSON; fall through to plain text handling.
+  }
+
+  return trimmed.length > 240 ? `${trimmed.slice(0, 240)}...` : trimmed;
+}
+
+function buildApiFailureMessage(provider: "Anthropic" | "OpenRouter", response: Response, errorText: string): string {
+  const statusLabel = response.statusText
+    ? `${response.status} ${response.statusText}`
+    : `${response.status}`;
+  const apiDetail = extractApiErrorMessage(errorText);
+  return apiDetail
+    ? `${provider} API request failed (HTTP ${statusLabel}): ${apiDetail}`
+    : `${provider} API request failed (HTTP ${statusLabel})`;
+}
+
+function buildNetworkFailureMessage(provider: "Anthropic" | "OpenRouter", err: unknown): string {
+  const detail = err instanceof Error ? err.message : String(err);
+  return `${provider} API network request failed: ${detail}`;
+}
+
 // ── Anthropic Types & Helpers ────────────────────────────────────
 
 type ContentBlock =
@@ -171,21 +214,26 @@ async function callAnthropic(
   };
   if (options?.tools) body.tools = options.tools;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new ClaudeError(buildNetworkFailureMessage("Anthropic", err));
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
     console.error("Anthropic API error:", errorText);
-    throw new ClaudeError(`API request failed: ${response.statusText}`, response.status);
+    throw new ClaudeError(buildApiFailureMessage("Anthropic", response, errorText), response.status);
   }
 
   const data: AnthropicResponse = await response.json();
@@ -218,19 +266,24 @@ async function callOpenRouter(
   };
   if (options?.tools) body.tools = anthropicToolsToOpenRouter(options.tools);
 
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new ClaudeError(buildNetworkFailureMessage("OpenRouter", err));
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
     console.error("OpenRouter API error:", errorText);
-    throw new ClaudeError(`API request failed: ${response.statusText}`, response.status);
+    throw new ClaudeError(buildApiFailureMessage("OpenRouter", response, errorText), response.status);
   }
 
   const data: OpenRouterResponse = await response.json();
