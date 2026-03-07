@@ -106,37 +106,42 @@ jobs:
           fi
 
           LINE1="$(printf '%s\n' "${KEY_CLEAN}" | sed -n '1p' | sed -E 's/[[:space:]]+$//')"
-          LINE2="$(printf '%s\n' "${KEY_CLEAN}" | sed -n '2p' | tr -d '[:space:]')"
+          PAYLOAD_COMPACT="$(printf '%s\n' "${KEY_CLEAN}" | sed '1d' | tr -d '[:space:]')"
 
           # Some UIs/pastes collapse the key into a single line: "<header> <payload>"
-          if [ -z "${LINE2}" ] && printf '%s' "${KEY_CLEAN}" | grep -Eq '^untrusted comment: (mini|r)sign (encrypted )?secret key[[:space:]]+[A-Za-z0-9+/=]+$'; then
-            LINE1="$(printf '%s' "${KEY_CLEAN}" | sed -E 's/[[:space:]]+[A-Za-z0-9+/=]+$//' | sed -E 's/[[:space:]]+$//')"
-            LINE2="$(printf '%s' "${KEY_CLEAN}" | sed -E 's/^.*[[:space:]]([A-Za-z0-9+/=]+)$/\1/' | tr -d '[:space:]')"
+          if [ -z "${PAYLOAD_COMPACT}" ] && printf '%s' "${KEY_CLEAN}" | grep -Eq '^untrusted comment: (mini|r)sign (encrypted )?secret key[[:space:]]+[A-Za-z0-9+/=[:space:]]+$'; then
+            LINE1="$(printf '%s' "${KEY_CLEAN}" | sed -E 's/[[:space:]]+[A-Za-z0-9+/=[:space:]]+$//' | sed -E 's/[[:space:]]+$//')"
+            PAYLOAD_COMPACT="$(printf '%s' "${KEY_CLEAN}" | sed -E 's/^untrusted comment: (mini|r)sign (encrypted )?secret key[[:space:]]+//' | tr -d '[:space:]')"
           fi
 
           if ! printf '%s' "${LINE1}" | grep -Eq '^untrusted comment: (mini|r)sign (encrypted )?secret key$'; then
-            # Last fallback: accept if header appears as a prefix with extra whitespace/bytes.
-            if ! printf '%s' "${LINE1}" | grep -Eq '^untrusted comment: (mini|r)sign (encrypted )?secret key([[:space:]]|$)'; then
-              echo "::error::TAURI_SIGNING_PRIVATE_KEY header line is invalid."
-              exit 1
-            fi
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY header line is invalid."
+            exit 1
           fi
 
-          if [ -z "${LINE2}" ]; then
+          if [ -z "${PAYLOAD_COMPACT}" ]; then
             echo "::error::TAURI_SIGNING_PRIVATE_KEY payload line is missing."
             exit 1
           fi
 
           # Catches copy/paste corruption like trailing '%' from shell prompts.
-          if ! printf '%s' "${LINE2}" | grep -Eq '^[A-Za-z0-9+/=]+$'; then
+          if ! printf '%s' "${PAYLOAD_COMPACT}" | grep -Eq '^[A-Za-z0-9+/=]+$'; then
             echo "::error::TAURI_SIGNING_PRIVATE_KEY payload contains non-base64 characters."
             exit 1
           fi
 
-          if [ $(( ${#LINE2} % 4 )) -ne 0 ]; then
+          if [ $(( ${#PAYLOAD_COMPACT} % 4 )) -ne 0 ]; then
             echo "::error::TAURI_SIGNING_PRIVATE_KEY payload has invalid base64 length."
             exit 1
           fi
+
+          # Normalize to strict two-line format and pass that to tauri-action.
+          {
+            echo "TAURI_SIGNING_PRIVATE_KEY_NORMALIZED<<EOF"
+            printf '%s\n' "${LINE1}"
+            printf '%s\n' "${PAYLOAD_COMPACT}"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
 
       # Linux dependencies
       - name: Install Linux dependencies
@@ -191,7 +196,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY_NORMALIZED }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           LIBCLANG_PATH: ${{ env.LIBCLANG_PATH }}
           SDKROOT: ${{ env.SDKROOT }}
