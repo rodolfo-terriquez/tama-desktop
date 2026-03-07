@@ -135,9 +135,10 @@ jobs:
             exit 1
           fi
 
-          # Normalize to strict two-line format and pass that to tauri-action.
+          # Normalize to strict two-line format and export as the canonical
+          # variable consumed by Tauri in later steps.
           {
-            echo "TAURI_SIGNING_PRIVATE_KEY_NORMALIZED<<EOF"
+            echo "TAURI_SIGNING_PRIVATE_KEY<<EOF"
             printf '%s\n' "${LINE1}"
             printf '%s\n' "${PAYLOAD_COMPACT}"
             echo "EOF"
@@ -196,7 +197,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY_NORMALIZED }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           LIBCLANG_PATH: ${{ env.LIBCLANG_PATH }}
           SDKROOT: ${{ env.SDKROOT }}
