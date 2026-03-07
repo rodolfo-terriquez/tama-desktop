@@ -17,7 +17,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Settings, BookOpen, Home, Library, History, MessagesSquare } from "lucide-react";
+import { Settings, BookOpen, Home, Library, History, Users } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { getStoredEngineType, getEngine, getDefaultVoiceId, getAllVoiceOptions } from "@/services/tts";
 import type { TTSEngineType } from "@/services/tts";
@@ -148,8 +148,8 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
       isActive: currentScreen === "scenario-select",
     },
     {
-      title: "Conversations",
-      icon: MessagesSquare,
+      title: "Personas",
+      icon: Users,
       id: "ongoing-chats",
       isActive: currentScreen === "ongoing-chats" || currentScreen === "ongoing-chat",
     },
