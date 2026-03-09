@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Settings, BookOpen, Home, Library, History, Users, ChartColumn } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 import { getStoredEngineType, getEngine, getDefaultVoiceId, getAllVoiceOptions } from "@/services/tts";
 import type { TTSEngineType } from "@/services/tts";
 import { getLLMProvider, getOpenRouterModel, hasApiKey } from "@/services/claude";
@@ -131,8 +132,15 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
   const { dotClass, dotColor, tooltipLines } = useStatusInfo();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const [appVersion, setAppVersion] = useState<string>("");
   const labelFadeClass =
     "group-data-[collapsible=icon]:[&>span:last-child]:opacity-0 [&>span:last-child]:transition-opacity [&>span:last-child]:duration-100";
+
+  useEffect(() => {
+    getVersion()
+      .then((v) => setAppVersion(v))
+      .catch(() => setAppVersion(""));
+  }, []);
 
   const navItems = [
     {
@@ -238,7 +246,14 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
               className={labelFadeClass}
             >
               <Settings className="h-4 w-4" />
-              <span>Settings</span>
+              <span className="flex w-full items-center justify-between gap-2">
+                <span>Settings</span>
+                {!isCollapsed && appVersion && (
+                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                    v{appVersion}
+                  </span>
+                )}
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

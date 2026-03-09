@@ -48,6 +48,11 @@ import {
 import { VoicevoxControl } from "@/components/VoicevoxControl";
 import { SBV2Control } from "@/components/SBV2Control";
 import { clearAllData, getUserProfile, updateUserProfile } from "@/services/storage";
+import {
+  type DisplayMode,
+  getDisplayMode,
+  setDisplayMode,
+} from "@/services/display";
 import type { JLPTLevel, ResponseLength } from "@/types";
 
 const JLPT_LEVELS: { value: JLPTLevel; label: string; description: string }[] = [
@@ -56,6 +61,12 @@ const JLPT_LEVELS: { value: JLPTLevel; label: string; description: string }[] = 
   { value: "N3", label: "N3 - Intermediate", description: "Everyday situations, ~650 kanji" },
   { value: "N2", label: "N2 - Upper Intermediate", description: "Most situations, newspapers, ~1000 kanji" },
   { value: "N1", label: "N1 - Advanced", description: "Complex texts, nuanced expression, ~2000 kanji" },
+];
+
+const DISPLAY_MODE_OPTIONS: { value: DisplayMode; label: string }[] = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "System" },
 ];
 
 interface SpeakerGroup {
@@ -138,6 +149,7 @@ export function Settings() {
   const [jlptLevel, setJlptLevel] = useState<JLPTLevel>("N5");
   const [autoAdjust, setAutoAdjust] = useState(false);
   const [responseLength, setResponseLengthState] = useState<ResponseLength>("natural");
+  const [displayMode, setDisplayModeState] = useState<DisplayMode>(getDisplayMode());
   const [profileName, setProfileName] = useState("");
   const [profileAge, setProfileAge] = useState("");
   const [profileAboutYou, setProfileAboutYou] = useState("");
@@ -375,6 +387,18 @@ export function Settings() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const handleDisplayModeChange = (mode: DisplayMode) => {
+    setDisplayModeState(mode);
+    setDisplayMode(mode);
+    const labels: Record<DisplayMode, string> = {
+      light: "Light",
+      dark: "Dark",
+      system: "System",
+    };
+    setMessage({ type: "success", text: `Display mode set to ${labels[mode]}` });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
   const handleSavePersonalContext = async () => {
     const trimmedName = profileName.trim();
     const trimmedAbout = profileAboutYou.trim();
@@ -490,6 +514,8 @@ export function Settings() {
       setAnthropicKeyState("");
       setOpenaiKeyState("");
       setOpenrouterKeyState("");
+      setDisplayMode("system");
+      setDisplayModeState("system");
       setProfileName("");
       setProfileAge("");
       setProfileAboutYou("");
@@ -560,6 +586,34 @@ export function Settings() {
 
             <div className="flex justify-end">
               <Button onClick={handleSavePersonalContext}>Save</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Display */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Display</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Choose how the app theme is applied.
+            </p>
+
+            <div className="flex rounded-lg border overflow-hidden">
+              {DISPLAY_MODE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                    displayMode === opt.value
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted"
+                  }`}
+                  onClick={() => handleDisplayModeChange(opt.value)}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </CardContent>
         </Card>

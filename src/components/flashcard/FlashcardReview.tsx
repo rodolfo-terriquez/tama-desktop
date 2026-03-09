@@ -15,6 +15,7 @@ import {
 import { reviewVocabItem } from "@/services/srs";
 import type { VocabItem, SRSRating } from "@/types";
 import { format } from "date-fns";
+import { BookOpenText, CircleCheckBig, PartyPopper } from "lucide-react";
 
 // ── Shared constants ─────────────────────────────────────
 
@@ -120,7 +121,9 @@ export function FlashcardReview() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4">
         <div className="text-center space-y-4 max-w-sm">
-          <div className="text-5xl">📚</div>
+          <div className="flex justify-center text-muted-foreground">
+            <BookOpenText className="size-14" />
+          </div>
           <h2 className="text-xl font-semibold">No vocabulary yet</h2>
           <p className="text-sm text-muted-foreground">
             Complete a conversation session and add words from the feedback
@@ -271,7 +274,9 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
           <CardContent className="py-8 space-y-5 text-center">
             {results.length === 0 ? (
               <>
-                <div className="text-5xl">✅</div>
+                <div className="flex justify-center text-green-600">
+                  <CircleCheckBig className="size-14" />
+                </div>
                 <h2 className="text-xl font-semibold">All caught up!</h2>
                 <p className="text-sm text-muted-foreground">
                   No cards due for review right now.
@@ -279,7 +284,9 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
               </>
             ) : (
               <>
-                <div className="text-5xl">🎉</div>
+                <div className="flex justify-center text-primary">
+                  <PartyPopper className="size-14" />
+                </div>
                 <h2 className="text-xl font-semibold">Review Complete!</h2>
                 <p className="text-sm text-muted-foreground">
                   You reviewed <strong>{results.length}</strong> card

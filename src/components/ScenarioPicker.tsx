@@ -69,7 +69,7 @@ export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
     <div className="flex flex-col h-full max-w-2xl mx-auto p-4">
       <div className="flex items-center justify-end mb-4">
         <Button size="sm" onClick={handleSurpriseMe}>
-          Surprise Me
+          Random
         </Button>
       </div>
 

@@ -1,6 +1,6 @@
 [package]
 name = "tama-desktop"
-version = "0.1.0"
+version = "1.0.8"
 description = "Tama - Japanese Practice Desktop App"
 authors = ["you"]
 license = ""
