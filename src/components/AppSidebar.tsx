@@ -17,7 +17,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Settings, BookOpen, Home, Library, History, Users } from "lucide-react";
+import { Settings, BookOpen, Home, Library, History, Users, ChartColumn } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { getStoredEngineType, getEngine, getDefaultVoiceId, getAllVoiceOptions } from "@/services/tts";
 import type { TTSEngineType } from "@/services/tts";
@@ -164,6 +164,12 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
       icon: History,
       id: "history",
       isActive: currentScreen === "history",
+    },
+    {
+      title: "Stats",
+      icon: ChartColumn,
+      id: "stats",
+      isActive: currentScreen === "stats",
     },
   ];
 

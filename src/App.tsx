@@ -8,7 +8,7 @@ import { hasOpenAIApiKey } from "@/services/openai";
 import { checkForAppUpdatesOnLaunch } from "@/services/updater";
 import type { Message, Scenario } from "@/types";
 
-type Screen = "home" | "scenario-select" | "conversation" | "flashcards" | "history" | "settings" | "session-complete" | "ongoing-chats" | "ongoing-chat";
+type Screen = "home" | "scenario-select" | "conversation" | "flashcards" | "history" | "stats" | "settings" | "session-complete" | "ongoing-chats" | "ongoing-chat";
 
 const VoiceModeScreen = lazy(() =>
   import("@/components/conversation/VoiceModeScreen").then((m) => ({ default: m.VoiceModeScreen }))
@@ -27,6 +27,9 @@ const HomeScreen = lazy(() =>
 );
 const SessionHistory = lazy(() =>
   import("@/components/SessionHistory").then((m) => ({ default: m.SessionHistory }))
+);
+const StatsScreen = lazy(() =>
+  import("@/components/StatsScreen").then((m) => ({ default: m.StatsScreen }))
 );
 const Settings = lazy(() =>
   import("@/components/Settings").then((m) => ({ default: m.Settings }))
@@ -171,6 +174,9 @@ function App() {
 
       case "history":
         return <SessionHistory />;
+
+      case "stats":
+        return <StatsScreen />;
 
       case "home":
       default:
