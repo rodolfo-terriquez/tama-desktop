@@ -77,7 +77,8 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
           profile.jlpt_level,
           profile.auto_adjust_level,
           "Begin or continue the conversation in character.",
-          profile.response_length
+          profile.response_length,
+          { name: profile.name, age: profile.age, aboutYou: profile.aboutYou }
         );
 
         const allMessages = [...messages, userMessage];
@@ -127,7 +128,8 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
         profile.jlpt_level,
         profile.auto_adjust_level,
         "Start the conversation with a natural greeting in Japanese. Keep it simple and welcoming.",
-        profile.response_length
+        profile.response_length,
+        { name: profile.name, age: profile.age, aboutYou: profile.aboutYou }
       );
 
       const response = await sendMessageWithTools([], systemPrompt);

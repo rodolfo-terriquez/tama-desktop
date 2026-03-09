@@ -13,10 +13,11 @@ use voice_session::VoiceSessionState;
 use whisper::WhisperModelState;
 
 fn db_migrations() -> Vec<Migration> {
-    vec![Migration {
-        version: 1,
-        description: "Initial schema",
-        sql: r#"
+    vec![
+        Migration {
+            version: 1,
+            description: "Initial schema",
+            sql: r#"
 CREATE TABLE IF NOT EXISTS user_profile (
   id INTEGER PRIMARY KEY DEFAULT 1,
   jlpt_level TEXT NOT NULL DEFAULT 'N5',
@@ -79,8 +80,19 @@ CREATE TABLE IF NOT EXISTS ongoing_chats (
   last_feedback_at_total INTEGER NOT NULL DEFAULT 0
 );
         "#,
-        kind: MigrationKind::Up,
-    }]
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "Add optional user context fields",
+            sql: r#"
+ALTER TABLE user_profile ADD COLUMN user_name TEXT;
+ALTER TABLE user_profile ADD COLUMN age INTEGER;
+ALTER TABLE user_profile ADD COLUMN about_you TEXT;
+        "#,
+            kind: MigrationKind::Up,
+        },
+    ]
 }
 
 #[cfg(desktop)]

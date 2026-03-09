@@ -8,10 +8,6 @@ import { getSessions, getVocabulary } from "@/services/storage";
 import { format, formatDistanceToNow } from "date-fns";
 import type { Session } from "@/types";
 
-interface SessionHistoryProps {
-  onExportVocabulary: () => void;
-}
-
 const RATING_CONFIG = {
   needs_work: { label: "Needs Work", class: "bg-red-100 text-red-800" },
   good: { label: "Good", class: "bg-green-100 text-green-800" },
@@ -27,25 +23,7 @@ function formatDuration(seconds: number): string {
   return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
 }
 
-async function exportAnki() {
-  const vocab = await getVocabulary();
-  if (vocab.length === 0) return;
-
-  const header = "#separator:tab\n#html:false\n#columns:Front\tBack\tReading\tExample\n";
-  const rows = vocab
-    .map((v) => `${v.word}\t${v.meaning}\t${v.reading}\t${v.example}`)
-    .join("\n");
-
-  const blob = new Blob([header + rows], { type: "text/tab-separated-values" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `tama-vocabulary-${format(new Date(), "yyyy-MM-dd")}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-export function SessionHistory({ onExportVocabulary }: SessionHistoryProps) {
+export function SessionHistory() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [vocabCount, setVocabCount] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -74,18 +52,6 @@ export function SessionHistory({ onExportVocabulary }: SessionHistoryProps) {
         <span className="text-sm text-muted-foreground">
           {sessions.length} session{sessions.length !== 1 && "s"} · {vocabCount} word{vocabCount !== 1 && "s"}
         </span>
-        {vocabCount > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              await exportAnki();
-              onExportVocabulary();
-            }}
-          >
-            Export Anki
-          </Button>
-        )}
       </div>
 
       {sessions.length === 0 ? (

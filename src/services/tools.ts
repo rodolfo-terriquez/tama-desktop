@@ -74,6 +74,9 @@ export async function executeTool(tool: ToolCall): Promise<ToolResult> {
       const profile = await getUserProfile();
       content = JSON.stringify({
         jlpt_level: profile.jlpt_level,
+        name: profile.name ?? null,
+        age: profile.age ?? null,
+        about_you: profile.aboutYou ?? null,
         estimated_level: profile.estimated_level,
         interests: profile.interests,
         topics_covered: profile.topics_covered,

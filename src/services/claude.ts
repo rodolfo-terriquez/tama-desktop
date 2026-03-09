@@ -1,4 +1,4 @@
-import type { Message, Scenario, OngoingChat, ResponseLength } from "@/types";
+import type { Message, Scenario, OngoingChat, ResponseLength, UserProfile } from "@/types";
 import {
   CONVERSATION_TOOLS,
   executeTool,
@@ -476,6 +476,20 @@ const RESPONSE_LENGTH_INSTRUCTIONS: Record<ResponseLength, string> = {
   long: "Feel free to write longer, more detailed responses (3-5 sentences). Elaborate on topics, ask follow-up questions, and share your thoughts.",
 };
 
+type PersonalContext = Pick<UserProfile, "name" | "age" | "aboutYou">;
+
+function buildPersonalContextBlock(context?: PersonalContext): string {
+  if (!context) return "";
+
+  const lines: string[] = [];
+  if (context.name?.trim()) lines.push(`- Name: ${context.name.trim()}`);
+  if (typeof context.age === "number") lines.push(`- Age: ${context.age}`);
+  if (context.aboutYou?.trim()) lines.push(`- About: ${context.aboutYou.trim()}`);
+  if (lines.length === 0) return "";
+
+  return `\n\nSTUDENT PERSONAL CONTEXT (optional):\n${lines.join("\n")}\nUse this naturally when relevant, but do not force it every turn.`;
+}
+
 /**
  * Get system prompt for Japanese conversation practice based on JLPT level
  */
@@ -525,9 +539,11 @@ export function buildScenarioPrompt(
   jlptLevel: string = "N5",
   autoAdjust: boolean = false,
   suffix: string = "Continue the conversation in character.",
-  responseLength: ResponseLength = "natural"
+  responseLength: ResponseLength = "natural",
+  personalContext?: PersonalContext
 ): string {
   const basePrompt = getConversationSystemPrompt(jlptLevel, autoAdjust, responseLength);
+  const personalContextBlock = buildPersonalContextBlock(personalContext);
 
   const customBlock = scenario.custom_prompt
     ? `\n\nCONVERSATION STRUCTURE / SPECIAL INSTRUCTIONS:\n${scenario.custom_prompt}`
@@ -539,7 +555,7 @@ CURRENT SCENARIO:
 Title: ${scenario.title} (${scenario.title_ja})
 Setting: ${scenario.setting}
 Your role: ${scenario.character_role}
-Objectives for the student: ${scenario.objectives.join(", ")}${customBlock}
+Objectives for the student: ${scenario.objectives.join(", ")}${customBlock}${personalContextBlock}
 
 ${suffix}`;
 }
@@ -652,10 +668,12 @@ export function buildOngoingChatPrompt(
   chat: OngoingChat,
   jlptLevel: string = "N5",
   autoAdjust: boolean = false,
-  responseLength: ResponseLength = "natural"
+  responseLength: ResponseLength = "natural",
+  personalContext?: PersonalContext
 ): string {
   const levelGuidelines = JLPT_GUIDELINES[jlptLevel] || JLPT_GUIDELINES.N5;
   const lengthRule = RESPONSE_LENGTH_INSTRUCTIONS[responseLength];
+  const personalContextBlock = buildPersonalContextBlock(personalContext);
 
   const adjustmentNote = autoAdjust
     ? "\n\nNOTE: If the user demonstrates consistent competence, you may gradually introduce slightly more advanced vocabulary or grammar to challenge them."
@@ -685,6 +703,7 @@ IMPORTANT RULES:
 7. Do NOT add parenthetical translations, romaji readings, or English glosses. The student has a translate button they can use.
 8. Be warm, remember details, and build on the relationship over time.
 ${summaryBlock}
+${personalContextBlock}
 
 ${continuityNote}`;
 }

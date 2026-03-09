@@ -170,11 +170,7 @@ function App() {
         return <FlashcardReview />;
 
       case "history":
-        return (
-          <SessionHistory
-            onExportVocabulary={() => {}}
-          />
-        );
+        return <SessionHistory />;
 
       case "home":
       default:
@@ -182,7 +178,15 @@ function App() {
           <HomeScreen
             onBrowseScenarios={() => setCurrentScreen("scenario-select")}
             onFlashcards={() => setCurrentScreen("flashcards")}
-            onHistory={() => setCurrentScreen("history")}
+            onContinueScenario={(scenario) => {
+              setSelectedScenario(scenario);
+              setCurrentScreen("conversation");
+            }}
+            onContinueChat={(chatId) => {
+              setSelectedOngoingChatId(chatId);
+              setCurrentScreen("ongoing-chat");
+            }}
+            onOngoingChats={() => setCurrentScreen("ongoing-chats")}
           />
         );
     }

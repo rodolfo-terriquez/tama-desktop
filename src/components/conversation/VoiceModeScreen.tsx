@@ -102,7 +102,8 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
           userProfile?.jlpt_level || "N5",
           userProfile?.auto_adjust_level || false,
           "Continue the conversation in character.",
-          userProfile?.response_length || "natural"
+          userProfile?.response_length || "natural",
+          { name: userProfile?.name, age: userProfile?.age, aboutYou: userProfile?.aboutYou }
         );
 
         const allMessages = [...messagesRef.current, userMessage];
@@ -250,7 +251,8 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
         userProfile?.jlpt_level || "N5",
         userProfile?.auto_adjust_level || false,
         "Start the conversation with a natural greeting in Japanese. Keep it simple and welcoming.",
-        userProfile?.response_length || "natural"
+        userProfile?.response_length || "natural",
+        { name: userProfile?.name, age: userProfile?.age, aboutYou: userProfile?.aboutYou }
       );
 
       const response = await sendMessageWithTools([], systemPrompt);

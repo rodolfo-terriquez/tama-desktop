@@ -14,6 +14,7 @@ import {
 } from "@/services/storage";
 import { reviewVocabItem } from "@/services/srs";
 import type { VocabItem, SRSRating } from "@/types";
+import { format } from "date-fns";
 
 // ── Shared constants ─────────────────────────────────────
 
@@ -48,12 +49,34 @@ function formatReviewDate(dateStr: string): string {
   return `In ${diff} days`;
 }
 
+async function exportAnki(vocab: VocabItem[]) {
+  if (vocab.length === 0) return false;
+
+  const header = "#separator:tab\n#html:false\n#columns:Front\tBack\tReading\tExample\n";
+  const rows = vocab
+    .map((v) => `${v.word}\t${v.meaning}\t${v.reading}\t${v.example}`)
+    .join("\n");
+
+  const blob = new Blob([header + rows], { type: "text/tab-separated-values" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `tama-vocabulary-${format(new Date(), "yyyy-MM-dd")}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+  return true;
+}
+
 // ── Main component ───────────────────────────────────────
 
 export function FlashcardReview() {
   const [tab, setTab] = useState<FlashcardTab>("review");
   const [vocabVersion, setVocabVersion] = useState(0);
   const [allVocab, setAllVocab] = useState<VocabItem[]>([]);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
     getVocabulary().then(setAllVocab);
@@ -77,6 +100,21 @@ export function FlashcardReview() {
   }, [allVocab, dueCount]);
 
   const refreshVocab = useCallback(() => setVocabVersion((v) => v + 1), []);
+  const showMessage = useCallback((type: "success" | "error", text: string, duration = 3000) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), duration);
+  }, []);
+  const handleExportAnki = useCallback(async () => {
+    try {
+      const exported = await exportAnki(allVocab);
+      if (exported) {
+        showMessage("success", "Anki export downloaded");
+      }
+    } catch (error) {
+      console.error("Failed to export Anki file:", error);
+      showMessage("error", "Failed to export Anki file", 5000);
+    }
+  }, [allVocab, showMessage]);
 
   if (stats.total === 0) {
     return (
@@ -95,6 +133,20 @@ export function FlashcardReview() {
 
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto">
+      {message && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <div
+            className={`px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium ${
+              message.type === "success"
+                ? "bg-green-600 text-white"
+                : "bg-red-600 text-white"
+            }`}
+          >
+            {message.text}
+          </div>
+        </div>
+      )}
+
       {/* Stats strip */}
       <div className="flex items-center gap-3 px-4 py-3 border-b text-xs text-muted-foreground flex-wrap">
         <span>
@@ -112,6 +164,15 @@ export function FlashcardReview() {
         <span>{stats.learning} learning</span>
         <span>·</span>
         <span>{stats.mature} mature</span>
+        <Separator orientation="vertical" className="h-3.5 ml-auto" />
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-6 text-[11px] px-2.5"
+          onClick={() => void handleExportAnki()}
+        >
+          Export Anki
+        </Button>
       </div>
 
       {/* Tabs */}

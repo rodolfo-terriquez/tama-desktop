@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -137,6 +138,9 @@ export function Settings() {
   const [jlptLevel, setJlptLevel] = useState<JLPTLevel>("N5");
   const [autoAdjust, setAutoAdjust] = useState(false);
   const [responseLength, setResponseLengthState] = useState<ResponseLength>("natural");
+  const [profileName, setProfileName] = useState("");
+  const [profileAge, setProfileAge] = useState("");
+  const [profileAboutYou, setProfileAboutYou] = useState("");
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -209,6 +213,9 @@ export function Settings() {
       setJlptLevel(profile.jlpt_level);
       setAutoAdjust(profile.auto_adjust_level);
       setResponseLengthState(profile.response_length ?? "natural");
+      setProfileName(profile.name ?? "");
+      setProfileAge(profile.age !== undefined ? String(profile.age) : "");
+      setProfileAboutYou(profile.aboutYou ?? "");
     });
   }, []);
 
@@ -368,6 +375,27 @@ export function Settings() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const handleSavePersonalContext = async () => {
+    const trimmedName = profileName.trim();
+    const trimmedAbout = profileAboutYou.trim();
+    const trimmedAge = profileAge.trim();
+
+    if (trimmedAge && !/^\d+$/.test(trimmedAge)) {
+      setMessage({ type: "error", text: "Age must be a whole number" });
+      setTimeout(() => setMessage(null), 3000);
+      return;
+    }
+
+    const parsedAge = trimmedAge ? Number(trimmedAge) : undefined;
+    await updateUserProfile({
+      name: trimmedName || undefined,
+      age: parsedAge,
+      aboutYou: trimmedAbout || undefined,
+    });
+    setMessage({ type: "success", text: "Personal context saved" });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
   const maskKey = (key: string) => {
     if (!key) return "";
     if (key.length <= 8) return "••••••••";
@@ -462,6 +490,9 @@ export function Settings() {
       setAnthropicKeyState("");
       setOpenaiKeyState("");
       setOpenrouterKeyState("");
+      setProfileName("");
+      setProfileAge("");
+      setProfileAboutYou("");
       setMessage({ type: "success", text: "All data cleared!" });
     }
   };
@@ -483,6 +514,55 @@ export function Settings() {
             </div>
           </div>
         )}
+
+        {/* Personal Context */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Personal Context (Optional)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Add details about yourself so scenario and persona conversations can feel more personalized.
+            </p>
+
+            <div className="space-y-1.5">
+              <label htmlFor="profile-name" className="text-sm font-medium">Name</label>
+              <Input
+                id="profile-name"
+                placeholder="e.g. Alex"
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="profile-age" className="text-sm font-medium">Age</label>
+              <Input
+                id="profile-age"
+                type="number"
+                min={0}
+                placeholder="e.g. 28"
+                value={profileAge}
+                onChange={(e) => setProfileAge(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="profile-about-you" className="text-sm font-medium">About you</label>
+              <Textarea
+                id="profile-about-you"
+                rows={3}
+                placeholder="Share hobbies, work, goals, or topics you like talking about..."
+                value={profileAboutYou}
+                onChange={(e) => setProfileAboutYou(e.target.value)}
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <Button onClick={handleSavePersonalContext}>Save</Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* JLPT Level */}
         <Card>

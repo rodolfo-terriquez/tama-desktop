@@ -25,6 +25,10 @@ export interface UserProfile {
   auto_adjust_level: boolean; // Whether to let AI adjust based on performance
   estimated_level: "beginner" | "intermediate" | "advanced";
   response_length: ResponseLength;
+  // Optional personal context for better conversation personalization
+  name?: string;
+  age?: number;
+  aboutYou?: string;
   interests: string[];
   topics_covered: string[];
   recent_struggles: string[];

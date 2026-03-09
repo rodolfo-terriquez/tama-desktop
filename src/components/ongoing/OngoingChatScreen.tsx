@@ -112,7 +112,8 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
           chat,
           profile.jlpt_level,
           profile.auto_adjust_level,
-          profile.response_length
+          profile.response_length,
+          { name: profile.name, age: profile.age, aboutYou: profile.aboutYou }
         );
 
         const contextMessages = getContextMessages(withUser);

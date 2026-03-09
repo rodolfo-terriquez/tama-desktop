@@ -1,65 +1,52 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getDueVocabulary, getVocabulary, getSessions, getOngoingChats } from "@/services/storage";
+import { getDueVocabulary, getLastSession, getOngoingChats, getSessions, getUserProfile } from "@/services/storage";
+import type { OngoingChat, Scenario } from "@/types";
+import { addDays, format, formatDistanceToNow, getISOWeek, isSameDay, startOfWeek } from "date-fns";
+import hanamaruStamp from "@/assets/hanamaru.svg";
 
 interface HomeScreenProps {
   onBrowseScenarios: () => void;
   onFlashcards: () => void;
-  onHistory: () => void;
+  onContinueScenario: (scenario: Scenario) => void;
+  onContinueChat: (chatId: string) => void;
+  onOngoingChats: () => void;
 }
 
-function useMonthlyActivity() {
+function useWeeklyActivity() {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
   const [data, setData] = useState<{
-    daysInMonth: number;
-    firstDayOfWeek: number;
-    counts: Map<number, number>;
-    totalActive: number;
-    activeDays: number;
-    monthName: string;
+    weekDays: Date[];
+    completedDays: Set<string>;
+    weekNumber: number;
   }>({
-    daysInMonth: new Date(year, month + 1, 0).getDate(),
-    firstDayOfWeek: new Date(year, month, 1).getDay(),
-    counts: new Map(),
-    totalActive: 0,
-    activeDays: 0,
-    monthName: now.toLocaleString("default", { month: "long" }),
+    weekDays: Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(now, { weekStartsOn: 1 }), i)),
+    completedDays: new Set(),
+    weekNumber: getISOWeek(now),
   });
 
   useEffect(() => {
     async function load() {
-      const [sessions, chats] = await Promise.all([getSessions(), getOngoingChats()]);
+      const sessions = await getSessions();
       const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const counts = new Map<number, number>();
+      const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+      const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+      const weekKeys = new Set(weekDays.map((day) => format(day, "yyyy-MM-dd")));
+      const completedDays = new Set<string>();
 
       for (const session of sessions) {
-        const d = new Date(session.date);
-        if (d.getFullYear() === year && d.getMonth() === month) {
-          counts.set(d.getDate(), (counts.get(d.getDate()) ?? 0) + 1);
+        const key = format(new Date(session.date), "yyyy-MM-dd");
+        if (weekKeys.has(key)) {
+          completedDays.add(key);
         }
       }
 
-      for (const chat of chats) {
-        if (!chat.lastActiveAt) continue;
-        const d = new Date(chat.lastActiveAt);
-        if (d.getFullYear() === year && d.getMonth() === month) {
-          counts.set(d.getDate(), (counts.get(d.getDate()) ?? 0) + 1);
-        }
-      }
-
-      const firstDayOfWeek = new Date(year, month, 1).getDay();
-      const totalActive = [...counts.values()].reduce((a, b) => a + b, 0);
-      const activeDays = counts.size;
-      const monthName = now.toLocaleString("default", { month: "long" });
-
-      setData({ daysInMonth, firstDayOfWeek, counts, totalActive, activeDays, monthName });
+      setData({
+        weekDays,
+        completedDays,
+        weekNumber: getISOWeek(now),
+      });
     }
     load();
   }, []);
@@ -68,105 +55,188 @@ function useMonthlyActivity() {
 }
 
 function ActivityGrid() {
-  const { daysInMonth, firstDayOfWeek, counts, totalActive, activeDays, monthName } = useMonthlyActivity();
+  const { weekDays, completedDays, weekNumber } = useWeeklyActivity();
 
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDayOfWeek; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-  const today = new Date().getDate();
-
-  function intensity(day: number): string {
-    const count = counts.get(day) ?? 0;
-    if (count === 0) return "bg-muted/60";
-    if (count === 1) return "bg-emerald-300 dark:bg-emerald-700";
-    if (count <= 3) return "bg-emerald-400 dark:bg-emerald-600";
-    return "bg-emerald-500 dark:bg-emerald-500";
-  }
+  const today = new Date();
 
   return (
     <Card className="py-0 gap-0">
       <CardContent className="py-3 px-4">
         <div className="flex items-baseline justify-between mb-2">
-          <span className="text-xs font-medium">{monthName}</span>
-          <span className="text-[10px] text-muted-foreground">
-            {activeDays} active day{activeDays !== 1 ? "s" : ""} · {totalActive} session{totalActive !== 1 ? "s" : ""}
-          </span>
+          <span className="text-xs font-medium">Week {weekNumber}</span>
         </div>
-        <div className="grid grid-cols-7 gap-[3px]">
-          {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+        <div className="grid grid-cols-7 gap-2">
+          {["月", "火", "水", "木", "金", "土", "日"].map((d, i) => (
             <div key={i} className="text-[9px] text-center text-muted-foreground/60 leading-none mb-0.5">
               {d}
             </div>
           ))}
-          {cells.map((day, i) => (
-            <div
-              key={i}
-              className={`aspect-square rounded-[3px] ${
-                day === null
-                  ? "bg-transparent"
-                  : `${intensity(day)} ${day === today ? "ring-1 ring-foreground/30" : ""}`
-              }`}
-              title={day ? `${monthName} ${day}: ${counts.get(day) ?? 0} session(s)` : undefined}
-            />
-          ))}
+          {weekDays.map((day) => {
+            const dateKey = format(day, "yyyy-MM-dd");
+            const isCompleted = completedDays.has(dateKey);
+            return (
+              <div
+                key={dateKey}
+                className={`h-16 rounded-md border flex items-center justify-center ${
+                  isCompleted
+                    ? "bg-rose-50 border-rose-300 text-rose-700"
+                    : "bg-muted/40 border-border/40 text-muted-foreground/30"
+                } ${isSameDay(day, today) ? "ring-1 ring-foreground/30" : ""}`}
+                title={`${format(day, "EEE, MMM d")}: ${isCompleted ? "Session completed" : "No completed session"}`}
+              >
+                {isCompleted ? (
+                  <img
+                    src={hanamaruStamp}
+                    alt="Hanamaru"
+                    className="-rotate-12 w-12 h-12 object-contain select-none pointer-events-none"
+                  />
+                ) : (
+                  <span className="text-[16px] leading-none select-none">・</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </CardContent>
     </Card>
   );
 }
 
+function getGreetingJa(date: Date, name?: string): string {
+  const hour = date.getHours();
+  const baseGreeting =
+    hour < 12 ? "おはようございます" :
+    hour < 18 ? "こんにちは" :
+    "こんばんは";
+  return name ? `${baseGreeting}、${name}さん` : baseGreeting;
+}
+
 export function HomeScreen({
   onBrowseScenarios,
   onFlashcards,
-  onHistory,
+  onContinueScenario,
+  onContinueChat,
+  onOngoingChats,
 }: HomeScreenProps) {
+  const [now, setNow] = useState(() => new Date());
   const [dueCount, setDueCount] = useState(0);
-  const [totalVocab, setTotalVocab] = useState(0);
-  const [totalSessions, setTotalSessions] = useState(0);
+  const [lastScenario, setLastScenario] = useState<{
+    scenario: Scenario;
+    date: string;
+  } | null>(null);
+  const [lastPersonaChat, setLastPersonaChat] = useState<OngoingChat | null>(null);
+  const [profileName, setProfileName] = useState("");
+  const greetingJa = getGreetingJa(now, profileName);
 
   useEffect(() => {
-    Promise.all([getDueVocabulary(), getVocabulary(), getSessions()]).then(
-      ([due, vocab, sessions]) => {
+    const tick = () => setNow(new Date());
+    const intervalId = window.setInterval(tick, 60_000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    Promise.all([getDueVocabulary(), getLastSession(), getOngoingChats(), getUserProfile()]).then(
+      ([due, recentSession, chats, profile]) => {
         setDueCount(due.length);
-        setTotalVocab(vocab.length);
-        setTotalSessions(sessions.length);
+        setLastScenario(
+          recentSession
+            ? { scenario: recentSession.scenario, date: recentSession.date }
+            : null
+        );
+        const latestChat = [...chats].sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt))[0] ?? null;
+        setLastPersonaChat(latestChat);
+        setProfileName(profile.name?.trim() ?? "");
       }
     );
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-4">
-      <div className="max-w-md w-full space-y-6">
+    <div className="flex flex-col items-center h-full p-4 overflow-auto">
+      <div className="max-w-xl w-full space-y-4 py-4">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-3xl font-bold mb-2">Welcome to Tama</h1>
-          <p className="text-muted-foreground">
-            Practice Japanese conversation with AI-powered scenarios
-          </p>
+          <h1 className="text-3xl font-bold mb-2">{greetingJa}</h1>
         </div>
 
-        {/* Main actions */}
-        <div className="grid gap-3">
-          <Button
-            size="lg"
-            className="w-full"
-            onClick={onBrowseScenarios}
-          >
-            Browse Scenarios
-          </Button>
-        </div>
-
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid gap-3 md:grid-cols-3">
+          {/* Quick resume: last scenario */}
           <Card
-            className={`cursor-pointer transition-colors hover:border-primary/50 ${
+            className="py-0 gap-0 cursor-pointer transition-colors hover:border-primary/50"
+            onClick={() => {
+              if (lastScenario) {
+                onContinueScenario(lastScenario.scenario);
+              } else {
+                onBrowseScenarios();
+              }
+            }}
+          >
+            <CardContent className="py-4 px-4 h-full">
+              <p className="text-sm font-medium">Last scenario</p>
+              {lastScenario ? (
+                <>
+                  <p className="text-sm text-muted-foreground truncate mt-1">
+                    {lastScenario.scenario.title} · {lastScenario.scenario.title_ja}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {formatDistanceToNow(new Date(lastScenario.date), { addSuffix: true })}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-1">No completed scenarios yet</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Quick resume: last conversation */}
+          <Card
+            className="py-0 gap-0 cursor-pointer transition-colors hover:border-primary/50"
+            onClick={() => {
+              if (lastPersonaChat) {
+                onContinueChat(lastPersonaChat.id);
+              } else {
+                onOngoingChats();
+              }
+            }}
+          >
+            <CardContent className="py-4 px-4 h-full">
+              <p className="text-sm font-medium">Last coversation</p>
+              {lastPersonaChat ? (
+                <>
+                  <p className="text-sm text-muted-foreground truncate mt-1">
+                    {lastPersonaChat.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate mt-2">
+                    {lastPersonaChat.persona}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-1">No persona chats yet</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Overdue cards */}
+          <Card
+            className={`cursor-pointer transition-colors hover:border-primary/50 py-0 gap-0 ${
               dueCount > 0 ? "border-orange-300" : ""
             }`}
             onClick={onFlashcards}
           >
-            <CardContent className="py-3 px-3 text-center">
-              <div className="text-2xl font-bold">
+            <CardContent className="py-4 px-4 h-full">
+              <p className="text-sm font-medium">Flashcards due</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {dueCount > 0
+                  ? `${dueCount} overdue card${dueCount !== 1 ? "s" : ""}`
+                  : "No overdue cards"}
+              </p>
+              <div className="text-2xl font-bold mt-2">
                 {dueCount}
                 {dueCount > 0 && (
                   <Badge variant="destructive" className="ml-1.5 text-[10px] px-1.5 py-0 align-top">
@@ -174,39 +244,10 @@ export function HomeScreen({
                   </Badge>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {totalVocab} word{totalVocab !== 1 && "s"} total
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="cursor-pointer transition-colors hover:border-primary/50" onClick={onHistory}>
-            <CardContent className="py-3 px-3 text-center">
-              <div className="text-2xl font-bold">{totalSessions}</div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                session{totalSessions !== 1 && "s"}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card
-            className={`cursor-pointer transition-colors hover:border-primary/50 ${
-              dueCount > 0 ? "border-orange-300" : ""
-            }`}
-            onClick={onFlashcards}
-          >
-            <CardContent className="py-3 px-3 text-center">
-              <div className="text-lg font-bold">
-                {dueCount > 0 ? "Review" : "✓"}
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {dueCount > 0 ? `${dueCount} card${dueCount !== 1 ? "s" : ""}` : "All clear"}
-              </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Monthly activity */}
         <ActivityGrid />
       </div>
     </div>
