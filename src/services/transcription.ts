@@ -12,6 +12,7 @@ export function getTranscriptionEngine(): TranscriptionEngine {
 
 export function setTranscriptionEngine(engine: TranscriptionEngine): void {
   localStorage.setItem(ENGINE_KEY, engine);
+  window.dispatchEvent(new Event("tama-config-changed"));
 }
 
 /**

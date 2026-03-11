@@ -22,15 +22,21 @@ const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
 const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-4-6";
 const MAX_TOOL_ROUNDS = 3;
 
+function emitConfigChanged(): void {
+  window.dispatchEvent(new Event("tama-config-changed"));
+}
+
 // Anthropic key
 export function getApiKey(): string | null {
   return localStorage.getItem(STORAGE_KEYS.ANTHROPIC_API_KEY);
 }
 export function setApiKey(key: string): void {
   localStorage.setItem(STORAGE_KEYS.ANTHROPIC_API_KEY, key);
+  emitConfigChanged();
 }
 export function clearApiKey(): void {
   localStorage.removeItem(STORAGE_KEYS.ANTHROPIC_API_KEY);
+  emitConfigChanged();
 }
 
 // LLM provider
@@ -39,6 +45,7 @@ export function getLLMProvider(): LLMProvider {
 }
 export function setLLMProvider(provider: LLMProvider): void {
   localStorage.setItem(STORAGE_KEYS.LLM_PROVIDER, provider);
+  emitConfigChanged();
 }
 
 // OpenRouter
@@ -47,16 +54,19 @@ export function getOpenRouterApiKey(): string | null {
 }
 export function setOpenRouterApiKey(key: string): void {
   localStorage.setItem(STORAGE_KEYS.OPENROUTER_API_KEY, key);
+  emitConfigChanged();
 }
 export function clearOpenRouterApiKey(): void {
   localStorage.removeItem(STORAGE_KEYS.OPENROUTER_API_KEY);
   localStorage.removeItem(STORAGE_KEYS.OPENROUTER_MODEL);
+  emitConfigChanged();
 }
 export function getOpenRouterModel(): string {
   return localStorage.getItem(STORAGE_KEYS.OPENROUTER_MODEL) || DEFAULT_OPENROUTER_MODEL;
 }
 export function setOpenRouterModel(model: string): void {
   localStorage.setItem(STORAGE_KEYS.OPENROUTER_MODEL, model);
+  emitConfigChanged();
 }
 
 /**

@@ -21,9 +21,10 @@ import { setOpenAIApiKey } from "@/services/openai";
 interface ApiKeyDialogProps {
   open: boolean;
   onComplete: () => void;
+  onSkip: () => void;
 }
 
-export function ApiKeyDialog({ open, onComplete }: ApiKeyDialogProps) {
+export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
   const [provider, setProvider] = useState<LLMProvider>("anthropic");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openrouterKey, setOpenrouterKey] = useState("");
@@ -59,27 +60,33 @@ export function ApiKeyDialog({ open, onComplete }: ApiKeyDialogProps) {
       if (model) setOpenRouterModel(model);
     }
 
-    // Validate OpenAI key (required for Whisper)
+    // OpenAI key is optional (needed only for OpenAI transcription engine)
     const trimmedOpenai = openaiKey.trim();
-    if (!trimmedOpenai) {
-      setError("Please enter your OpenAI API key for speech recognition");
-      return;
-    }
-    if (!trimmedOpenai.startsWith("sk-")) {
+    if (trimmedOpenai && !trimmedOpenai.startsWith("sk-")) {
       setError("Invalid OpenAI API key format. It should start with 'sk-'");
       return;
     }
 
     // Save everything
     setLLMProvider(provider);
-    setOpenAIApiKey(trimmedOpenai);
+    if (trimmedOpenai) {
+      setOpenAIApiKey(trimmedOpenai);
+    }
     setError(null);
     onComplete();
   };
 
   return (
-    <Dialog open={open}>
-      <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          setError(null);
+          onSkip();
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Welcome to Tama</DialogTitle>
           <DialogDescription>
@@ -182,7 +189,7 @@ export function ApiKeyDialog({ open, onComplete }: ApiKeyDialogProps) {
             </>
           )}
 
-          {/* OpenAI Key (always needed for Whisper) */}
+          {/* OpenAI key (optional; used for OpenAI Whisper engine) */}
           <div className="space-y-2">
             <label className="text-sm font-medium">OpenAI API Key</label>
             <Input
@@ -198,7 +205,7 @@ export function ApiKeyDialog({ open, onComplete }: ApiKeyDialogProps) {
               }}
             />
             <p className="text-xs text-muted-foreground">
-              For speech recognition (Whisper).{" "}
+              Optional, for OpenAI Whisper transcription.{" "}
               <a
                 href="https://platform.openai.com/api-keys"
                 target="_blank"
@@ -213,8 +220,11 @@ export function ApiKeyDialog({ open, onComplete }: ApiKeyDialogProps) {
           {error && <p className="text-sm text-red-500">{error}</p>}
         </div>
 
-        <DialogFooter>
-          <Button onClick={handleSubmit} className="w-full">
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+          <Button variant="ghost" onClick={onSkip}>
+            Skip for now
+          </Button>
+          <Button onClick={handleSubmit} className="w-full sm:w-auto">
             Start Practicing
           </Button>
         </DialogFooter>

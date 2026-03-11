@@ -4,16 +4,22 @@ const OPENAI_API_URL = "https://api.openai.com/v1/audio/transcriptions";
 // Store API key in localStorage
 const API_KEY_STORAGE_KEY = "tama_openai_api_key";
 
+function emitConfigChanged(): void {
+  window.dispatchEvent(new Event("tama-config-changed"));
+}
+
 export function getOpenAIApiKey(): string | null {
   return localStorage.getItem(API_KEY_STORAGE_KEY);
 }
 
 export function setOpenAIApiKey(key: string): void {
   localStorage.setItem(API_KEY_STORAGE_KEY, key);
+  emitConfigChanged();
 }
 
 export function clearOpenAIApiKey(): void {
   localStorage.removeItem(API_KEY_STORAGE_KEY);
+  emitConfigChanged();
 }
 
 export function hasOpenAIApiKey(): boolean {

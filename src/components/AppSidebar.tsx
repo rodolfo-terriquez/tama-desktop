@@ -24,6 +24,7 @@ import { getStoredEngineType, getEngine, getDefaultVoiceId, getAllVoiceOptions }
 import type { TTSEngineType } from "@/services/tts";
 import { getLLMProvider, getOpenRouterModel, hasApiKey } from "@/services/claude";
 import { hasOpenAIApiKey } from "@/services/openai";
+import { getTranscriptionEngine } from "@/services/transcription";
 
 interface AppSidebarProps {
   currentScreen: string;
@@ -69,7 +70,11 @@ function useStatusInfo() {
     const onEngineChanged = () => {
       setEngineType(getStoredEngineType());
     };
+    const onConfigChanged = () => {
+      check();
+    };
     window.addEventListener("tts-engine-changed", onEngineChanged);
+    window.addEventListener("tama-config-changed", onConfigChanged);
 
     let unlistenVoicevox: (() => void) | undefined;
     listen("voicevox-status-changed", () => {
@@ -79,6 +84,7 @@ function useStatusInfo() {
     return () => {
       clearInterval(interval);
       window.removeEventListener("tts-engine-changed", onEngineChanged);
+      window.removeEventListener("tama-config-changed", onConfigChanged);
       unlistenVoicevox?.();
     };
   }, [check]);
@@ -88,19 +94,24 @@ function useStatusInfo() {
     ? getOpenRouterModel()
     : "Claude (Anthropic)";
   const ttsLabel = ENGINE_LABELS[engineType];
+  const transcriptionEngine = getTranscriptionEngine();
+  const sttLabel = transcriptionEngine === "local" ? "Local Whisper" : "OpenAI Whisper";
 
   const hasLLMKey = hasApiKey();
-  const hasWhisperKey = hasOpenAIApiKey();
+  const hasSTTConfig =
+    transcriptionEngine === "local"
+      ? true
+      : hasOpenAIApiKey();
 
   let dotColor: DotColor;
   const issues: string[] = [];
 
   if (ttsStatus === "checking") {
     dotColor = "pulse";
-  } else if (!hasLLMKey || !hasWhisperKey) {
+  } else if (!hasLLMKey || !hasSTTConfig) {
     dotColor = "red";
     if (!hasLLMKey) issues.push("LLM API key missing");
-    if (!hasWhisperKey) issues.push("OpenAI key missing");
+    if (!hasSTTConfig) issues.push("OpenAI key missing for transcription");
   } else if (ttsStatus === "offline") {
     dotColor = "gray";
     issues.push(`${ttsLabel} is off`);
@@ -110,7 +121,7 @@ function useStatusInfo() {
 
   const tooltipLines = [
     `LLM: ${llmModel} ${hasLLMKey ? "✓" : "✗"}`,
-    `Whisper: ${hasWhisperKey ? "✓" : "✗"}`,
+    `STT: ${sttLabel} ${hasSTTConfig ? "✓" : "✗"}`,
     `TTS: ${ttsLabel} ${ttsStatus === "online" ? "✓" : ttsStatus === "checking" ? "…" : "✗"}`,
     voiceName ? `Voice: ${voiceName}` : null,
     ...issues.map((i) => `⚠ ${i}`),

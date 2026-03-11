@@ -4,7 +4,6 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { SidebarProvider, SidebarInset, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { hasApiKey } from "@/services/claude";
-import { hasOpenAIApiKey } from "@/services/openai";
 import { checkForAppUpdatesOnLaunch } from "@/services/updater";
 import type { Message, Scenario } from "@/types";
 
@@ -58,8 +57,19 @@ function ExpandButton() {
 }
 
 function App() {
+  const API_ONBOARDING_DISMISSED_KEY = "tama_api_onboarding_dismissed";
+  const isApiOnboardingDismissed = () =>
+    localStorage.getItem(API_ONBOARDING_DISMISSED_KEY) === "1";
+  const setApiOnboardingDismissed = (dismissed: boolean) => {
+    if (dismissed) {
+      localStorage.setItem(API_ONBOARDING_DISMISSED_KEY, "1");
+      return;
+    }
+    localStorage.removeItem(API_ONBOARDING_DISMISSED_KEY);
+  };
+
   const [needsApiKey, setNeedsApiKey] = useState(
-    !hasApiKey() || !hasOpenAIApiKey()
+    !hasApiKey() && !isApiOnboardingDismissed()
   );
   const [currentScreen, setCurrentScreen] = useState<Screen>("home");
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
@@ -74,6 +84,12 @@ function App() {
   }, []);
 
   const handleApiKeyComplete = () => {
+    setApiOnboardingDismissed(false);
+    setNeedsApiKey(false);
+  };
+
+  const handleApiKeySkip = () => {
+    setApiOnboardingDismissed(true);
     setNeedsApiKey(false);
   };
 
@@ -93,7 +109,13 @@ function App() {
   };
 
   if (needsApiKey) {
-    return <ApiKeyDialog open={true} onComplete={handleApiKeyComplete} />;
+    return (
+      <ApiKeyDialog
+        open={true}
+        onComplete={handleApiKeyComplete}
+        onSkip={handleApiKeySkip}
+      />
+    );
   }
 
   const renderContent = () => {

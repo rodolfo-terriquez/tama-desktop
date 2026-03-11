@@ -524,8 +524,8 @@ export function Settings() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-lg mx-auto space-y-6">
+    <div className="h-full bg-background p-4 overflow-auto">
+      <div className="max-w-lg mx-auto space-y-6 pb-4">
         {/* Toast message — fixed position so it doesn't shift layout */}
         {message && (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
