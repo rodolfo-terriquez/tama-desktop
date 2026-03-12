@@ -66,6 +66,26 @@ On first launch:
    - Speech recognition engine (Local Whisper or OpenAI API)
 4. If using Local Whisper, download/load the model from Settings
 
+## macOS: Running Unsigned Builds
+
+If you run a local/release `.app` that is not notarized, macOS Gatekeeper may block it on first launch.
+
+1. Move the app to `Applications` (example: `Tama Desktop.app`).
+2. Remove quarantine flag (if the app was downloaded):
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Tama Desktop.app"
+```
+
+3. Launch once from Terminal:
+
+```bash
+"/Applications/Tama Desktop.app/Contents/MacOS/tama-desktop"
+```
+
+4. If macOS blocks it, open `System Settings -> Privacy & Security`, scroll to the security message for the app, and click `Open Anyway`.
+5. Launch again (from Finder or Terminal). After this one-time approval, it should open normally.
+
 ## Optional Setup
 
 ### VOICEVOX
