@@ -11,6 +11,14 @@ import {
 
 export type LLMProvider = "anthropic" | "openrouter";
 
+export interface GeneratedCustomScenarioDetails {
+  title_ja: string;
+  setting: string;
+  character_role: string;
+  objectives: string[];
+  custom_prompt?: string;
+}
+
 const STORAGE_KEYS = {
   ANTHROPIC_API_KEY: "tama_anthropic_api_key",
   LLM_PROVIDER: "tama_llm_provider",
@@ -130,6 +138,24 @@ function buildApiFailureMessage(provider: "Anthropic" | "OpenRouter", response: 
 function buildNetworkFailureMessage(provider: "Anthropic" | "OpenRouter", err: unknown): string {
   const detail = err instanceof Error ? err.message : String(err);
   return `${provider} API network request failed: ${detail}`;
+}
+
+function extractJsonObject(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) throw new ClaudeError("No JSON returned by the AI");
+
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced?.[1]) {
+    return fenced[1].trim();
+  }
+
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    return trimmed.slice(start, end + 1);
+  }
+
+  return trimmed;
 }
 
 // ── Anthropic Types & Helpers ────────────────────────────────────
@@ -584,6 +610,75 @@ Your role: ${scenario.character_role}
 Objectives for the student: ${scenario.objectives.join(", ")}${customBlock}${personalContextBlock}
 
 ${suffix}`;
+}
+
+export async function generateCustomScenarioDetails(
+  title: string,
+  description: string
+): Promise<GeneratedCustomScenarioDetails> {
+  const systemPrompt = `You help generate Japanese conversation-practice scenarios for a language learning app. Return ONLY valid JSON with no markdown fences and no extra commentary.
+
+Output schema:
+{
+  "title_ja": "short Japanese title",
+  "setting": "1-2 sentence scenario setup",
+  "character_role": "who the AI should play",
+  "objectives": ["objective 1", "objective 2", "objective 3"],
+  "custom_prompt": "optional extra flow instructions or empty string"
+}
+
+Guidelines:
+- Keep everything concise and practical for spoken conversation practice.
+- Make the scenario feel realistic and easy to role-play.
+- Objectives should be specific student actions.
+- Use natural Japanese for title_ja.
+- Leave custom_prompt empty unless extra structure would genuinely help.`;
+
+  const userMessage = `Generate the remaining details for this custom scenario.
+
+Title: ${title.trim()}
+Description: ${description.trim()}`;
+
+  const provider = getLLMProvider();
+  const responseText =
+    provider === "openrouter"
+      ? (await callOpenRouter(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1400 })).text
+      : (await callAnthropic(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1400 })).text;
+
+  if (!responseText) {
+    throw new ClaudeError("No text content in custom scenario response");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(extractJsonObject(responseText));
+  } catch {
+    throw new ClaudeError("The AI returned an invalid scenario draft");
+  }
+
+  const data = parsed as Record<string, unknown>;
+  const objectives = Array.isArray(data.objectives)
+    ? data.objectives.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+
+  if (
+    typeof data.setting !== "string" ||
+    typeof data.character_role !== "string" ||
+    objectives.length === 0
+  ) {
+    throw new ClaudeError("The AI draft was missing required scenario fields");
+  }
+
+  return {
+    title_ja: typeof data.title_ja === "string" ? data.title_ja.trim() : "",
+    setting: data.setting.trim(),
+    character_role: data.character_role.trim(),
+    objectives,
+    custom_prompt:
+      typeof data.custom_prompt === "string" && data.custom_prompt.trim()
+        ? data.custom_prompt.trim()
+        : undefined,
+  };
 }
 
 // ── Translation & Feedback ───────────────────────────────────────

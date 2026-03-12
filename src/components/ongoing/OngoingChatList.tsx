@@ -111,7 +111,7 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
       <div className="flex items-center justify-end mb-4">
         <Button size="sm" onClick={openCreateDialog}>
           <Plus className="size-4 mr-1" />
-          New Conversation
+          New Persona
         </Button>
       </div>
 

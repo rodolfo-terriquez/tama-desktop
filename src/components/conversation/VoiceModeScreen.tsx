@@ -50,6 +50,7 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
   const [error, setError] = useState<string | null>(null);
   const [showCaptions, setShowCaptions] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [detailsExpanded, setDetailsExpanded] = useState(!scenario.isCustom);
   const [isLoading, setIsLoading] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
 
@@ -72,6 +73,10 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
   useEffect(() => {
     getUserProfile().then(setUserProfile).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    setDetailsExpanded(!scenario.isCustom);
+  }, [scenario.id, scenario.isCustom]);
 
   useEffect(() => {
     async function checkTTS() {
@@ -338,81 +343,100 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
   // ── Setup screen ──
   if (!started) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-4">
-        <Card className="w-full max-w-lg">
-          <CardHeader>
-            <CardTitle className="text-center">
-              {scenario.title_ja}
-              <span className="block text-sm font-normal text-muted-foreground mt-1">
-                {scenario.title}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-muted-foreground">{scenario.description}</p>
+      <div className="h-full overflow-y-auto p-4">
+        <div className="mx-auto flex min-h-full w-full max-w-lg items-start justify-center py-4">
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle className="text-center">
+                {scenario.title_ja}
+                <span className="block text-sm font-normal text-muted-foreground mt-1">
+                  {scenario.title}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-muted-foreground">{scenario.description}</p>
 
-            <div className="text-sm space-y-2">
-              <p><strong>Setting:</strong> {scenario.setting}</p>
-              <p><strong>Your partner:</strong> {scenario.character_role}</p>
-              <div>
-                <strong>Objectives:</strong>
-                <ul className="list-disc list-inside mt-1">
-                  {scenario.objectives.map((obj, i) => (
-                    <li key={i}>{obj}</li>
-                  ))}
-                </ul>
+              <div className="text-sm">
+                <p><strong>Setting:</strong> {scenario.setting}</p>
               </div>
-              {scenario.custom_prompt && (
-                <div>
-                  <strong>Conversation structure:</strong>
-                  <p className="mt-1 text-muted-foreground whitespace-pre-line text-xs bg-muted/50 rounded p-2">
-                    {scenario.custom_prompt}
-                  </p>
+
+              {scenario.isCustom && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setDetailsExpanded((prev) => !prev)}
+                >
+                  {detailsExpanded ? "Hide Scenario Details" : "Show Scenario Details"}
+                </Button>
+              )}
+
+              {detailsExpanded && (
+                <div className="text-sm space-y-2">
+                  <p><strong>Your partner:</strong> {scenario.character_role}</p>
+                  <div>
+                    <strong>Objectives:</strong>
+                    <ul className="list-disc list-inside mt-1">
+                      {scenario.objectives.map((obj, i) => (
+                        <li key={i}>{obj}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  {scenario.custom_prompt && (
+                    <div>
+                      <strong>Conversation structure:</strong>
+                      <p className="mt-1 text-muted-foreground whitespace-pre-line text-xs bg-muted/50 rounded p-2">
+                        {scenario.custom_prompt}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
 
-            <div className="flex flex-wrap gap-2 text-xs">
-              {userProfile && (
-                <>
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                    Level: {userProfile.jlpt_level}
-                  </Badge>
-                  {userProfile.include_flashcard_vocab_in_conversations && (
-                    <Badge variant="secondary" className="bg-amber-100 text-amber-900">
-                      Vocab review: On
+              <div className="flex flex-wrap gap-2 text-xs">
+                {userProfile && (
+                  <>
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                      Level: {userProfile.jlpt_level}
                     </Badge>
-                  )}
-                </>
-              )}
-              {ttsStatus.checked && (
-                <Badge
-                  variant="secondary"
-                  className={ttsStatus.available ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
-                >
-                  {ttsStatus.available
-                    ? `TTS: ${getEnglishVoiceDisplayName(ttsStatus.speakerName)}`
-                    : `TTS: ${getStoredEngineType() === "voicevox" ? "VOICEVOX" : "SBV2"} not running`}
-                </Badge>
-              )}
-            </div>
+                    {userProfile.include_flashcard_vocab_in_conversations && (
+                      <Badge variant="secondary" className="bg-amber-100 text-amber-900">
+                        Vocab review: On
+                      </Badge>
+                    )}
+                  </>
+                )}
+                {ttsStatus.checked && (
+                  <Badge
+                    variant="secondary"
+                    className={ttsStatus.available ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
+                  >
+                    {ttsStatus.available
+                      ? `TTS: ${getEnglishVoiceDisplayName(ttsStatus.speakerName)}`
+                      : `TTS: ${getStoredEngineType() === "voicevox" ? "VOICEVOX" : "SBV2"} not running`}
+                  </Badge>
+                )}
+              </div>
 
-            {(vadError || error) && (
-              <Alert variant="destructive">
-                <AlertDescription>{vadError || error}</AlertDescription>
-              </Alert>
-            )}
+              {(vadError || error) && (
+                <Alert variant="destructive">
+                  <AlertDescription>{vadError || error}</AlertDescription>
+                </Alert>
+              )}
 
-            <Button
-              onClick={handleStartConversation}
-              className="w-full"
-              size="lg"
-              disabled={!ttsStatus.available || vadLoading}
-            >
-              Start Session
-            </Button>
-          </CardContent>
-        </Card>
+              <Button
+                onClick={handleStartConversation}
+                className="w-full"
+                size="lg"
+                disabled={!ttsStatus.available || vadLoading}
+              >
+                Start Session
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

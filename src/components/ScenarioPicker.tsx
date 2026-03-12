@@ -67,7 +67,11 @@ export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
 
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto p-4">
-      <div className="flex items-center justify-end mb-4">
+      <div className="flex items-center justify-end gap-2 mb-4">
+        <Button size="sm" variant="outline" onClick={handleOpenForm}>
+          <Plus className="size-4 mr-1" />
+          Custom Scenario
+        </Button>
         <Button size="sm" onClick={handleSurpriseMe}>
           Random
         </Button>
@@ -133,22 +137,6 @@ export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
               ))}
             </>
           )}
-
-          {/* Create custom scenario button */}
-          <Card
-            className="cursor-pointer border-dashed transition-colors hover:border-primary/50 py-0 gap-0"
-            onClick={handleOpenForm}
-          >
-            <CardContent className="py-2.5 px-5 flex items-center gap-3 text-muted-foreground">
-              <Plus className="size-5" />
-              <div>
-                <h3 className="font-medium text-foreground">Create Custom Scenario</h3>
-                <p className="text-sm">
-                  Define your own scenario for exam prep or specific practice
-                </p>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Built-in scenarios */}
           {customScenarios.length > 0 && (
