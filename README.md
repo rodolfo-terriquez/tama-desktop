@@ -3,6 +3,79 @@
 Japanese conversation practice app built with Tauri + React.  
 Current app includes scenario chat, persistent persona chats, voice mode with local VAD/Whisper, session feedback, and SRS flashcards.
 
+## For Users (Start Here)
+
+If you only want to use the app, this section is all you need. The rest of this README is for development/building from source.
+
+### What It Is
+
+Tama Desktop is a Japanese conversation practice app with speaking + listening practice, AI chat scenarios, and study tools like feedback and flashcards.
+
+### Main Features
+
+- Scenario chat practice (text or voice)
+- Persistent persona chats
+- Session feedback (grammar, vocabulary, fluency, rating)
+- SRS flashcards and Anki export
+- Session history and monthly stats
+- Voice input with local Whisper or OpenAI Whisper API
+- Japanese TTS with VOICEVOX or Style-Bert-VITS2
+
+### How To Run It
+
+1. Download the latest build from [Releases](https://github.com/rodolfo-terriquez/tama-desktop/releases).
+2. Choose the file for your OS:
+   - macOS (Apple Silicon): `*_aarch64.dmg`
+   - Windows (x64): `*_x64-setup.exe` or `*_x64_en-US.msi`
+   - Linux (x64): `*_amd64.AppImage`, `*_amd64.deb`, or `*.x86_64.rpm`
+
+#### macOS
+
+1. Move `Tama Desktop.app` to `Applications`.
+2. If macOS says the app cannot be opened because it is from an unidentified developer, run:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Tama Desktop.app"
+```
+
+3. Start the app from Terminal once:
+
+```bash
+"/Applications/Tama Desktop.app/Contents/MacOS/tama-desktop"
+```
+
+4. If prompted, open `System Settings -> Privacy & Security` and click `Open Anyway`.
+5. Launch again (Finder or Terminal). After this one-time approval, it should open normally.
+
+#### Windows
+
+1. Run the `.exe` installer (or `.msi` package).
+2. If SmartScreen appears, click `More info` -> `Run anyway`.
+3. Open Tama Desktop from Start Menu.
+
+#### Linux
+
+Use the package format that matches your distro:
+
+- AppImage:
+
+```bash
+chmod +x Tama_*_amd64.AppImage
+./Tama_*_amd64.AppImage
+```
+
+- Debian/Ubuntu (`.deb`):
+
+```bash
+sudo apt install ./Tama_*_amd64.deb
+```
+
+- Fedora/RHEL (`.rpm`):
+
+```bash
+sudo dnf install ./Tama-*.x86_64.rpm
+```
+
 ## Current State (March 2026)
 
 Implemented:
@@ -50,7 +123,7 @@ Optional (for local components):
 
 Linux dev/build also needs WebKit and audio system libraries (see `.github/workflows/release.yml` for the exact package list used in CI).
 
-## Quick Start (Desktop)
+## Developer Quick Start (Build From Source)
 
 ```bash
 npm install
@@ -65,26 +138,6 @@ On first launch:
    - TTS engine (VOICEVOX or SBV2)
    - Speech recognition engine (Local Whisper or OpenAI API)
 4. If using Local Whisper, download/load the model from Settings
-
-## macOS: Running Unsigned Builds
-
-If you run a local/release `.app` that is not notarized, macOS Gatekeeper may block it on first launch.
-
-1. Move the app to `Applications` (example: `Tama Desktop.app`).
-2. Remove quarantine flag (if the app was downloaded):
-
-```bash
-xattr -dr com.apple.quarantine "/Applications/Tama Desktop.app"
-```
-
-3. Launch once from Terminal:
-
-```bash
-"/Applications/Tama Desktop.app/Contents/MacOS/tama-desktop"
-```
-
-4. If macOS blocks it, open `System Settings -> Privacy & Security`, scroll to the security message for the app, and click `Open Anyway`.
-5. Launch again (from Finder or Terminal). After this one-time approval, it should open normally.
 
 ## Optional Setup
 
