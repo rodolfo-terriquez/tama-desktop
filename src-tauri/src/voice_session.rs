@@ -339,12 +339,19 @@ fn run_worker(
         let rms = (raw.iter().map(|s| s * s).sum::<f32>() / raw.len().max(1) as f32).sqrt();
 
         // Log audio levels periodically for diagnostics (every 2s for first 10s, then every 10s)
-        let diag_interval = if session_start.elapsed().as_secs() < 10 { 2000 } else { 10000 };
+        let diag_interval = if session_start.elapsed().as_secs() < 10 {
+            2000
+        } else {
+            10000
+        };
         if last_diag_log.elapsed().as_millis() as u64 >= diag_interval {
             let peak = raw.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
             let msg = format!(
                 "Audio diag: rms={:.6}, peak={:.6}, samples={}, is_speech={}",
-                rms, peak, raw.len(), is_speech
+                rms,
+                peak,
+                raw.len(),
+                is_speech
             );
             log::info!("{}", msg);
             diag_log(&msg);
@@ -378,9 +385,14 @@ fn run_worker(
                         .unwrap_or(0);
                     if silence_dur > MAX_SILENCE_MS {
                         finalize_speech(
-                            &app, &mut is_speech, &mut speech_buf,
-                            &mut speech_start, &mut vad, &mut pre_speech_ring,
-                            speech_frame_count, total_frame_count,
+                            &app,
+                            &mut is_speech,
+                            &mut speech_buf,
+                            &mut speech_start,
+                            &mut vad,
+                            &mut pre_speech_ring,
+                            speech_frame_count,
+                            total_frame_count,
                         );
                         speech_frame_count = 0;
                         total_frame_count = 0;
@@ -445,9 +457,14 @@ fn run_worker(
 
                     if should_end {
                         finalize_speech(
-                            &app, &mut is_speech, &mut speech_buf,
-                            &mut speech_start, &mut vad, &mut pre_speech_ring,
-                            speech_frame_count, total_frame_count,
+                            &app,
+                            &mut is_speech,
+                            &mut speech_buf,
+                            &mut speech_start,
+                            &mut vad,
+                            &mut pre_speech_ring,
+                            speech_frame_count,
+                            total_frame_count,
                         );
                         speech_frame_count = 0;
                         total_frame_count = 0;
@@ -465,9 +482,14 @@ fn run_worker(
             speech_buf.extend_from_slice(frame);
         });
         finalize_speech(
-            &app, &mut is_speech, &mut speech_buf,
-            &mut speech_start, &mut vad, &mut pre_speech_ring,
-            speech_frame_count, total_frame_count,
+            &app,
+            &mut is_speech,
+            &mut speech_buf,
+            &mut speech_start,
+            &mut vad,
+            &mut pre_speech_ring,
+            speech_frame_count,
+            total_frame_count,
         );
     }
 
@@ -504,15 +526,15 @@ fn finalize_speech(
 
     let seg_msg = format!(
         "Speech segment: {:.0}ms, {}/{} frames speech ({:.0}%)",
-        speech_dur, speech_frame_count, total_frame_count, speech_ratio * 100.0,
+        speech_dur,
+        speech_frame_count,
+        total_frame_count,
+        speech_ratio * 100.0,
     );
     log::info!("{}", seg_msg);
     diag_log(&seg_msg);
 
-    if speech_dur >= MIN_SPEECH_MS
-        && !speech_buf.is_empty()
-        && speech_ratio >= MIN_SPEECH_RATIO
-    {
+    if speech_dur >= MIN_SPEECH_MS && !speech_buf.is_empty() && speech_ratio >= MIN_SPEECH_RATIO {
         let audio = std::mem::take(speech_buf);
         let app2 = app.clone();
         std::thread::spawn(move || {
@@ -589,7 +611,10 @@ pub async fn start_voice_session(
 
     let vad_model_path = app
         .path()
-        .resolve("resources/silero_vad.onnx", tauri::path::BaseDirectory::Resource)
+        .resolve(
+            "resources/silero_vad.onnx",
+            tauri::path::BaseDirectory::Resource,
+        )
         .map_err(|e| format!("Failed to resolve VAD model path: {e}"))?;
 
     if !vad_model_path.exists() {
@@ -614,7 +639,13 @@ pub async fn start_voice_session(
     let worker_paused = voice_state.paused.clone();
     let worker_app = app.clone();
     let worker = std::thread::spawn(move || {
-        run_worker(worker_app, worker_shutdown, worker_paused, vad_path_str, ready_tx);
+        run_worker(
+            worker_app,
+            worker_shutdown,
+            worker_paused,
+            vad_path_str,
+            ready_tx,
+        );
     });
 
     // Wait for the worker to signal success or failure
@@ -635,9 +666,7 @@ pub async fn start_voice_session(
 }
 
 #[tauri::command]
-pub async fn stop_voice_session(
-    voice_state: State<'_, VoiceSessionState>,
-) -> Result<(), String> {
+pub async fn stop_voice_session(voice_state: State<'_, VoiceSessionState>) -> Result<(), String> {
     voice_state.paused.store(false, Ordering::SeqCst);
     let mut lock = voice_state.handle.lock().map_err(|e| e.to_string())?;
     if let Some(mut handle) = lock.take() {
@@ -651,18 +680,14 @@ pub async fn stop_voice_session(
 }
 
 #[tauri::command]
-pub async fn pause_voice_session(
-    voice_state: State<'_, VoiceSessionState>,
-) -> Result<(), String> {
+pub async fn pause_voice_session(voice_state: State<'_, VoiceSessionState>) -> Result<(), String> {
     voice_state.paused.store(true, Ordering::SeqCst);
     log::info!("Voice session paused");
     Ok(())
 }
 
 #[tauri::command]
-pub async fn resume_voice_session(
-    voice_state: State<'_, VoiceSessionState>,
-) -> Result<(), String> {
+pub async fn resume_voice_session(voice_state: State<'_, VoiceSessionState>) -> Result<(), String> {
     voice_state.paused.store(false, Ordering::SeqCst);
     log::info!("Voice session resumed");
     Ok(())

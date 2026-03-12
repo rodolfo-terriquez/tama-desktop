@@ -2,11 +2,11 @@ mod tts_manager;
 mod voice_session;
 mod whisper;
 
-use tauri::Manager;
 #[cfg(desktop)]
 use tauri::menu::{
     AboutMetadataBuilder, Menu, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID, WINDOW_SUBMENU_ID,
 };
+use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 use tts_manager::TTSProcessState;
 use voice_session::VoiceSessionState;
@@ -131,13 +131,7 @@ fn build_app_menu<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>) -> tauri:
             ],
         )?;
 
-        let help_menu = Submenu::with_id_and_items(
-            app_handle,
-            HELP_SUBMENU_ID,
-            "Help",
-            true,
-            &[],
-        )?;
+        let help_menu = Submenu::with_id_and_items(app_handle, HELP_SUBMENU_ID, "Help", true, &[])?;
 
         return Menu::with_items(
             app_handle,
@@ -147,7 +141,11 @@ fn build_app_menu<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>) -> tauri:
                     app_name,
                     true,
                     &[
-                        &PredefinedMenuItem::about(app_handle, Some("About Tama"), Some(about_metadata))?,
+                        &PredefinedMenuItem::about(
+                            app_handle,
+                            Some("About Tama"),
+                            Some(about_metadata),
+                        )?,
                         &PredefinedMenuItem::separator(app_handle)?,
                         &PredefinedMenuItem::services(app_handle, None)?,
                         &PredefinedMenuItem::separator(app_handle)?,
@@ -198,6 +196,7 @@ fn build_app_menu<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>) -> tauri:
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .menu(build_app_menu)
         .manage(WhisperModelState::new())
         .manage(TTSProcessState::new())

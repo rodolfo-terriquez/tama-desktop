@@ -1,6 +1,6 @@
 [package]
 name = "tama-desktop"
-version = "1.1.1"
+version = "1.1.2"
 description = "Tama - Japanese Practice Desktop App"
 authors = ["you"]
 license = ""
@@ -30,6 +30,7 @@ base64 = "0.22"
 cpal = "0.15"
 rubato = "0.16"
 vad-rs = { git = "https://github.com/cjpais/vad-rs", default-features = false }
+tauri-plugin-dialog = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 whisper-rs = { version = "0.15", features = ["metal"] }

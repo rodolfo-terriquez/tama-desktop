@@ -228,13 +228,21 @@ pub async fn auto_start_voicevox(app: &AppHandle) {
         }
     };
 
-    eprintln!("[tama] Auto-starting VOICEVOX from: {}", voicevox_path.display());
+    eprintln!(
+        "[tama] Auto-starting VOICEVOX from: {}",
+        voicevox_path.display()
+    );
 
     let child = if voicevox_path.extension().is_some_and(|e| e == "app")
         || voicevox_path.to_string_lossy().contains(".app")
     {
         Command::new("open")
-            .args(["-a", &voicevox_path.to_string_lossy(), "--args", "--no-window"])
+            .args([
+                "-a",
+                &voicevox_path.to_string_lossy(),
+                "--args",
+                "--no-window",
+            ])
             .spawn()
     } else {
         let engine_dir = match voicevox_path.parent() {
@@ -333,18 +341,14 @@ fn kill_pid(pid: u32) -> Result<(), String> {
 
     for _ in 0..10 {
         std::thread::sleep(Duration::from_millis(500));
-        let check = Command::new("kill")
-            .args(["-0", &pid.to_string()])
-            .status();
+        let check = Command::new("kill").args(["-0", &pid.to_string()]).status();
         if check.is_err() || !check.unwrap().success() {
             return Ok(());
         }
     }
 
     // Force kill
-    let _ = Command::new("kill")
-        .args(["-9", &pid.to_string()])
-        .status();
+    let _ = Command::new("kill").args(["-9", &pid.to_string()]).status();
     Ok(())
 }
 
@@ -365,7 +369,6 @@ fn find_7z() -> Option<String> {
     }
     None
 }
-
 
 // ── SBV2 path helpers ───────────────────────────────────────────────
 
@@ -473,7 +476,12 @@ pub async fn start_voicevox(
     {
         // macOS .app bundle
         Command::new("open")
-            .args(["-a", &voicevox_path.to_string_lossy(), "--args", "--no-window"])
+            .args([
+                "-a",
+                &voicevox_path.to_string_lossy(),
+                "--args",
+                "--no-window",
+            ])
             .spawn()
             .map_err(|e| format!("Failed to launch VOICEVOX: {e}"))?
     } else {
@@ -509,7 +517,10 @@ pub async fn start_voicevox(
 }
 
 #[tauri::command]
-pub async fn stop_voicevox(app: AppHandle, state: State<'_, TTSProcessState>) -> Result<(), String> {
+pub async fn stop_voicevox(
+    app: AppHandle,
+    state: State<'_, TTSProcessState>,
+) -> Result<(), String> {
     let pid = find_pid_on_port(VOICEVOX_PORT);
     if let Some(pid) = pid {
         tokio::task::spawn_blocking(move || kill_pid(pid))
@@ -553,10 +564,7 @@ async fn download_voicevox_inner(app: &AppHandle) -> Result<(), String> {
 
     let engine_dir = get_engine_dir_name();
     if engine_dir == "unknown" {
-        return Err(format!(
-            "Unsupported platform: {}",
-            get_platform_key()
-        ));
+        return Err(format!("Unsupported platform: {}", get_platform_key()));
     }
 
     let seven_zip = find_7z().ok_or(
@@ -712,11 +720,7 @@ pub async fn sbv2_status(
         .map(|p| check_sbv2_installed(p))
         .unwrap_or(false);
     let has_models = sbv2_has_models();
-    let managed = state
-        .sbv2_pid
-        .lock()
-        .map(|p| p.is_some())
-        .unwrap_or(false);
+    let managed = state.sbv2_pid.lock().map(|p| p.is_some()).unwrap_or(false);
 
     Ok(SBV2Status {
         running,
@@ -790,10 +794,7 @@ pub async fn start_sbv2(
 }
 
 #[tauri::command]
-pub async fn stop_sbv2(
-    port: Option<u16>,
-    state: State<'_, TTSProcessState>,
-) -> Result<(), String> {
+pub async fn stop_sbv2(port: Option<u16>, state: State<'_, TTSProcessState>) -> Result<(), String> {
     let port = port.unwrap_or(5001);
 
     let pid = find_listening_pid_on_port(port);

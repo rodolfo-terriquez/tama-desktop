@@ -1,3 +1,4 @@
+import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { check } from "@tauri-apps/plugin-updater";
 
 const SKIPPED_VERSION_KEY = "tama.skippedUpdateVersion";
@@ -62,8 +63,14 @@ async function runAppUpdateCheck(
       }
     }
 
-    const shouldInstall = window.confirm(
-      `A new Tama update is available (v${update.version}).\n\nInstall it now?`
+    const shouldInstall = await confirm(
+      `A new Tama update is available (v${update.version}).\n\nInstall it now?`,
+      {
+        title: "Update Available",
+        kind: "info",
+        okLabel: "Install",
+        cancelLabel: "Later",
+      }
     );
 
     if (!shouldInstall) {
@@ -74,7 +81,10 @@ async function runAppUpdateCheck(
     await update.downloadAndInstall();
     localStorage.removeItem(SKIPPED_VERSION_KEY);
 
-    window.alert("Update installed. Please restart Tama to finish applying it.");
+    await message("Update installed. Please restart Tama to finish applying it.", {
+      title: "Update Installed",
+      kind: "info",
+    });
     return { status: "installed", version: update.version };
   } catch (error) {
     const message = getErrorMessage(error);
