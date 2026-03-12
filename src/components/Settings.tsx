@@ -53,6 +53,7 @@ import {
   getDisplayMode,
   setDisplayMode,
 } from "@/services/display";
+import { setApiOnboardingDismissed } from "@/services/app-config";
 import type { JLPTLevel, ResponseLength } from "@/types";
 
 const JLPT_LEVELS: { value: JLPTLevel; label: string; description: string }[] = [
@@ -501,16 +502,13 @@ export function Settings() {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  const handleClearAllData = () => {
+  const handleClearAllData = async () => {
     if (
       window.confirm(
         "Are you sure you want to clear all data? This will remove your API keys, vocabulary, and session history."
       )
     ) {
-      clearApiKey();
-      clearOpenAIApiKey();
-      clearOpenRouterApiKey();
-      clearAllData();
+      await clearAllData();
       setAnthropicKeyState("");
       setOpenaiKeyState("");
       setOpenrouterKeyState("");
@@ -520,6 +518,10 @@ export function Settings() {
       setProfileAge("");
       setProfileAboutYou("");
       setMessage({ type: "success", text: "All data cleared!" });
+      setApiOnboardingDismissed(false);
+      clearApiKey();
+      clearOpenAIApiKey();
+      clearOpenRouterApiKey();
     }
   };
 

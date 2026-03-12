@@ -35,13 +35,15 @@ export async function loadWhisperModel(
 
   try {
     await invoke("load_whisper_model");
+    window.dispatchEvent(new Event("tama-config-changed"));
   } finally {
     unlisten?.();
   }
 }
 
 export async function deleteWhisperModel(): Promise<void> {
-  return invoke("delete_whisper_model");
+  await invoke("delete_whisper_model");
+  window.dispatchEvent(new Event("tama-config-changed"));
 }
 
 function float32ToBase64(pcm: Float32Array): string {

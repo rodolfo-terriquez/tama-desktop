@@ -1,6 +1,6 @@
 import { transcribeAudioLocal } from "./whisper-local";
 import { transcribeAudio as transcribeAudioOpenAI, type TranscribeOptions } from "./openai";
-import { blobToFloat32PCM } from "./audio-utils";
+import { blobToFloat32PCM, float32PCMToWavBlob } from "./audio-utils";
 
 const ENGINE_KEY = "tama_transcription_engine";
 
@@ -34,11 +34,9 @@ export async function transcribeAudio(
     });
   }
 
-  // OpenAI API expects a Blob — copy to a plain ArrayBuffer to satisfy BlobPart
   if (audio instanceof Blob) {
     return transcribeAudioOpenAI(audio, options);
   }
-  const buf = new ArrayBuffer(audio.byteLength);
-  new Float32Array(buf).set(audio);
-  return transcribeAudioOpenAI(new Blob([buf], { type: "audio/wav" }), options);
+
+  return transcribeAudioOpenAI(float32PCMToWavBlob(audio), options);
 }

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { base64ToFloat32PCM } from "@/services/audio-utils";
+import { transcribeAudio, getTranscriptionEngine } from "@/services/transcription";
 
 interface UseVADRecorderOptions {
   onSpeechStart?: () => void;
@@ -16,10 +18,15 @@ interface UseVADRecorderReturn {
   isSupported: boolean;
   isLoading: boolean;
   error: string | null;
-  start: () => Promise<void>;
+  start: (options?: { requireWhisperLoaded?: boolean }) => Promise<void>;
   stop: () => Promise<void>;
   pause: () => void;
   resume: () => void;
+}
+
+interface AudioSegmentPayload {
+  audioBase64: string;
+  sampleRate: number;
 }
 
 /**
@@ -61,7 +68,7 @@ export function useVADRecorder(
     unlistenersRef.current = [];
   }, []);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (options?: { requireWhisperLoaded?: boolean }) => {
     if (isListening) return;
     setIsLoading(true);
     setError(null);
@@ -88,10 +95,21 @@ export function useVADRecorder(
       );
 
       unlisteners.push(
-        await listen<{ text: string }>("voice-transcription", (event) => {
-          // Rust guarantees this is never emitted for audio captured while paused,
-          // so no JS-side filter needed here.
-          onTranscriptionRef.current?.(event.payload.text);
+        await listen<AudioSegmentPayload>("voice-audio-segment", (event) => {
+          void (async () => {
+            try {
+              const pcm = base64ToFloat32PCM(event.payload.audioBase64);
+              const text = await transcribeAudio(pcm, { language: "ja" });
+              if (text) {
+                onTranscriptionRef.current?.(text);
+              }
+            } catch (err) {
+              const message =
+                err instanceof Error ? err.message : "Failed to transcribe audio";
+              setError(message);
+              onErrorRef.current?.(message);
+            }
+          })();
         })
       );
 
@@ -112,7 +130,10 @@ export function useVADRecorder(
 
       unlistenersRef.current = unlisteners;
 
-      await invoke("start_voice_session");
+      const requireWhisperLoaded =
+        options?.requireWhisperLoaded ??
+        getTranscriptionEngine() === "local";
+      await invoke("start_voice_session", { requireWhisperLoaded });
 
       isPausedRef.current = false;
       setIsListening(true);

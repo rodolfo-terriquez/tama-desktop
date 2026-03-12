@@ -93,7 +93,8 @@ export async function transcribeAudio(
 
   // Create form data with the audio file
   const formData = new FormData();
-  formData.append("file", audioBlob, "audio.webm");
+  const fileName = audioBlob.type === "audio/wav" ? "audio.wav" : "audio.webm";
+  formData.append("file", audioBlob, fileName);
   formData.append("model", "whisper-1");
   formData.append("response_format", "text");
   formData.append("language", language);

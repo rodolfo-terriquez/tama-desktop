@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { SidebarProvider, SidebarInset, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { hasApiKey } from "@/services/claude";
+import { isApiOnboardingDismissed, setApiOnboardingDismissed } from "@/services/app-config";
 import { checkForAppUpdatesOnLaunch } from "@/services/updater";
 import type { Message, Scenario } from "@/types";
 
@@ -57,17 +58,6 @@ function ExpandButton() {
 }
 
 function App() {
-  const API_ONBOARDING_DISMISSED_KEY = "tama_api_onboarding_dismissed";
-  const isApiOnboardingDismissed = () =>
-    localStorage.getItem(API_ONBOARDING_DISMISSED_KEY) === "1";
-  const setApiOnboardingDismissed = (dismissed: boolean) => {
-    if (dismissed) {
-      localStorage.setItem(API_ONBOARDING_DISMISSED_KEY, "1");
-      return;
-    }
-    localStorage.removeItem(API_ONBOARDING_DISMISSED_KEY);
-  };
-
   const [needsApiKey, setNeedsApiKey] = useState(
     !hasApiKey() && !isApiOnboardingDismissed()
   );
@@ -81,6 +71,17 @@ function App() {
 
   useEffect(() => {
     void checkForAppUpdatesOnLaunch();
+  }, []);
+
+  useEffect(() => {
+    const syncApiRequirements = () => {
+      setNeedsApiKey(!hasApiKey() && !isApiOnboardingDismissed());
+    };
+
+    window.addEventListener("tama-config-changed", syncApiRequirements);
+    return () => {
+      window.removeEventListener("tama-config-changed", syncApiRequirements);
+    };
   }, []);
 
   const handleApiKeyComplete = () => {
@@ -178,8 +179,14 @@ function App() {
 
       case "ongoing-chat":
         if (!selectedOngoingChatId) {
-          setCurrentScreen("ongoing-chats");
-          return null;
+          return (
+            <OngoingChatList
+              onSelectChat={(chatId) => {
+                setSelectedOngoingChatId(chatId);
+                setCurrentScreen("ongoing-chat");
+              }}
+            />
+          );
         }
         return (
           <OngoingChatScreen

@@ -10,7 +10,6 @@ use cpal::{SampleFormat, SampleRate};
 use rubato::{FftFixedIn, Resampler};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
-use whisper_rs::{FullParams, SamplingStrategy};
 
 use crate::whisper::WhisperModelState;
 
@@ -19,7 +18,7 @@ const VAD_FRAME_MS: u32 = 32; // Silero v3 at 16kHz expects 512 samples = 32ms
 
 const SPEECH_THRESHOLD: f32 = 0.5;
 const SILENCE_THRESHOLD: f32 = 0.35;
-const SPEECH_PAD_MS: u64 = 200;
+const SPEECH_PAD_MS: u64 = 384;
 const MIN_SPEECH_MS: u64 = 300;
 /// End segment after this much clear silence (VAD prob < SILENCE_THRESHOLD)
 const MAX_SILENCE_MS: u64 = 800;
@@ -31,7 +30,7 @@ const MAX_SPEECH_S: u64 = 30;
 /// Consecutive speech frames required before committing to speech onset
 const ONSET_FRAMES: u32 = 3; // 3 × 30ms = 90ms of continuous speech
 /// Minimum RMS energy to even bother running VAD (filters digital silence only)
-const ENERGY_GATE: f32 = 0.001;
+const ENERGY_GATE: f32 = 0.0002;
 /// Minimum fraction of speech frames in a segment to accept it for transcription
 const MIN_SPEECH_RATIO: f32 = 0.15;
 
@@ -42,18 +41,15 @@ const AMPLITUDE_INTERVAL_MS: u64 = 50;
 struct EmptyPayload {}
 
 #[derive(Clone, Serialize)]
-struct TranscriptionPayload {
-    text: String,
+#[serde(rename_all = "camelCase")]
+struct AudioSegmentPayload {
+    audio_base64: String,
+    sample_rate: u32,
 }
 
 #[derive(Clone, Serialize)]
 struct AmplitudePayload {
     level: f32,
-}
-
-#[derive(Clone, Serialize)]
-struct ErrorPayload {
-    message: String,
 }
 
 // ── Managed state ───────────────────────────────────────────────────────────
@@ -197,11 +193,18 @@ fn diag_log(msg: &str) {
     }
 }
 
-// ── Worker: owns the cpal stream + runs VAD + whisper pipeline ──────────────
+fn extend_pre_speech_ring(pre_speech_ring: &mut Vec<f32>, frame: &[f32], pad_frames: usize) {
+    pre_speech_ring.extend_from_slice(frame);
+    if pre_speech_ring.len() > pad_frames {
+        let excess = pre_speech_ring.len() - pad_frames;
+        pre_speech_ring.drain(..excess);
+    }
+}
+
+// ── Worker: owns the cpal stream + runs VAD pipeline ────────────────────────
 
 fn run_worker(
     app: AppHandle,
-    whisper_ctx: Arc<whisper_rs::WhisperContext>,
     shutdown: Arc<AtomicBool>,
     paused: Arc<AtomicBool>,
     vad_model_path: String,
@@ -354,6 +357,12 @@ fn run_worker(
         }
 
         resampler.push(&raw, |frame: &[f32]| {
+            if !is_speech {
+                // Keep a rolling pre-roll buffer even while onset is being confirmed so
+                // the first speech frames are preserved when a segment starts.
+                extend_pre_speech_ring(&mut pre_speech_ring, frame, pad_frames);
+            }
+
             // Energy gate: skip frames that are practically silent
             let rms = (frame.iter().map(|s| s * s).sum::<f32>() / frame.len() as f32).sqrt();
             if rms < ENERGY_GATE {
@@ -369,7 +378,7 @@ fn run_worker(
                         .unwrap_or(0);
                     if silence_dur > MAX_SILENCE_MS {
                         finalize_speech(
-                            &app, &whisper_ctx, &mut is_speech, &mut speech_buf,
+                            &app, &mut is_speech, &mut speech_buf,
                             &mut speech_start, &mut vad, &mut pre_speech_ring,
                             speech_frame_count, total_frame_count,
                         );
@@ -436,7 +445,7 @@ fn run_worker(
 
                     if should_end {
                         finalize_speech(
-                            &app, &whisper_ctx, &mut is_speech, &mut speech_buf,
+                            &app, &mut is_speech, &mut speech_buf,
                             &mut speech_start, &mut vad, &mut pre_speech_ring,
                             speech_frame_count, total_frame_count,
                         );
@@ -444,11 +453,7 @@ fn run_worker(
                         total_frame_count = 0;
                     }
                 } else {
-                    pre_speech_ring.extend_from_slice(frame);
-                    if pre_speech_ring.len() > pad_frames {
-                        let excess = pre_speech_ring.len() - pad_frames;
-                        pre_speech_ring.drain(..excess);
-                    }
+                    // Pre-roll is already tracked at the top of the frame handler.
                 }
             }
         });
@@ -460,7 +465,7 @@ fn run_worker(
             speech_buf.extend_from_slice(frame);
         });
         finalize_speech(
-            &app, &whisper_ctx, &mut is_speech, &mut speech_buf,
+            &app, &mut is_speech, &mut speech_buf,
             &mut speech_start, &mut vad, &mut pre_speech_ring,
             speech_frame_count, total_frame_count,
         );
@@ -471,11 +476,11 @@ fn run_worker(
     log::info!("Voice session worker stopped");
 }
 
-/// End the current speech segment: check speech ratio, emit events, and optionally transcribe.
+/// End the current speech segment: check speech ratio, emit events, and
+/// forward the PCM audio to the webview for transcription.
 #[allow(clippy::too_many_arguments)]
 fn finalize_speech(
     app: &AppHandle,
-    whisper_ctx: &Arc<whisper_rs::WhisperContext>,
     is_speech: &mut bool,
     speech_buf: &mut Vec<f32>,
     speech_start: &mut Option<Instant>,
@@ -509,10 +514,9 @@ fn finalize_speech(
         && speech_ratio >= MIN_SPEECH_RATIO
     {
         let audio = std::mem::take(speech_buf);
-        let ctx = whisper_ctx.clone();
         let app2 = app.clone();
         std::thread::spawn(move || {
-            transcribe_and_emit(app2, ctx, audio);
+            emit_audio_segment(app2, audio);
         });
     } else {
         if speech_ratio < MIN_SPEECH_RATIO && total_frame_count > 0 {
@@ -530,68 +534,30 @@ fn finalize_speech(
     *speech_start = None;
 }
 
-fn transcribe_and_emit(
-    app: AppHandle,
-    ctx: Arc<whisper_rs::WhisperContext>,
-    audio: Vec<f32>,
-) {
+fn emit_audio_segment(app: AppHandle, audio: Vec<f32>) {
+    use base64::Engine;
+
     let tx_msg = format!(
-        "Transcribing {} samples ({:.1}s)",
+        "Emitting audio segment with {} samples ({:.1}s)",
         audio.len(),
         audio.len() as f64 / TARGET_SAMPLE_RATE as f64
     );
     log::info!("{}", tx_msg);
     diag_log(&tx_msg);
 
-    let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
-    params.set_language(Some("ja"));
-    params.set_n_threads(4);
-    params.set_print_progress(false);
-    params.set_print_realtime(false);
-    params.set_print_timestamps(false);
-    params.set_no_timestamps(true);
-    params.set_suppress_blank(true);
-    params.set_suppress_nst(true);
-    params.set_temperature(0.0);
-    params.set_single_segment(false);
-
-    let mut state = match ctx.create_state() {
-        Ok(s) => s,
-        Err(e) => {
-            let _ = app.emit(
-                "voice-error",
-                ErrorPayload {
-                    message: format!("Whisper state error: {e}"),
-                },
-            );
-            return;
-        }
-    };
-
-    if let Err(e) = state.full(params, &audio) {
-        let _ = app.emit(
-            "voice-error",
-            ErrorPayload {
-                message: format!("Transcription failed: {e}"),
-            },
-        );
-        return;
+    let mut raw_bytes = Vec::with_capacity(audio.len() * std::mem::size_of::<f32>());
+    for sample in audio {
+        raw_bytes.extend_from_slice(&sample.to_le_bytes());
     }
 
-    let mut text = String::new();
-    for segment in state.as_iter() {
-        text.push_str(&segment.to_string());
-    }
-    let text = text.trim().to_string();
-
-    if !text.is_empty() {
-        log::info!("Voice transcription: {}", text);
-        diag_log(&format!("Transcription result: {}", text));
-        let _ = app.emit("voice-transcription", TranscriptionPayload { text });
-    } else {
-        log::info!("Voice transcription returned empty, ignoring");
-        diag_log("Transcription returned empty");
-    }
+    let audio_base64 = base64::engine::general_purpose::STANDARD.encode(raw_bytes);
+    let _ = app.emit(
+        "voice-audio-segment",
+        AudioSegmentPayload {
+            audio_base64,
+            sample_rate: TARGET_SAMPLE_RATE,
+        },
+    );
 }
 
 // ── Tauri commands ──────────────────────────────────────────────────────────
@@ -600,6 +566,7 @@ fn transcribe_and_emit(
 pub async fn start_voice_session(
     app: AppHandle,
     voice_state: State<'_, VoiceSessionState>,
+    require_whisper_loaded: Option<bool>,
     whisper_state: State<'_, WhisperModelState>,
 ) -> Result<(), String> {
     {
@@ -609,11 +576,16 @@ pub async fn start_voice_session(
         }
     }
 
-    let whisper_ctx = {
-        let lock = whisper_state.context.lock().map_err(|e| e.to_string())?;
-        lock.clone()
-    };
-    let whisper_ctx = whisper_ctx.ok_or("Whisper model not loaded. Load it first from Settings.")?;
+    let require_whisper_loaded = require_whisper_loaded.unwrap_or(true);
+    if require_whisper_loaded {
+        let whisper_loaded = {
+            let lock = whisper_state.context.lock().map_err(|e| e.to_string())?;
+            lock.is_some()
+        };
+        if !whisper_loaded {
+            return Err("Whisper model not loaded. Load it first from Settings.".into());
+        }
+    }
 
     let vad_model_path = app
         .path()
@@ -641,9 +613,8 @@ pub async fn start_voice_session(
     let worker_shutdown = shutdown.clone();
     let worker_paused = voice_state.paused.clone();
     let worker_app = app.clone();
-    let worker_ctx = whisper_ctx.clone();
     let worker = std::thread::spawn(move || {
-        run_worker(worker_app, worker_ctx, worker_shutdown, worker_paused, vad_path_str, ready_tx);
+        run_worker(worker_app, worker_shutdown, worker_paused, vad_path_str, ready_tx);
     });
 
     // Wait for the worker to signal success or failure

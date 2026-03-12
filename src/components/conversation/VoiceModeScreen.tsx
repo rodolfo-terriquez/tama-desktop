@@ -13,6 +13,7 @@ import {
   stopCurrentAudio,
   getStoredEngineType,
 } from "@/services/tts";
+import { getTranscriptionEngine } from "@/services/transcription";
 import { sendMessageWithTools, buildScenarioPrompt } from "@/services/claude";
 import { getUserProfile } from "@/services/storage";
 import type { Message, Scenario, UserProfile } from "@/types";
@@ -57,6 +58,12 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
   // Refs for VAD controls so handlers can call them synchronously without waiting for state/effect cycle
   const pauseVADRef = useRef<() => void>(() => {});
   const resumeVADRef = useRef<() => void>(() => {});
+  const getStartVADOptions = useCallback(
+    () => ({
+      requireWhisperLoaded: getTranscriptionEngine() === "local",
+    }),
+    []
+  );
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { conversationStateRef.current = conversationState; }, [conversationState]);
@@ -244,7 +251,7 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
     setConversationState("thinking");
 
     try {
-      await startVAD();
+      await startVAD(getStartVADOptions());
 
       const systemPrompt = buildScenarioPrompt(
         scenario,
@@ -286,7 +293,7 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
       setError(err instanceof Error ? err.message : "Failed to start conversation");
       setConversationState("idle");
     }
-  }, [scenario, ttsStatus.available, startVAD, userProfile]);
+  }, [getStartVADOptions, scenario, ttsStatus.available, startVAD, userProfile]);
 
   // --- Mode switching ---
   const handleSwitchToText = useCallback(() => {
@@ -301,11 +308,11 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
     setInputMode("voice");
     setConversationState("listening");
     if (!isListening) {
-      await startVAD();
+      await startVAD(getStartVADOptions());
     } else {
       resumeVAD();
     }
-  }, [isListening, startVAD, resumeVAD]);
+  }, [getStartVADOptions, isListening, startVAD, resumeVAD]);
 
   // --- End session ---
   const endSession = useCallback(() => {

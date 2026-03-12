@@ -6,6 +6,11 @@ const SYSTEM_QUERY = "(prefers-color-scheme: dark)";
 let systemMediaQuery: MediaQueryList | null = null;
 let systemListener: ((event: MediaQueryListEvent) => void) | null = null;
 
+type LegacyMediaQueryList = MediaQueryList & {
+  addListener?: (listener: (event: MediaQueryListEvent) => void) => void;
+  removeListener?: (listener: (event: MediaQueryListEvent) => void) => void;
+};
+
 function isDisplayMode(value: string | null): value is DisplayMode {
   return value === "light" || value === "dark" || value === "system";
 }
@@ -32,7 +37,7 @@ function applyDarkClass(mode: DisplayMode) {
 function removeSystemListener() {
   if (!systemMediaQuery || !systemListener) return;
 
-  const mediaQuery = systemMediaQuery as any;
+  const mediaQuery: LegacyMediaQueryList = systemMediaQuery;
 
   if (typeof mediaQuery.removeEventListener === "function") {
     mediaQuery.removeEventListener("change", systemListener);
@@ -53,7 +58,7 @@ function addSystemListener() {
     }
   };
 
-  const mediaQuery = systemMediaQuery as any;
+  const mediaQuery: LegacyMediaQueryList = systemMediaQuery;
 
   if (typeof mediaQuery.addEventListener === "function") {
     mediaQuery.addEventListener("change", systemListener);

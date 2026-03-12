@@ -25,6 +25,7 @@ import type { TTSEngineType } from "@/services/tts";
 import { getLLMProvider, getOpenRouterModel, hasApiKey } from "@/services/claude";
 import { hasOpenAIApiKey } from "@/services/openai";
 import { getTranscriptionEngine } from "@/services/transcription";
+import { getWhisperModelStatus } from "@/services/whisper-local";
 
 interface AppSidebarProps {
   currentScreen: string;
@@ -40,11 +41,15 @@ type DotColor = "green" | "yellow" | "red" | "gray" | "pulse";
 
 function useStatusInfo() {
   const [engineType, setEngineType] = useState<TTSEngineType>(getStoredEngineType);
+  const [transcriptionEngine, setTranscriptionEngine] = useState(getTranscriptionEngine);
   const [ttsStatus, setTtsStatus] = useState<"checking" | "online" | "offline">("checking");
   const [voiceName, setVoiceName] = useState<string>("");
+  const [sttReady, setSttReady] = useState<boolean | null>(null);
 
   const check = useCallback(async () => {
     setTtsStatus("checking");
+    setTranscriptionEngine(getTranscriptionEngine());
+
     try {
       const engine = getEngine(engineType);
       const ok = await engine.checkStatus();
@@ -61,6 +66,18 @@ function useStatusInfo() {
     } catch {
       setTtsStatus("offline");
     }
+
+    try {
+      const nextEngine = getTranscriptionEngine();
+      if (nextEngine === "local") {
+        const whisperStatus = await getWhisperModelStatus();
+        setSttReady(whisperStatus.loaded);
+      } else {
+        setSttReady(hasOpenAIApiKey());
+      }
+    } catch {
+      setSttReady(false);
+    }
   }, [engineType]);
 
   useEffect(() => {
@@ -71,6 +88,7 @@ function useStatusInfo() {
       setEngineType(getStoredEngineType());
     };
     const onConfigChanged = () => {
+      setTranscriptionEngine(getTranscriptionEngine());
       check();
     };
     window.addEventListener("tts-engine-changed", onEngineChanged);
@@ -94,24 +112,26 @@ function useStatusInfo() {
     ? getOpenRouterModel()
     : "Claude (Anthropic)";
   const ttsLabel = ENGINE_LABELS[engineType];
-  const transcriptionEngine = getTranscriptionEngine();
   const sttLabel = transcriptionEngine === "local" ? "Local Whisper" : "OpenAI Whisper";
 
   const hasLLMKey = hasApiKey();
-  const hasSTTConfig =
-    transcriptionEngine === "local"
-      ? true
-      : hasOpenAIApiKey();
+  const hasSTTConfig = sttReady ?? false;
 
   let dotColor: DotColor;
   const issues: string[] = [];
 
-  if (ttsStatus === "checking") {
+  if (ttsStatus === "checking" || sttReady === null) {
     dotColor = "pulse";
   } else if (!hasLLMKey || !hasSTTConfig) {
     dotColor = "red";
     if (!hasLLMKey) issues.push("LLM API key missing");
-    if (!hasSTTConfig) issues.push("OpenAI key missing for transcription");
+    if (!hasSTTConfig) {
+      issues.push(
+        transcriptionEngine === "local"
+          ? "Local Whisper model not loaded"
+          : "OpenAI key missing for transcription"
+      );
+    }
   } else if (ttsStatus === "offline") {
     dotColor = "gray";
     issues.push(`${ttsLabel} is off`);
