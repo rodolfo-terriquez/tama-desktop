@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -17,10 +18,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Settings, BookOpen, Home, Library, History, Users, ChartColumn } from "lucide-react";
+import { Settings, BookOpen, Home, Library, History, Users, ChartColumn, RefreshCw } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { getStoredEngineType, getEngine, getDefaultVoiceId, getAllVoiceOptions } from "@/services/tts";
+import {
+  checkForAppUpdatesManually,
+  getAvailableAppUpdate,
+  type AppUpdateCheckResult,
+} from "@/services/updater";
 import type { TTSEngineType } from "@/services/tts";
 import { getLLMProvider, getOpenRouterModel, hasApiKey } from "@/services/claude";
 import { hasOpenAIApiKey } from "@/services/openai";
@@ -164,6 +170,12 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [appVersion, setAppVersion] = useState<string>("");
+  const [availableUpdateVersion, setAvailableUpdateVersion] = useState<string | null>(null);
+  const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const labelFadeClass =
     "group-data-[collapsible=icon]:[&>span:last-child]:opacity-0 [&>span:last-child]:transition-opacity [&>span:last-child]:duration-100";
 
@@ -172,6 +184,93 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
       .then((v) => setAppVersion(v))
       .catch(() => setAppVersion(""));
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAvailableUpdate = async () => {
+      const result = await getAvailableAppUpdate();
+      if (cancelled) return;
+
+      if (result.status === "available") {
+        setAvailableUpdateVersion(result.version ?? null);
+        return;
+      }
+
+      setAvailableUpdateVersion(null);
+    };
+
+    void loadAvailableUpdate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!updateMessage) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setUpdateMessage(null);
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [updateMessage]);
+
+  const handleUpdateCheck = useCallback(async () => {
+    if (isCheckingForUpdates) return;
+
+    setIsCheckingForUpdates(true);
+    setUpdateMessage(null);
+
+    let result: AppUpdateCheckResult;
+    try {
+      result = await checkForAppUpdatesManually();
+    } finally {
+      setIsCheckingForUpdates(false);
+    }
+
+    switch (result.status) {
+      case "disabled":
+        setUpdateMessage({ type: "error", text: result.message ?? "Updater is disabled in development builds." });
+        break;
+      case "up-to-date":
+        setAvailableUpdateVersion(null);
+        setUpdateMessage({
+          type: "success",
+          text: appVersion ? `Tama v${appVersion} is up to date.` : "Tama is up to date.",
+        });
+        break;
+      case "declined":
+        setAvailableUpdateVersion(result.version ?? availableUpdateVersion);
+        setUpdateMessage({
+          type: "success",
+          text: result.version
+            ? `Update v${result.version} is available when you're ready.`
+            : "Update is available when you're ready.",
+        });
+        break;
+      case "installed":
+        setAvailableUpdateVersion(null);
+        setUpdateMessage({
+          type: "success",
+          text: result.version
+            ? `Update v${result.version} installed. Restart Tama to finish.`
+            : "Update installed. Restart Tama to finish.",
+        });
+        break;
+      case "error":
+        setUpdateMessage({
+          type: "error",
+          text: result.message ? `Update check failed: ${result.message}` : "Update check failed.",
+        });
+        break;
+      default:
+        setUpdateMessage(null);
+    }
+  }, [appVersion, availableUpdateVersion, isCheckingForUpdates]);
 
   const navItems = [
     {
@@ -270,22 +369,55 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
       <SidebarFooter className="p-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              isActive={currentScreen === "settings"}
-              onClick={() => onNavigate("settings")}
-              tooltip="Settings"
-              className={labelFadeClass}
-            >
-              <Settings className="h-4 w-4" />
-              <span className="flex w-full items-center justify-between gap-2">
-                <span>Settings</span>
-                {!isCollapsed && appVersion && (
-                  <span className="text-[10px] text-muted-foreground tabular-nums">
-                    v{appVersion}
-                  </span>
-                )}
-              </span>
-            </SidebarMenuButton>
+            <div className="flex items-center gap-1">
+              <SidebarMenuButton
+                isActive={currentScreen === "settings"}
+                onClick={() => onNavigate("settings")}
+                tooltip="Settings"
+                className={`min-w-0 flex-1 ${labelFadeClass}`}
+              >
+                <Settings className="h-4 w-4" />
+                <span className="flex w-full min-w-0 items-center justify-between gap-2">
+                  <span>Settings</span>
+                  {!isCollapsed && appVersion && (
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      v{appVersion}
+                    </span>
+                  )}
+                </span>
+              </SidebarMenuButton>
+              {!isCollapsed && (
+                availableUpdateVersion && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={handleUpdateCheck}
+                        disabled={isCheckingForUpdates}
+                        className="shrink-0"
+                      >
+                        <RefreshCw className={isCheckingForUpdates ? "animate-spin" : ""} />
+                        <span>{isCheckingForUpdates ? "Checking" : "Update"}</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      Install Tama v{availableUpdateVersion}
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              )}
+            </div>
+            {!isCollapsed && updateMessage && (
+              <p
+                className={`mt-1 px-2 text-[11px] leading-relaxed ${
+                  updateMessage.type === "error" ? "text-destructive" : "text-muted-foreground"
+                }`}
+              >
+                {updateMessage.text}
+              </p>
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
