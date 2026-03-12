@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { getSessions, getVocabulary } from "@/services/storage";
+import { addVocabItem, getSessions, getVocabulary } from "@/services/storage";
 import { format, formatDistanceToNow } from "date-fns";
 import type { Session } from "@/types";
 import { Copy } from "lucide-react";
@@ -16,6 +16,10 @@ const RATING_CONFIG = {
 };
 
 type DetailTab = "conversation" | "feedback";
+
+function getFeedbackVocabKey(word: string, meaning: string): string {
+  return `${word}:::${meaning}`;
+}
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
@@ -38,6 +42,10 @@ export function SessionHistory() {
     getSessions().then((s) => setSessions(s.sort((a, b) => b.date.localeCompare(a.date))));
   }, []);
   useEffect(() => {
+    getVocabulary().then((v) => setVocabCount(v.length));
+  }, []);
+
+  const refreshVocabCount = useCallback(() => {
     getVocabulary().then((v) => setVocabCount(v.length));
   }, []);
 
@@ -138,6 +146,8 @@ export function SessionHistory() {
                 onToggle={() => handleToggle(session.id)}
                 onTabChange={setActiveTab}
                 onCopy={() => void handleCopySession(session)}
+                onShowMessage={showMessage}
+                onVocabularyAdded={refreshVocabCount}
               />
             ))}
           </div>
@@ -154,6 +164,8 @@ function SessionCard({
   onToggle,
   onTabChange,
   onCopy,
+  onShowMessage,
+  onVocabularyAdded,
 }: {
   session: Session;
   isExpanded: boolean;
@@ -161,6 +173,8 @@ function SessionCard({
   onToggle: () => void;
   onTabChange: (tab: DetailTab) => void;
   onCopy: () => void;
+  onShowMessage: (type: "success" | "error", text: string, duration?: number) => void;
+  onVocabularyAdded: () => void;
 }) {
   const rating = session.feedback?.summary.performance_rating;
   const ratingConfig = rating ? RATING_CONFIG[rating] : null;
@@ -281,7 +295,11 @@ function SessionCard({
               {activeTab === "conversation" ? (
                 <ConversationView messages={session.messages} />
               ) : (
-                <FeedbackView session={session} />
+                <FeedbackView
+                  session={session}
+                  onShowMessage={onShowMessage}
+                  onVocabularyAdded={onVocabularyAdded}
+                />
               )}
             </div>
           </div>
@@ -330,8 +348,42 @@ function ConversationView({ messages }: { messages: Session["messages"] }) {
   );
 }
 
-function FeedbackView({ session }: { session: Session }) {
+function FeedbackView({
+  session,
+  onShowMessage,
+  onVocabularyAdded,
+}: {
+  session: Session;
+  onShowMessage: (type: "success" | "error", text: string, duration?: number) => void;
+  onVocabularyAdded: () => void;
+}) {
   const feedback = session.feedback;
+  const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadExistingVocabulary() {
+      if (!feedback) return;
+      const existing = await getVocabulary();
+      if (cancelled) return;
+
+      const added = new Set(
+        feedback.vocabulary
+          .filter((vocab) =>
+            existing.some((item) => item.word === vocab.word && item.meaning === vocab.meaning)
+          )
+          .map((vocab) => getFeedbackVocabKey(vocab.word, vocab.meaning))
+      );
+      setAddedWords(added);
+    }
+
+    loadExistingVocabulary().catch(console.error);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [feedback]);
 
   if (!feedback) {
     return (
@@ -344,6 +396,49 @@ function FeedbackView({ session }: { session: Session }) {
   const hasGrammar = feedback.grammar_points.length > 0;
   const hasVocab = feedback.vocabulary.length > 0;
   const hasFluency = feedback.fluency_notes.length > 0;
+
+  const handleAddToSRS = useCallback(
+    async (vocabIndex: number) => {
+      const vocab = feedback.vocabulary[vocabIndex];
+      if (!vocab) return;
+
+      const key = getFeedbackVocabKey(vocab.word, vocab.meaning);
+      if (addedWords.has(key)) return;
+
+      const existing = await getVocabulary();
+      const alreadyExists = existing.some(
+        (item) => item.word === vocab.word && item.meaning === vocab.meaning
+      );
+
+      if (alreadyExists) {
+        setAddedWords((prev) => new Set(prev).add(key));
+        onShowMessage("success", `${vocab.word} is already in your flashcards`);
+        return;
+      }
+
+      await addVocabItem({
+        word: vocab.word,
+        reading: vocab.reading,
+        meaning: vocab.meaning,
+        example: vocab.example,
+        source_session: vocab.source_session || new Date().toISOString().split("T")[0],
+      });
+
+      setAddedWords((prev) => new Set(prev).add(key));
+      onVocabularyAdded();
+      onShowMessage("success", `${vocab.word} added to flashcards`);
+    },
+    [addedWords, feedback.vocabulary, onShowMessage, onVocabularyAdded]
+  );
+
+  const handleAddAllToSRS = useCallback(async () => {
+    for (let i = 0; i < feedback.vocabulary.length; i++) {
+      const vocab = feedback.vocabulary[i];
+      const key = getFeedbackVocabKey(vocab.word, vocab.meaning);
+      if (addedWords.has(key)) continue;
+      await handleAddToSRS(i);
+    }
+  }, [addedWords, feedback.vocabulary, handleAddToSRS]);
 
   return (
     <div className="space-y-5">
@@ -403,24 +498,62 @@ function FeedbackView({ session }: { session: Session }) {
         <>
           {hasGrammar && <Separator />}
           <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-              Vocabulary ({feedback.vocabulary.length})
-            </p>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Vocabulary ({feedback.vocabulary.length})
+              </p>
+              {feedback.vocabulary.length > 1 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleAddAllToSRS()}
+                  disabled={feedback.vocabulary.every((vocab) =>
+                    addedWords.has(getFeedbackVocabKey(vocab.word, vocab.meaning))
+                  )}
+                  className="h-7 text-xs shrink-0"
+                >
+                  {feedback.vocabulary.every((vocab) =>
+                    addedWords.has(getFeedbackVocabKey(vocab.word, vocab.meaning))
+                  )
+                    ? "All Added"
+                    : "Add All to SRS"}
+                </Button>
+              )}
+            </div>
             <div className="space-y-2">
               {feedback.vocabulary.map((vocab, i) => (
                 <div key={i} className="rounded-lg bg-muted/50 p-3">
-                  <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="text-base font-medium">{vocab.word}</span>
-                    {vocab.reading && vocab.reading !== vocab.word && (
-                      <span className="text-sm text-muted-foreground">{vocab.reading}</span>
-                    )}
-                    <span className="text-sm">— {vocab.meaning}</span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <span className="text-base font-medium">{vocab.word}</span>
+                        {vocab.reading && vocab.reading !== vocab.word && (
+                          <span className="text-sm text-muted-foreground">{vocab.reading}</span>
+                        )}
+                        <span className="text-sm">— {vocab.meaning}</span>
+                      </div>
+                      {vocab.example && (
+                        <p className="text-xs text-muted-foreground mt-1 italic">
+                          {vocab.example}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant={
+                        addedWords.has(getFeedbackVocabKey(vocab.word, vocab.meaning))
+                          ? "ghost"
+                          : "outline"
+                      }
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => void handleAddToSRS(i)}
+                      disabled={addedWords.has(getFeedbackVocabKey(vocab.word, vocab.meaning))}
+                    >
+                      {addedWords.has(getFeedbackVocabKey(vocab.word, vocab.meaning))
+                        ? "Added ✓"
+                        : "+ SRS"}
+                    </Button>
                   </div>
-                  {vocab.example && (
-                    <p className="text-xs text-muted-foreground mt-1 italic">
-                      {vocab.example}
-                    </p>
-                  )}
                 </div>
               ))}
             </div>

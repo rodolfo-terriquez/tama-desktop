@@ -20,6 +20,7 @@ const DEFAULT_USER_PROFILE: UserProfile = {
   auto_adjust_level: false,
   estimated_level: "beginner",
   response_length: "natural",
+  include_flashcard_vocab_in_conversations: true,
   interests: [],
   topics_covered: [],
   recent_struggles: [],
@@ -34,6 +35,7 @@ interface ProfileRow {
   auto_adjust_level: number;
   estimated_level: string;
   response_length: string;
+  include_flashcard_vocab_in_conversations: number;
   user_name: string | null;
   age: number | null;
   about_you: string | null;
@@ -51,6 +53,8 @@ function rowToProfile(row: ProfileRow): UserProfile {
     auto_adjust_level: row.auto_adjust_level === 1,
     estimated_level: row.estimated_level as UserProfile["estimated_level"],
     response_length: row.response_length as UserProfile["response_length"],
+    include_flashcard_vocab_in_conversations:
+      row.include_flashcard_vocab_in_conversations === 1,
     name: row.user_name ?? undefined,
     age: row.age ?? undefined,
     aboutYou: row.about_you ?? undefined,
@@ -75,16 +79,18 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
   await d.execute(
     `UPDATE user_profile SET
       jlpt_level = $1, auto_adjust_level = $2, estimated_level = $3,
-      response_length = $4, user_name = $5, age = $6, about_you = $7,
-      interests = $8, topics_covered = $9,
-      recent_struggles = $10, total_sessions = $11,
-      voicevox_speaker_id = $12, voicevox_speaker_name = $13
+      response_length = $4, include_flashcard_vocab_in_conversations = $5,
+      user_name = $6, age = $7, about_you = $8,
+      interests = $9, topics_covered = $10,
+      recent_struggles = $11, total_sessions = $12,
+      voicevox_speaker_id = $13, voicevox_speaker_name = $14
     WHERE id = 1`,
     [
       profile.jlpt_level,
       profile.auto_adjust_level ? 1 : 0,
       profile.estimated_level,
       profile.response_length,
+      profile.include_flashcard_vocab_in_conversations ? 1 : 0,
       profile.name ?? null,
       profile.age ?? null,
       profile.aboutYou ?? null,
@@ -433,7 +439,7 @@ export async function clearAllData(): Promise<void> {
   await d.execute("DELETE FROM sessions");
   await d.execute("DELETE FROM custom_scenarios");
   await d.execute("DELETE FROM ongoing_chats");
-  await d.execute("UPDATE user_profile SET jlpt_level='N5', auto_adjust_level=0, estimated_level='beginner', response_length='natural', user_name=NULL, age=NULL, about_you=NULL, interests='[]', topics_covered='[]', recent_struggles='[]', total_sessions=0, voicevox_speaker_id=NULL, voicevox_speaker_name=NULL WHERE id=1");
+  await d.execute("UPDATE user_profile SET jlpt_level='N5', auto_adjust_level=0, estimated_level='beginner', response_length='natural', include_flashcard_vocab_in_conversations=1, user_name=NULL, age=NULL, about_you=NULL, interests='[]', topics_covered='[]', recent_struggles='[]', total_sessions=0, voicevox_speaker_id=NULL, voicevox_speaker_name=NULL WHERE id=1");
 }
 
 // ── localStorage → SQLite migration ─────────────────────────────────
@@ -461,14 +467,16 @@ async function migrateLocalStorage(d: Database): Promise<void> {
       await d.execute(
         `UPDATE user_profile SET
           jlpt_level=$1, auto_adjust_level=$2, estimated_level=$3,
-          response_length=$4, user_name=$5, age=$6, about_you=$7,
-          interests=$8, topics_covered=$9,
-          recent_struggles=$10, total_sessions=$11,
-          voicevox_speaker_id=$12, voicevox_speaker_name=$13
+          response_length=$4, include_flashcard_vocab_in_conversations=$5,
+          user_name=$6, age=$7, about_you=$8,
+          interests=$9, topics_covered=$10,
+          recent_struggles=$11, total_sessions=$12,
+          voicevox_speaker_id=$13, voicevox_speaker_name=$14
         WHERE id=1`,
         [
           p.jlpt_level, p.auto_adjust_level ? 1 : 0, p.estimated_level,
-          p.response_length, p.name ?? null, p.age ?? null, p.aboutYou ?? null,
+          p.response_length, p.include_flashcard_vocab_in_conversations === false ? 0 : 1,
+          p.name ?? null, p.age ?? null, p.aboutYou ?? null,
           JSON.stringify(p.interests), JSON.stringify(p.topics_covered), JSON.stringify(p.recent_struggles),
           p.total_sessions, p.voicevox_speaker_id ?? null,
           p.voicevox_speaker_name ?? null,

@@ -340,10 +340,10 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
         )}
       </div>
 
-      {/* Rating buttons */}
-      <div className="w-full max-w-sm pb-6">
+      {/* Reserve rating area height so flipping the card doesn't shift the layout */}
+      <div className="w-full max-w-sm pb-6 min-h-[108px] flex items-end">
         {revealed ? (
-          <div className="space-y-2">
+          <div className="w-full space-y-2">
             <p className="text-xs text-center text-muted-foreground mb-3">
               How well did you remember?
             </p>
@@ -361,9 +361,11 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
             </div>
           </div>
         ) : (
-          <p className="text-xs text-center text-muted-foreground">
-            Tap the card to reveal the answer
-          </p>
+          <div className="w-full flex items-center justify-center">
+            <p className="text-xs text-center text-muted-foreground">
+              Tap the card to reveal the answer
+            </p>
+          </div>
         )}
       </div>
     </div>

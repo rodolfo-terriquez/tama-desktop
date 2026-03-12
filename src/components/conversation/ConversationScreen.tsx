@@ -2,12 +2,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { MessageBubble } from "@/components/conversation/MessageBubble";
 import { initializeTTS, speak } from "@/services/tts";
-import { sendMessageWithTools, buildScenarioPrompt } from "@/services/claude";
+import { sendMessage, sendMessageWithTools, buildScenarioPrompt } from "@/services/claude";
 import { getUserProfile } from "@/services/storage";
-import type { Message, Scenario } from "@/types";
+import type { Message, Scenario, UserProfile } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 import { Send, LogOut } from "lucide-react";
 
@@ -27,6 +28,7 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
     speakerName: string;
     checked: boolean;
   }>({ available: false, speakerName: "", checked: false });
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionStarted, setSessionStarted] = useState(false);
 
@@ -47,6 +49,10 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
       }
     }
     checkTTS();
+  }, []);
+
+  useEffect(() => {
+    getUserProfile().then(setUserProfile).catch(console.error);
   }, []);
 
   // Auto-scroll to bottom when messages change
@@ -71,18 +77,22 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
       setMessages((prev) => [...prev, userMessage]);
 
       try {
-        const profile = await getUserProfile();
+        const profile = userProfile || (await getUserProfile());
+        const includeFlashcardVocab = profile.include_flashcard_vocab_in_conversations;
         const systemPrompt = buildScenarioPrompt(
           scenario,
           profile.jlpt_level,
           profile.auto_adjust_level,
           "Begin or continue the conversation in character.",
           profile.response_length,
-          { name: profile.name, age: profile.age, aboutYou: profile.aboutYou }
+          { name: profile.name, age: profile.age, aboutYou: profile.aboutYou },
+          includeFlashcardVocab
         );
 
         const allMessages = [...messages, userMessage];
-        const response = await sendMessageWithTools(allMessages, systemPrompt);
+        const response = includeFlashcardVocab
+          ? await sendMessageWithTools(allMessages, systemPrompt)
+          : await sendMessage(allMessages, systemPrompt);
 
         // Add assistant message
         const assistantMessage: Message = {
@@ -112,7 +122,7 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
         setIsLoading(false);
       }
     },
-    [messages, scenario, ttsStatus.available]
+    [messages, scenario, ttsStatus.available, userProfile]
   );
 
   const startSession = useCallback(async () => {
@@ -122,17 +132,21 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
     // Generate opening message from Claude
     setIsLoading(true);
     try {
-      const profile = await getUserProfile();
+      const profile = userProfile || (await getUserProfile());
+      const includeFlashcardVocab = profile.include_flashcard_vocab_in_conversations;
       const systemPrompt = buildScenarioPrompt(
         scenario,
         profile.jlpt_level,
         profile.auto_adjust_level,
         "Start the conversation with a natural greeting in Japanese. Keep it simple and welcoming.",
         profile.response_length,
-        { name: profile.name, age: profile.age, aboutYou: profile.aboutYou }
+        { name: profile.name, age: profile.age, aboutYou: profile.aboutYou },
+        includeFlashcardVocab
       );
 
-      const response = await sendMessageWithTools([], systemPrompt);
+      const response = includeFlashcardVocab
+        ? await sendMessageWithTools([], systemPrompt)
+        : await sendMessage([], systemPrompt);
 
       const assistantMessage: Message = {
         id: uuidv4(),
@@ -162,7 +176,7 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
     } finally {
       setIsLoading(false);
     }
-  }, [scenario, ttsStatus.available]);
+  }, [scenario, ttsStatus.available, userProfile]);
 
   const endSession = useCallback(() => {
     if (onEndSession) {
@@ -208,6 +222,21 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
                     {scenario.custom_prompt}
                   </p>
                 </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2 text-xs">
+              {userProfile && (
+                <>
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                    Level: {userProfile.jlpt_level}
+                  </Badge>
+                  {userProfile.include_flashcard_vocab_in_conversations && (
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-900">
+                      Vocab review: On
+                    </Badge>
+                  )}
+                </>
               )}
             </div>
 

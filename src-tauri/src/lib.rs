@@ -92,6 +92,14 @@ ALTER TABLE user_profile ADD COLUMN about_you TEXT;
         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "Add flashcard vocab conversation toggle",
+            sql: r#"
+ALTER TABLE user_profile ADD COLUMN include_flashcard_vocab_in_conversations INTEGER NOT NULL DEFAULT 1;
+        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

@@ -1,5 +1,5 @@
 import { SCENARIOS } from "@/data/scenarios";
-import { getSessions, getDueVocabulary, getCustomScenarios } from "@/services/storage";
+import { getSessions, getDueVocabulary, getCustomScenarios, getUserProfile } from "@/services/storage";
 import type { Scenario } from "@/types";
 
 interface ScoredScenario {
@@ -15,7 +15,10 @@ interface ScoredScenario {
  */
 export async function getRecommendedScenarios(): Promise<ScoredScenario[]> {
   const sessions = await getSessions();
-  const dueVocab = await getDueVocabulary();
+  const profile = await getUserProfile();
+  const dueVocab = profile.include_flashcard_vocab_in_conversations
+    ? await getDueVocabulary()
+    : [];
   const allScenarios = [...SCENARIOS, ...(await getCustomScenarios())];
 
   const recentScenarioIds = sessions

@@ -2,19 +2,21 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
 import { TranscriptBubbles } from "@/components/conversation/TranscriptBubbles";
 import { MessageBubble } from "@/components/conversation/MessageBubble";
 import { useVADRecorder } from "@/hooks/useVADRecorder";
 import {
+  getEnglishVoiceDisplayName,
   initializeTTS,
   speak,
   stopCurrentAudio,
   getStoredEngineType,
 } from "@/services/tts";
 import { getTranscriptionEngine } from "@/services/transcription";
-import { sendMessageWithTools, buildScenarioPrompt } from "@/services/claude";
+import { sendMessage, sendMessageWithTools, buildScenarioPrompt } from "@/services/claude";
 import { getUserProfile } from "@/services/storage";
 import type { Message, Scenario, UserProfile } from "@/types";
 import { v4 as uuidv4 } from "uuid";
@@ -67,7 +69,9 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { conversationStateRef.current = conversationState; }, [conversationState]);
-  useEffect(() => { getUserProfile().then(setUserProfile); }, []);
+  useEffect(() => {
+    getUserProfile().then(setUserProfile).catch(console.error);
+  }, []);
 
   useEffect(() => {
     async function checkTTS() {
@@ -104,17 +108,21 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
       setMessages((prev) => [...prev, userMessage]);
 
       try {
+        const includeFlashcardVocab = userProfile?.include_flashcard_vocab_in_conversations ?? true;
         const systemPrompt = buildScenarioPrompt(
           scenario,
           userProfile?.jlpt_level || "N5",
           userProfile?.auto_adjust_level || false,
           "Continue the conversation in character.",
           userProfile?.response_length || "natural",
-          { name: userProfile?.name, age: userProfile?.age, aboutYou: userProfile?.aboutYou }
+          { name: userProfile?.name, age: userProfile?.age, aboutYou: userProfile?.aboutYou },
+          includeFlashcardVocab
         );
 
         const allMessages = [...messagesRef.current, userMessage];
-        const response = await sendMessageWithTools(allMessages, systemPrompt);
+        const response = includeFlashcardVocab
+          ? await sendMessageWithTools(allMessages, systemPrompt)
+          : await sendMessage(allMessages, systemPrompt);
 
         if (sessionEndedRef.current) return undefined;
 
@@ -208,7 +216,6 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
   const {
     isListening,
     isSpeaking: userIsSpeaking,
-    isSupported: vadSupported,
     isLoading: vadLoading,
     error: vadError,
     start: startVAD,
@@ -251,6 +258,7 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
     setConversationState("thinking");
 
     try {
+      const includeFlashcardVocab = userProfile?.include_flashcard_vocab_in_conversations ?? true;
       await startVAD(getStartVADOptions());
 
       const systemPrompt = buildScenarioPrompt(
@@ -259,10 +267,13 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
         userProfile?.auto_adjust_level || false,
         "Start the conversation with a natural greeting in Japanese. Keep it simple and welcoming.",
         userProfile?.response_length || "natural",
-        { name: userProfile?.name, age: userProfile?.age, aboutYou: userProfile?.aboutYou }
+        { name: userProfile?.name, age: userProfile?.age, aboutYou: userProfile?.aboutYou },
+        includeFlashcardVocab
       );
 
-      const response = await sendMessageWithTools([], systemPrompt);
+      const response = includeFlashcardVocab
+        ? await sendMessageWithTools([], systemPrompt)
+        : await sendMessage([], systemPrompt);
 
       const assistantMessage: Message = {
         id: uuidv4(),
@@ -363,20 +374,27 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
 
             <div className="flex flex-wrap gap-2 text-xs">
               {userProfile && (
-                <span className="px-2 py-1 rounded bg-blue-100 text-blue-800">
-                  Level: {userProfile.jlpt_level}
-                </span>
+                <>
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                    Level: {userProfile.jlpt_level}
+                  </Badge>
+                  {userProfile.include_flashcard_vocab_in_conversations && (
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-900">
+                      Vocab review: On
+                    </Badge>
+                  )}
+                </>
               )}
               {ttsStatus.checked && (
-                <span className={`px-2 py-1 rounded ${ttsStatus.available ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                <Badge
+                  variant="secondary"
+                  className={ttsStatus.available ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
+                >
                   {ttsStatus.available
-                    ? `TTS: ${ttsStatus.speakerName}`
+                    ? `TTS: ${getEnglishVoiceDisplayName(ttsStatus.speakerName)}`
                     : `TTS: ${getStoredEngineType() === "voicevox" ? "VOICEVOX" : "SBV2"} not running`}
-                </span>
+                </Badge>
               )}
-              <span className={`px-2 py-1 rounded ${vadSupported ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                {vadLoading ? "Mic: Loading..." : vadSupported ? "Mic: Ready" : "Mic: Not supported"}
-              </span>
             </div>
 
             {(vadError || error) && (

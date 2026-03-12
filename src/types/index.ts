@@ -25,6 +25,7 @@ export interface UserProfile {
   auto_adjust_level: boolean; // Whether to let AI adjust based on performance
   estimated_level: "beginner" | "intermediate" | "advanced";
   response_length: ResponseLength;
+  include_flashcard_vocab_in_conversations: boolean;
   // Optional personal context for better conversation personalization
   name?: string;
   age?: number;

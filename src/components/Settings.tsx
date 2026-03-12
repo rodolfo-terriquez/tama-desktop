@@ -150,6 +150,7 @@ export function Settings() {
   const [jlptLevel, setJlptLevel] = useState<JLPTLevel>("N5");
   const [autoAdjust, setAutoAdjust] = useState(false);
   const [responseLength, setResponseLengthState] = useState<ResponseLength>("natural");
+  const [includeFlashcardVocab, setIncludeFlashcardVocab] = useState(true);
   const [displayMode, setDisplayModeState] = useState<DisplayMode>(getDisplayMode());
   const [profileName, setProfileName] = useState("");
   const [profileAge, setProfileAge] = useState("");
@@ -226,6 +227,7 @@ export function Settings() {
       setJlptLevel(profile.jlpt_level);
       setAutoAdjust(profile.auto_adjust_level);
       setResponseLengthState(profile.response_length ?? "natural");
+      setIncludeFlashcardVocab(profile.include_flashcard_vocab_in_conversations ?? true);
       setProfileName(profile.name ?? "");
       setProfileAge(profile.age !== undefined ? String(profile.age) : "");
       setProfileAboutYou(profile.aboutYou ?? "");
@@ -388,6 +390,18 @@ export function Settings() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const handleIncludeFlashcardVocabChange = async (enabled: boolean) => {
+    setIncludeFlashcardVocab(enabled);
+    await updateUserProfile({ include_flashcard_vocab_in_conversations: enabled });
+    setMessage({
+      type: "success",
+      text: enabled
+        ? "Scenario vocab review enabled"
+        : "Scenario vocab review disabled",
+    });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
   const handleDisplayModeChange = (mode: DisplayMode) => {
     setDisplayModeState(mode);
     setDisplayMode(mode);
@@ -514,6 +528,7 @@ export function Settings() {
       setOpenrouterKeyState("");
       setDisplayMode("system");
       setDisplayModeState("system");
+      setIncludeFlashcardVocab(true);
       setProfileName("");
       setProfileAge("");
       setProfileAboutYou("");
@@ -696,6 +711,31 @@ export function Settings() {
                   {opt.label}
                 </button>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Scenario Vocabulary Review */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Scenario Vocabulary Review</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Let scenario conversations naturally weave in due flashcard words when they fit. Turn this off if you want conversations to stay fully topic-first.
+            </p>
+
+            <div className="flex items-center gap-3 pt-1">
+              <input
+                type="checkbox"
+                id="includeFlashcardVocab"
+                checked={includeFlashcardVocab}
+                onChange={(e) => handleIncludeFlashcardVocabChange(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <label htmlFor="includeFlashcardVocab" className="text-sm">
+                Use due flashcard vocabulary in scenario conversations
+              </label>
             </div>
           </CardContent>
         </Card>

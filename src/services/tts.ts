@@ -37,6 +37,64 @@ export interface VoiceOption {
   styleName: string;
 }
 
+const SPEAKER_ENGLISH_NAMES: Record<string, string> = {
+  "四国めたん": "Shikoku Metan",
+  "ずんだもん": "Zundamon",
+  "春日部つむぎ": "Kasukabe Tsumugi",
+  "雨晴はう": "Amehare Hau",
+  "波音リツ": "Namine Ritsu",
+  "玄野武宏": "Kurono Takehiro",
+  "白上虎太郎": "Shirakami Kotaro",
+  "青山龍星": "Aoyama Ryusei",
+  "冥鳴ひまり": "Meimei Himari",
+  "九州そら": "Kyushu Sora",
+  "もち子さん": "Mochiko-san",
+  "剣崎雌雄": "Kenzaki Mesuo",
+  "WhiteCUL": "WhiteCUL",
+  "後鬼": "Goki",
+  "No.7": "No.7",
+  "ちび式じい": "Chibishiki Jii",
+  "櫻歌ミコ": "Ohka Miko",
+  "小夜/SAYO": "Sayo",
+  "ナースロボ＿タイプＴ": "Nurse Robot Type T",
+  "†聖騎士 紅桜†": "Holy Knight Benisakura",
+  "雀松朱司": "Suzumatsu Akashi",
+  "麒ヶ島宗麟": "Kigashima Sourin",
+  "猫使アル": "Nekotsukai Aru",
+  "猫使ビィ": "Nekotsukai Bii",
+};
+
+const STYLE_ENGLISH_NAMES: Record<string, string> = {
+  "ノーマル": "Normal",
+  "あまあま": "Sweet",
+  "ツンツン": "Tsundere",
+  "セクシー": "Sexy",
+  "ささやき": "Whisper",
+  "ヒソヒソ": "Hushed",
+  "怒り": "Angry",
+  "悲しみ": "Sad",
+  "やさしい": "Gentle",
+  "かなしい": "Sad",
+  "びえーん": "Crying",
+  "ヘロヘロ": "Exhausted",
+  "なみだめ": "Teary",
+};
+
+export function getEnglishVoiceDisplayName(name: string): string {
+  const match = name.match(/^(.*?)(?:\s*\((.*)\))?$/);
+  if (!match) return name;
+
+  const [, rawSpeaker, rawStyle] = match;
+  const speaker = rawSpeaker.trim();
+  const style = rawStyle?.trim();
+  const englishSpeaker = SPEAKER_ENGLISH_NAMES[speaker] ?? speaker;
+
+  if (!style) return englishSpeaker;
+
+  const englishStyle = STYLE_ENGLISH_NAMES[style] ?? style;
+  return `${englishSpeaker} (${englishStyle})`;
+}
+
 // ── Storage keys ───────────────────────────────────────
 
 const STORAGE_KEY_ENGINE = "tama_tts_engine";

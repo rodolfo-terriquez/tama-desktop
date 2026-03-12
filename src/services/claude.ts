@@ -506,7 +506,8 @@ function buildPersonalContextBlock(context?: PersonalContext): string {
 export function getConversationSystemPrompt(
   jlptLevel: string = "N5",
   autoAdjust: boolean = false,
-  responseLength: ResponseLength = "natural"
+  responseLength: ResponseLength = "natural",
+  includeFlashcardVocab: boolean = true
 ): string {
   const levelGuidelines = JLPT_GUIDELINES[jlptLevel] || JLPT_GUIDELINES.N5;
   const lengthRule = RESPONSE_LENGTH_INSTRUCTIONS[responseLength];
@@ -514,6 +515,20 @@ export function getConversationSystemPrompt(
   const adjustmentNote = autoAdjust 
     ? "\n\nNOTE: If the user demonstrates consistent competence, you may gradually introduce slightly more advanced vocabulary or grammar to challenge them."
     : "";
+
+  const toolsBlock = includeFlashcardVocab
+    ? `
+
+TOOLS:
+You have tools available to look up the student's profile and their SRS vocabulary.
+- At the START of a conversation (your first message), call get_due_vocabulary to check for review words, and optionally get_user_profile to adapt.
+- During conversation, try to naturally use 1-2 due vocabulary words when the topic allows. Don't force them — only use them when they fit naturally.
+- You do NOT need to call tools every turn. Use them once at the start and occasionally if the conversation shifts topics.`
+    : `
+
+FLASHCARD REVIEW:
+- Do not intentionally introduce saved flashcard vocabulary just for review.
+- Focus on a natural conversation that fits the scenario and the student's level.`;
 
   return `You are a native Japanese speaker helping someone practice conversational Japanese. You are currently role-playing in a scenario.
 
@@ -530,12 +545,7 @@ IMPORTANT RULES:
 6. If the user makes a mistake, gently incorporate the correction into your response without breaking character
 7. Do NOT add parenthetical translations, romaji readings, or English glosses. The student has a translate button they can use.
 8. Write Japanese text CONTINUOUSLY without spaces between words, exactly as natural Japanese is written. Only use punctuation (。、！？) to separate clauses — NEVER insert spaces between Japanese words.
-
-TOOLS:
-You have tools available to look up the student's profile and their SRS vocabulary.
-- At the START of a conversation (your first message), call get_due_vocabulary to check for review words, and optionally get_user_profile to adapt.
-- During conversation, try to naturally use 1-2 due vocabulary words when the topic allows. Don't force them — only use them when they fit naturally.
-- You do NOT need to call tools every turn. Use them once at the start and occasionally if the conversation shifts topics.
+${toolsBlock}
 
 You will be given a scenario to role-play. Stay in character and help the user practice.`;
 }
@@ -550,9 +560,15 @@ export function buildScenarioPrompt(
   autoAdjust: boolean = false,
   suffix: string = "Continue the conversation in character.",
   responseLength: ResponseLength = "natural",
-  personalContext?: PersonalContext
+  personalContext?: PersonalContext,
+  includeFlashcardVocab: boolean = true
 ): string {
-  const basePrompt = getConversationSystemPrompt(jlptLevel, autoAdjust, responseLength);
+  const basePrompt = getConversationSystemPrompt(
+    jlptLevel,
+    autoAdjust,
+    responseLength,
+    includeFlashcardVocab
+  );
   const personalContextBlock = buildPersonalContextBlock(personalContext);
 
   const customBlock = scenario.custom_prompt
