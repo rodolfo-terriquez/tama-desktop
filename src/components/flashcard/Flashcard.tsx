@@ -1,8 +1,6 @@
-import { useState, useCallback, useEffect, type KeyboardEvent, type MouseEvent } from "react";
-import { Button } from "@/components/ui/button";
+import { useState, useCallback, useEffect } from "react";
 import { initializeTTS, speak, stopCurrentAudio } from "@/services/tts";
 import type { VocabItem } from "@/types";
-import { Volume2 } from "lucide-react";
 
 interface FlashcardProps {
   item: VocabItem;
@@ -12,7 +10,6 @@ interface FlashcardProps {
 export function Flashcard({ item, onFlip }: FlashcardProps) {
   const [flipped, setFlipped] = useState(false);
   const [ttsAvailable, setTtsAvailable] = useState(false);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   const handleFlip = useCallback(() => {
     const next = !flipped;
@@ -23,14 +20,11 @@ export function Flashcard({ item, onFlip }: FlashcardProps) {
   const playAudio = useCallback(async (text: string) => {
     if (!text) return;
 
-    setIsPlayingAudio(true);
     try {
       stopCurrentAudio();
       await speak(text);
     } catch (error) {
       console.error("Failed to play flashcard audio:", error);
-    } finally {
-      setIsPlayingAudio(false);
     }
   }, []);
 
@@ -66,18 +60,6 @@ export function Flashcard({ item, onFlip }: FlashcardProps) {
     void playAudio(currentAudioText);
   }, [currentAudioText, playAudio, ttsAvailable]);
 
-  const handleReplayClick = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      void playAudio(currentAudioText);
-    },
-    [currentAudioText, playAudio]
-  );
-
-  const handleReplayKeyDown = useCallback((event: KeyboardEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-  }, []);
-
   return (
     <div
       className="w-full max-w-sm aspect-[3/2] cursor-pointer [perspective:800px]"
@@ -99,26 +81,7 @@ export function Flashcard({ item, onFlip }: FlashcardProps) {
       >
         {/* Front — Japanese word + reading */}
         <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border bg-card p-6 shadow-sm [backface-visibility:hidden]">
-          {ttsAvailable && (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="absolute top-3 right-3 size-9 rounded-full bg-background/90"
-              onClick={handleReplayClick}
-              onKeyDown={handleReplayKeyDown}
-              aria-label={isPlayingAudio ? "Playing audio" : "Replay audio"}
-              disabled={isPlayingAudio}
-            >
-              <Volume2 className="size-4" />
-            </Button>
-          )}
           <span className="text-4xl font-bold tracking-wide">{item.word}</span>
-          {item.reading && item.reading !== item.word && (
-            <span className="mt-2 text-lg text-muted-foreground">
-              {item.reading}
-            </span>
-          )}
           <span className="mt-6 text-xs text-muted-foreground">
             Tap to reveal
           </span>
@@ -126,20 +89,6 @@ export function Flashcard({ item, onFlip }: FlashcardProps) {
 
         {/* Back — meaning + example */}
         <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border bg-card p-6 shadow-sm [backface-visibility:hidden] [transform:rotateY(180deg)]">
-          {ttsAvailable && (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="absolute top-3 right-3 size-9 rounded-full bg-background/90"
-              onClick={handleReplayClick}
-              onKeyDown={handleReplayKeyDown}
-              aria-label={isPlayingAudio ? "Playing audio" : "Replay audio"}
-              disabled={isPlayingAudio}
-            >
-              <Volume2 className="size-4" />
-            </Button>
-          )}
           <span className="text-2xl font-semibold text-center">{item.meaning}</span>
           {item.example && (
             <p className="mt-4 text-sm text-muted-foreground text-center italic leading-relaxed">
