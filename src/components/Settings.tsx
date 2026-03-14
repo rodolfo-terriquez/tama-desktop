@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useI18n } from "@/i18n";
 import {
   getApiKey,
   setApiKey,
@@ -139,6 +140,7 @@ function groupVoicesBySpeaker(voices: VoiceOption[]): SpeakerGroup[] {
 }
 
 export function Settings() {
+  const { locale, setLocale, t } = useI18n();
   const [anthropicKey, setAnthropicKeyState] = useState("");
   const [openaiKey, setOpenaiKeyState] = useState("");
   const [openrouterKey, setOpenrouterKeyState] = useState("");
@@ -253,7 +255,9 @@ export function Settings() {
     setTranscriptionEngine(engine);
     setMessage({
       type: "success",
-      text: `Speech recognition set to ${engine === "local" ? "Local Whisper" : "OpenAI API"}`,
+      text: t("settings.speechRecognitionSet", {
+        engine: engine === "local" ? "Local Whisper" : "OpenAI API",
+      }),
     });
     setTimeout(() => setMessage(null), 3000);
   };
@@ -264,11 +268,11 @@ export function Settings() {
     try {
       await loadWhisperModel((progress) => setWhisperProgress(progress));
       await refreshWhisperStatus();
-      setMessage({ type: "success", text: "Whisper model downloaded and loaded!" });
+      setMessage({ type: "success", text: t("settings.whisperDownloaded") });
       setTimeout(() => setMessage(null), 3000);
     } catch (err) {
       console.error("Failed to download whisper model:", err);
-      setMessage({ type: "error", text: "Failed to download Whisper model" });
+      setMessage({ type: "error", text: t("settings.whisperDownloadFailed") });
       setTimeout(() => setMessage(null), 5000);
     } finally {
       setWhisperDownloading(false);
@@ -277,16 +281,16 @@ export function Settings() {
   };
 
   const handleDeleteWhisperModel = async () => {
-    if (!window.confirm("Delete the Whisper model? You'll need to re-download it to use local transcription.")) return;
+    if (!window.confirm(t("settings.deleteWhisperConfirm"))) return;
     setWhisperDeleting(true);
     try {
       await deleteWhisperModel();
       await refreshWhisperStatus();
-      setMessage({ type: "success", text: "Whisper model deleted" });
+      setMessage({ type: "success", text: t("settings.whisperDeleted") });
       setTimeout(() => setMessage(null), 3000);
     } catch (err) {
       console.error("Failed to delete whisper model:", err);
-      setMessage({ type: "error", text: "Failed to delete Whisper model" });
+      setMessage({ type: "error", text: t("settings.whisperDeleteFailed") });
       setTimeout(() => setMessage(null), 5000);
     } finally {
       setWhisperDeleting(false);
@@ -324,7 +328,7 @@ export function Settings() {
     setDefaultVoiceId(voiceId);
     const voice = voiceOptions.find((v) => v.id === voiceId);
     if (voice) {
-      setMessage({ type: "success", text: `Voice changed to ${voice.name}` });
+      setMessage({ type: "success", text: t("settings.voiceChanged", { name: voice.name }) });
       setTimeout(() => setMessage(null), 3000);
     }
   };
@@ -346,7 +350,12 @@ export function Settings() {
     setStoredEngineType(engine);
     setEngineAvailable(false);
     setVoiceOptions([]);
-    setMessage({ type: "success", text: `TTS engine set to ${engine === "voicevox" ? "VOICEVOX" : "Style-Bert-VITS2"}` });
+    setMessage({
+      type: "success",
+      text: t("settings.ttsEngineSet", {
+        engine: engine === "voicevox" ? "VOICEVOX" : "Style-Bert-VITS2",
+      }),
+    });
     setTimeout(() => setMessage(null), 3000);
   };
 
@@ -359,7 +368,7 @@ export function Settings() {
       });
     } catch (err) {
       console.error("Failed to test voice:", err);
-      setMessage({ type: "error", text: "Failed to play test audio" });
+      setMessage({ type: "error", text: t("settings.testAudioFailed") });
       setTimeout(() => setMessage(null), 3000);
     } finally {
       setTestingVoice(false);
@@ -369,7 +378,7 @@ export function Settings() {
   const handleJlptChange = async (level: JLPTLevel) => {
     setJlptLevel(level);
     await updateUserProfile({ jlpt_level: level });
-    setMessage({ type: "success", text: `JLPT level set to ${level}` });
+    setMessage({ type: "success", text: t("settings.jlptSet", { level }) });
     setTimeout(() => setMessage(null), 3000);
   };
 
@@ -382,11 +391,11 @@ export function Settings() {
     setResponseLengthState(length);
     await updateUserProfile({ response_length: length });
     const labels: Record<ResponseLength, string> = {
-      short: "Short",
-      natural: "Natural",
-      long: "Long",
+      short: t("settings.responseShort"),
+      natural: t("settings.responseNatural"),
+      long: t("settings.responseLong"),
     };
-    setMessage({ type: "success", text: `Response length set to ${labels[length]}` });
+    setMessage({ type: "success", text: t("settings.responseLengthSet", { label: labels[length] }) });
     setTimeout(() => setMessage(null), 3000);
   };
 
@@ -396,8 +405,8 @@ export function Settings() {
     setMessage({
       type: "success",
       text: enabled
-        ? "Scenario vocab review enabled"
-        : "Scenario vocab review disabled",
+        ? t("settings.scenarioReviewEnabled")
+        : t("settings.scenarioReviewDisabled"),
     });
     setTimeout(() => setMessage(null), 3000);
   };
@@ -406,11 +415,11 @@ export function Settings() {
     setDisplayModeState(mode);
     setDisplayMode(mode);
     const labels: Record<DisplayMode, string> = {
-      light: "Light",
-      dark: "Dark",
-      system: "System",
+      light: t("settings.light"),
+      dark: t("settings.dark"),
+      system: t("settings.system"),
     };
-    setMessage({ type: "success", text: `Display mode set to ${labels[mode]}` });
+    setMessage({ type: "success", text: t("settings.displayModeSet", { label: labels[mode] }) });
     setTimeout(() => setMessage(null), 3000);
   };
 
@@ -420,7 +429,7 @@ export function Settings() {
     const trimmedAge = profileAge.trim();
 
     if (trimmedAge && !/^\d+$/.test(trimmedAge)) {
-      setMessage({ type: "error", text: "Age must be a whole number" });
+      setMessage({ type: "error", text: t("settings.ageWholeNumber") });
       setTimeout(() => setMessage(null), 3000);
       return;
     }
@@ -431,7 +440,7 @@ export function Settings() {
       age: parsedAge,
       aboutYou: trimmedAbout || undefined,
     });
-    setMessage({ type: "success", text: "Personal context saved" });
+    setMessage({ type: "success", text: t("settings.personalContextSaved") });
     setTimeout(() => setMessage(null), 3000);
   };
 
@@ -446,7 +455,9 @@ export function Settings() {
     setLLMProvider(provider);
     setMessage({
       type: "success",
-      text: `LLM provider set to ${provider === "anthropic" ? "Anthropic (direct)" : "OpenRouter"}`,
+      text: t("settings.llmProviderSet", {
+        provider: provider === "anthropic" ? "Anthropic (direct)" : "OpenRouter",
+      }),
     });
     setTimeout(() => setMessage(null), 3000);
   };
@@ -454,73 +465,71 @@ export function Settings() {
   const handleSaveAnthropicKey = () => {
     const trimmed = anthropicKey.trim();
     if (!trimmed) {
-      setMessage({ type: "error", text: "Please enter an Anthropic API key" });
+      setMessage({ type: "error", text: t("settings.enterAnthropicKey") });
       return;
     }
     if (!trimmed.startsWith("sk-ant-")) {
       setMessage({
         type: "error",
-        text: "Invalid Anthropic key format (should start with sk-ant-)",
+        text: t("settings.invalidAnthropicKey"),
       });
       return;
     }
     setApiKey(trimmed);
-    setMessage({ type: "success", text: "Anthropic API key saved!" });
+    setMessage({ type: "success", text: t("settings.anthropicSaved") });
     setTimeout(() => setMessage(null), 3000);
   };
 
   const handleSaveOpenrouterKey = () => {
     const trimmed = openrouterKey.trim();
     if (!trimmed) {
-      setMessage({ type: "error", text: "Please enter an OpenRouter API key" });
+      setMessage({ type: "error", text: t("settings.enterOpenRouterKey") });
       return;
     }
     if (!trimmed.startsWith("sk-or-")) {
       setMessage({
         type: "error",
-        text: "Invalid OpenRouter key format (should start with sk-or-)",
+        text: t("settings.invalidOpenRouterKey"),
       });
       return;
     }
     setOpenRouterApiKey(trimmed);
-    setMessage({ type: "success", text: "OpenRouter API key saved!" });
+    setMessage({ type: "success", text: t("settings.openRouterSaved") });
     setTimeout(() => setMessage(null), 3000);
   };
 
   const handleSaveOpenrouterModel = () => {
     const trimmed = openrouterModel.trim();
     if (!trimmed) {
-      setMessage({ type: "error", text: "Please enter a model name" });
+      setMessage({ type: "error", text: t("settings.enterModelName") });
       return;
     }
     setOpenRouterModel(trimmed);
-    setMessage({ type: "success", text: `Model set to ${trimmed}` });
+    setMessage({ type: "success", text: t("settings.modelSet", { name: trimmed }) });
     setTimeout(() => setMessage(null), 3000);
   };
 
   const handleSaveOpenaiKey = () => {
     const trimmed = openaiKey.trim();
     if (!trimmed) {
-      setMessage({ type: "error", text: "Please enter an OpenAI API key" });
+      setMessage({ type: "error", text: t("settings.enterOpenAiKey") });
       return;
     }
     if (!trimmed.startsWith("sk-")) {
       setMessage({
         type: "error",
-        text: "Invalid OpenAI key format (should start with sk-)",
+        text: t("settings.invalidOpenAiKey"),
       });
       return;
     }
     setOpenAIApiKey(trimmed);
-    setMessage({ type: "success", text: "OpenAI API key saved!" });
+    setMessage({ type: "success", text: t("settings.openAiSaved") });
     setTimeout(() => setMessage(null), 3000);
   };
 
   const handleClearAllData = async () => {
     if (
-      window.confirm(
-        "Are you sure you want to clear all data? This will remove your API keys, vocabulary, and session history."
-      )
+      window.confirm(t("settings.clearAllConfirm"))
     ) {
       await clearAllData();
       setAnthropicKeyState("");
@@ -532,7 +541,7 @@ export function Settings() {
       setProfileName("");
       setProfileAge("");
       setProfileAboutYou("");
-      setMessage({ type: "success", text: "All data cleared!" });
+      setMessage({ type: "success", text: t("settings.allDataCleared") });
       setApiOnboardingDismissed(false);
       clearApiKey();
       clearOpenAIApiKey();
@@ -561,48 +570,75 @@ export function Settings() {
         {/* Personal Context */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Personal Context (Optional)</CardTitle>
+            <CardTitle className="text-lg">{t("settings.personalContext")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Add details about yourself so scenario and persona conversations can feel more personalized.
+              {t("settings.personalContextDescription")}
             </p>
 
             <div className="space-y-1.5">
-              <label htmlFor="profile-name" className="text-sm font-medium">Name</label>
+              <label htmlFor="profile-name" className="text-sm font-medium">{t("settings.name")}</label>
               <Input
                 id="profile-name"
-                placeholder="e.g. Alex"
+                placeholder={t("settings.namePlaceholder")}
                 value={profileName}
                 onChange={(e) => setProfileName(e.target.value)}
               />
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="profile-age" className="text-sm font-medium">Age</label>
+              <label htmlFor="profile-age" className="text-sm font-medium">{t("settings.age")}</label>
               <Input
                 id="profile-age"
                 type="number"
                 min={0}
-                placeholder="e.g. 28"
+                placeholder={t("settings.agePlaceholder")}
                 value={profileAge}
                 onChange={(e) => setProfileAge(e.target.value)}
               />
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="profile-about-you" className="text-sm font-medium">About you</label>
+              <label htmlFor="profile-about-you" className="text-sm font-medium">{t("settings.aboutYou")}</label>
               <Textarea
                 id="profile-about-you"
                 rows={3}
-                placeholder="Share hobbies, work, goals, or topics you like talking about..."
+                placeholder={t("settings.aboutYouPlaceholder")}
                 value={profileAboutYou}
                 onChange={(e) => setProfileAboutYou(e.target.value)}
               />
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={handleSavePersonalContext}>Save</Button>
+              <Button onClick={handleSavePersonalContext}>{t("common.save")}</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">{t("settings.languageSection")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {t("settings.languageDescription")}
+            </p>
+            <div className="flex rounded-lg border overflow-hidden">
+              {([
+                ["en", t("common.english")],
+                ["es", t("common.spanish")],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                    locale === value ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                  }`}
+                  onClick={() => setLocale(value)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -610,11 +646,11 @@ export function Settings() {
         {/* Display */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Display</CardTitle>
+            <CardTitle className="text-lg">{t("settings.display")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Choose how the app theme is applied.
+              {t("settings.displayDescription")}
             </p>
 
             <div className="flex rounded-lg border overflow-hidden">
@@ -628,7 +664,11 @@ export function Settings() {
                   }`}
                   onClick={() => handleDisplayModeChange(opt.value)}
                 >
-                  {opt.label}
+                  {opt.value === "light"
+                    ? t("settings.light")
+                    : opt.value === "dark"
+                      ? t("settings.dark")
+                      : t("settings.system")}
                 </button>
               ))}
             </div>
@@ -638,16 +678,16 @@ export function Settings() {
         {/* JLPT Level */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">JLPT Level</CardTitle>
+            <CardTitle className="text-lg">{t("settings.jlptLevel")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Set your current Japanese proficiency level. The AI will adjust vocabulary and grammar complexity accordingly.
+              {t("settings.jlptDescription")}
             </p>
 
             <div className="space-y-1.5">
               <label htmlFor="jlpt-level-select" className="text-sm font-medium">
-                Current Level
+                {t("settings.currentLevel")}
               </label>
               <select
                 id="jlpt-level-select"
@@ -675,7 +715,7 @@ export function Settings() {
                 className="h-4 w-4 rounded border-gray-300"
               />
               <label htmlFor="autoAdjust" className="text-sm">
-                Let AI gradually increase difficulty based on my performance
+                {t("settings.autoAdjust")}
               </label>
             </div>
           </CardContent>
@@ -684,11 +724,11 @@ export function Settings() {
         {/* Response Length */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Response Length</CardTitle>
+            <CardTitle className="text-lg">{t("settings.responseLength")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Control how long the AI's messages are. "Short" feels like texting, "Natural" is a balanced default, and "Long" gives more detailed replies.
+              {t("settings.responseLengthDescription")}
             </p>
 
             <div className="flex rounded-lg border overflow-hidden">
@@ -708,7 +748,11 @@ export function Settings() {
                   }`}
                   onClick={() => handleResponseLengthChange(opt.value)}
                 >
-                  {opt.label}
+                  {opt.value === "short"
+                    ? t("settings.responseShort")
+                    : opt.value === "natural"
+                      ? t("settings.responseNatural")
+                      : t("settings.responseLong")}
                 </button>
               ))}
             </div>
@@ -718,11 +762,11 @@ export function Settings() {
         {/* Scenario Vocabulary Review */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Scenario Vocabulary Review</CardTitle>
+            <CardTitle className="text-lg">{t("settings.scenarioVocabularyReview")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Let scenario conversations naturally weave in due flashcard words when they fit. Turn this off if you want conversations to stay fully topic-first.
+              {t("settings.scenarioVocabularyDescription")}
             </p>
 
             <div className="flex items-center gap-3 pt-1">
@@ -734,7 +778,7 @@ export function Settings() {
                 className="h-4 w-4 rounded border-gray-300"
               />
               <label htmlFor="includeFlashcardVocab" className="text-sm">
-                Use due flashcard vocabulary in scenario conversations
+                {t("settings.scenarioVocabularyToggle")}
               </label>
             </div>
           </CardContent>
@@ -743,11 +787,11 @@ export function Settings() {
         {/* LLM Provider */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">LLM Provider</CardTitle>
+            <CardTitle className="text-lg">{t("settings.llmProvider")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Choose how Tama connects to the AI model for conversations, translations, and feedback.
+              {t("settings.llmDescription")}
             </p>
 
             <div className="flex rounded-lg border overflow-hidden">
@@ -776,7 +820,7 @@ export function Settings() {
             {llmProvider === "anthropic" ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Direct connection to Anthropic's API using Claude.{" "}
+                  {t("settings.anthropicDescription")}{" "}
                   <a
                     href="https://console.anthropic.com/settings/keys"
                     target="_blank"
@@ -796,13 +840,13 @@ export function Settings() {
                     onBlur={() => setShowAnthropicKey(false)}
                     className="flex-1"
                   />
-                  <Button onClick={handleSaveAnthropicKey}>Save</Button>
+                  <Button onClick={handleSaveAnthropicKey}>{t("common.save")}</Button>
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Use any model via OpenRouter — Claude, GPT, Gemini, Llama, and more.{" "}
+                  {t("settings.openrouterDescription")}{" "}
                   <a
                     href="https://openrouter.ai/keys"
                     target="_blank"
@@ -822,10 +866,10 @@ export function Settings() {
                     onBlur={() => setShowOpenrouterKey(false)}
                     className="flex-1"
                   />
-                  <Button onClick={handleSaveOpenrouterKey}>Save</Button>
+                  <Button onClick={handleSaveOpenrouterKey}>{t("common.save")}</Button>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Model</label>
+                  <label className="text-sm font-medium">{t("api.model")}</label>
                   <div className="flex gap-2">
                     <Input
                       placeholder="anthropic/claude-sonnet-4-6"
@@ -833,10 +877,10 @@ export function Settings() {
                       onChange={(e) => setOpenrouterModelState(e.target.value)}
                       className="flex-1"
                     />
-                    <Button onClick={handleSaveOpenrouterModel}>Save</Button>
+                    <Button onClick={handleSaveOpenrouterModel}>{t("common.save")}</Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Use the model ID from{" "}
+                    {t("settings.modelHelp", { example: "google/gemini-2.0-flash-001" }).split("openrouter.ai/models")[0]}
                     <a
                       href="https://openrouter.ai/models"
                       target="_blank"
@@ -845,7 +889,6 @@ export function Settings() {
                     >
                       openrouter.ai/models
                     </a>
-                    {" "}(e.g. <code className="text-xs">google/gemini-2.0-flash-001</code>)
                   </p>
                 </div>
               </div>
@@ -856,11 +899,11 @@ export function Settings() {
         {/* TTS Engine */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">TTS Engine</CardTitle>
+            <CardTitle className="text-lg">{t("settings.ttsEngine")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Choose which text-to-speech engine to use for the AI voice.
+              {t("settings.ttsDescription")}
             </p>
 
             <div className="flex rounded-lg border overflow-hidden">
@@ -897,31 +940,31 @@ export function Settings() {
         {/* Voice Selection */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">AI Voice</CardTitle>
+            <CardTitle className="text-lg">{t("settings.aiVoice")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Choose the voice for the AI conversation partner.
+              {t("settings.aiVoiceDescription")}
             </p>
 
             {loadingVoices ? (
-              <p className="text-sm text-muted-foreground">Loading voices...</p>
+              <p className="text-sm text-muted-foreground">{t("settings.loadingVoices")}</p>
             ) : !engineAvailable ? (
               <Alert>
                 <AlertDescription>
                   {ttsEngine === "voicevox"
-                    ? "VOICEVOX is not running. Start it above to see available voices."
-                    : "Style-Bert-VITS2 is not running. Start it above to see available voices."}
+                    ? t("settings.voicevoxNotRunning")
+                    : t("settings.sbv2NotRunning")}
                 </AlertDescription>
               </Alert>
             ) : voiceOptions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No voices available</p>
+              <p className="text-sm text-muted-foreground">{t("settings.noVoices")}</p>
             ) : (
               <>
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <label htmlFor="voice-speaker-select" className="text-sm font-medium">
-                      Voice
+                      {t("settings.voiceLabel")}
                     </label>
                     <select
                       id="voice-speaker-select"
@@ -941,7 +984,7 @@ export function Settings() {
 
                   <div className="space-y-1.5">
                     <label htmlFor="voice-style-select" className="text-sm font-medium">
-                      Style
+                      {t("settings.styleLabel")}
                     </label>
                     <select
                       id="voice-style-select"
@@ -965,7 +1008,7 @@ export function Settings() {
 
                   {selectedVoice && (
                     <p className="text-xs text-muted-foreground">
-                      Selected: {selectedVoice.name}
+                      {t("settings.selectedVoice", { name: selectedVoice.name })}
                     </p>
                   )}
                 </div>
@@ -977,10 +1020,10 @@ export function Settings() {
                     disabled={testingVoice}
                     className="flex-1"
                   >
-                    {testingVoice ? "Playing..." : "Test Voice"}
+                    {testingVoice ? t("settings.playing") : t("settings.testVoice")}
                   </Button>
                   <Button variant="ghost" onClick={loadVoices} disabled={loadingVoices}>
-                    Refresh
+                    {t("common.refresh")}
                   </Button>
                 </div>
               </>
@@ -991,11 +1034,11 @@ export function Settings() {
         {/* Speech Recognition */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Speech Recognition</CardTitle>
+            <CardTitle className="text-lg">{t("settings.speechRecognition")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Choose how your speech is transcribed to text.
+              {t("settings.speechRecognitionDescription")}
             </p>
 
             <div className="flex rounded-lg border overflow-hidden">
@@ -1024,13 +1067,13 @@ export function Settings() {
             {transcriptionEngine === "local" ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Runs entirely on your machine — free, fast, and fully offline. Requires a ~500 MB model download.
+                  {t("settings.localWhisperDescription")}
                 </p>
 
                 {whisperStatus && (
                   <div className="rounded-lg border p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Whisper Model</span>
+                      <span className="text-sm font-medium">{t("settings.whisperModel")}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         whisperStatus.loaded
                           ? "bg-green-100 text-green-700"
@@ -1038,13 +1081,15 @@ export function Settings() {
                             ? "bg-yellow-100 text-yellow-700"
                             : "bg-gray-100 text-gray-600"
                       }`}>
-                        {whisperStatus.loaded ? "Loaded" : whisperStatus.model_exists ? "Downloaded" : "Not downloaded"}
+                        {whisperStatus.loaded ? t("settings.loaded") : whisperStatus.model_exists ? t("settings.downloaded") : t("settings.notDownloaded")}
                       </span>
                     </div>
 
                     {whisperStatus.model_exists && whisperStatus.model_size_bytes > 0 && (
                       <p className="text-xs text-muted-foreground">
-                        Size: {(whisperStatus.model_size_bytes / (1024 * 1024)).toFixed(0)} MB
+                        {t("settings.sizeMb", {
+                          size: (whisperStatus.model_size_bytes / (1024 * 1024)).toFixed(0),
+                        })}
                       </p>
                     )}
 
@@ -1069,7 +1114,7 @@ export function Settings() {
                           onClick={handleDownloadWhisperModel}
                           disabled={whisperDownloading}
                         >
-                          {whisperDownloading ? "Downloading..." : "Download Model"}
+                          {whisperDownloading ? t("settings.downloading") : t("settings.downloadModel")}
                         </Button>
                       ) : !whisperStatus.loaded ? (
                         <Button
@@ -1077,7 +1122,7 @@ export function Settings() {
                           onClick={handleDownloadWhisperModel}
                           disabled={whisperDownloading}
                         >
-                          {whisperDownloading ? "Loading..." : "Load Model"}
+                          {whisperDownloading ? t("app.loading") : t("settings.loadModel")}
                         </Button>
                       ) : null}
                       {whisperStatus.model_exists && (
@@ -1087,7 +1132,7 @@ export function Settings() {
                           onClick={handleDeleteWhisperModel}
                           disabled={whisperDeleting || whisperDownloading}
                         >
-                          {whisperDeleting ? "Deleting..." : "Delete Model"}
+                          {whisperDeleting ? t("settings.deleting") : t("settings.deleteModel")}
                         </Button>
                       )}
                     </div>
@@ -1097,7 +1142,7 @@ export function Settings() {
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Uses OpenAI's Whisper API — requires an API key and internet connection.{" "}
+                  {t("settings.openAiDescription")}{" "}
                   <a
                     href="https://platform.openai.com/api-keys"
                     target="_blank"
@@ -1117,7 +1162,7 @@ export function Settings() {
                     onBlur={() => setShowOpenaiKey(false)}
                     className="flex-1"
                   />
-                  <Button onClick={handleSaveOpenaiKey}>Save</Button>
+                  <Button onClick={handleSaveOpenaiKey}>{t("common.save")}</Button>
                 </div>
               </div>
             )}
@@ -1127,15 +1172,14 @@ export function Settings() {
         {/* Danger Zone */}
         <Card className="border-red-200">
           <CardHeader>
-            <CardTitle className="text-lg text-red-600">Danger Zone</CardTitle>
+            <CardTitle className="text-lg text-red-600">{t("settings.dangerZone")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Clear all stored data including API keys, vocabulary, and session
-              history.
+              {t("settings.dangerDescription")}
             </p>
             <Button variant="destructive" onClick={handleClearAllData}>
-              Clear All Data
+              {t("settings.clearAllData")}
             </Button>
           </CardContent>
         </Card>

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSessions, getVocabulary } from "@/services/storage";
+import { useI18n } from "@/i18n";
+import { formatMonthYear, getWeekdayLabels } from "@/services/locale-format";
 import hanamaruStamp from "@/assets/hanamaru.svg";
 import type { Session, VocabItem } from "@/types";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -25,6 +27,7 @@ function parseSourceSessionDate(item: VocabItem): Date | null {
 }
 
 export function StatsScreen() {
+  const { locale, t } = useI18n();
   const currentMonthStart = startOfMonth(new Date());
   const [viewedMonth, setViewedMonth] = useState<Date>(currentMonthStart);
   const year = viewedMonth.getFullYear();
@@ -41,8 +44,8 @@ export function StatsScreen() {
   }, []);
 
   const monthName = useMemo(
-    () => new Date(year, month, 1).toLocaleString("default", { month: "long", year: "numeric" }),
-    [year, month]
+    () => formatMonthYear(new Date(year, month, 1), locale),
+    [locale, year, month]
   );
   const canGoNextMonth = viewedMonth < currentMonthStart;
 
@@ -86,13 +89,13 @@ export function StatsScreen() {
         <div className="grid gap-3 md:grid-cols-2">
           <Card className="py-0 gap-0">
             <CardContent className="py-4">
-              <p className="text-sm text-muted-foreground">Sessions in month</p>
+              <p className="text-sm text-muted-foreground">{t("stats.sessionsInMonth")}</p>
               <p className="text-3xl font-semibold mt-1">{totalSessionsThisMonth}</p>
             </CardContent>
           </Card>
           <Card className="py-0 gap-0">
             <CardContent className="py-4">
-              <p className="text-sm text-muted-foreground">New flashcards added</p>
+              <p className="text-sm text-muted-foreground">{t("stats.newFlashcardsAdded")}</p>
               <p className="text-3xl font-semibold mt-1">{newFlashcardsThisMonth}</p>
             </CardContent>
           </Card>
@@ -108,7 +111,7 @@ export function StatsScreen() {
                   size="icon"
                   className="h-7 w-7"
                   onClick={() => setViewedMonth((m) => addMonths(m, -1))}
-                  aria-label="Previous month"
+                  aria-label={t("common.previousMonth")}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -118,7 +121,7 @@ export function StatsScreen() {
                   className="h-7 w-7"
                   onClick={() => setViewedMonth((m) => addMonths(m, 1))}
                   disabled={!canGoNextMonth}
-                  aria-label="Next month"
+                  aria-label={t("common.nextMonth")}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -127,7 +130,7 @@ export function StatsScreen() {
           </CardHeader>
           <CardContent className="pb-4">
             <div className="mt-3 grid grid-cols-7 gap-1.5">
-              {["月", "火", "水", "木", "金", "土", "日"].map((d) => (
+              {getWeekdayLabels(locale).map((d) => (
                 <div key={d} className="text-[10px] text-center text-muted-foreground/70">
                   {d}
                 </div>
@@ -148,7 +151,7 @@ export function StatsScreen() {
                         ? "bg-rose-50 border-rose-300"
                         : "bg-muted/35 border-border/40"
                     }`}
-                    title={`${sessionCount} sessions`}
+                    title={t("stats.sessionsForDay", { count: sessionCount })}
                   >
                     <span className="absolute left-1.5 top-1 text-[10px] text-muted-foreground">
                       {day}

@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { hasApiKey } from "@/services/claude";
 import { isApiOnboardingDismissed, setApiOnboardingDismissed } from "@/services/app-config";
 import { checkForAppUpdatesOnLaunch } from "@/services/updater";
+import { useI18n } from "@/i18n";
 import type { Message, Scenario } from "@/types";
 
 type Screen = "home" | "scenario-select" | "conversation" | "flashcards" | "history" | "stats" | "settings" | "session-complete" | "ongoing-chats" | "ongoing-chat";
@@ -42,9 +43,10 @@ const OngoingChatScreen = lazy(() =>
 );
 
 function ScreenLoader() {
+  const { t } = useI18n();
   return (
     <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
-      Loading...
+      {t("app.loading")}
     </div>
   );
 }

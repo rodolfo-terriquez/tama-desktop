@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CustomScenarioForm } from "@/components/CustomScenarioForm";
+import { useI18n } from "@/i18n";
 import { getRecommendedScenarios, pickBestScenario } from "@/services/scenarios";
 import {
   getCustomScenarios,
@@ -19,6 +20,7 @@ interface ScenarioPickerProps {
 }
 
 export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
+  const { t } = useI18n();
   const [ranked, setRanked] = useState<Awaited<ReturnType<typeof getRecommendedScenarios>>>([]);
   const [customScenarios, setCustomScenarios] = useState<Scenario[]>([]);
   const [formOpen, setFormOpen] = useState(false);
@@ -70,10 +72,10 @@ export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
       <div className="flex items-center justify-end gap-2 mb-4">
         <Button size="sm" variant="outline" onClick={handleOpenForm}>
           <Plus className="size-4 mr-1" />
-          Custom Scenario
+          {t("scenario.customScenario")}
         </Button>
         <Button size="sm" onClick={handleSurpriseMe}>
-          Random
+          {t("scenario.random")}
         </Button>
       </div>
 
@@ -84,7 +86,7 @@ export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
             <>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  Custom Scenarios
+                  {t("scenario.customScenarios")}
                 </h2>
               </div>
               {customScenarios.map((scenario) => (
@@ -109,7 +111,7 @@ export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
                         </p>
                         {scenario.custom_prompt && (
                           <Badge variant="secondary" className="mt-2 text-xs">
-                            Has conversation structure
+                            {t("scenario.hasConversationStructure")}
                           </Badge>
                         )}
                       </div>
@@ -141,7 +143,7 @@ export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
           {/* Built-in scenarios */}
           {customScenarios.length > 0 && (
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mt-2">
-              Built-in Scenarios
+              {t("scenario.builtInScenarios")}
             </h2>
           )}
           {ranked.map(({ scenario, reason }, i) => (
@@ -170,7 +172,7 @@ export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
                   </div>
                   {i === 0 && (
                     <Badge className="shrink-0 text-xs">
-                      Recommended
+                      {t("common.recommended")}
                     </Badge>
                   )}
                 </div>

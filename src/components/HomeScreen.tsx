@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getDueVocabulary, getLastSession, getOngoingChats, getSessions, getUserProfile } from "@/services/storage";
+import { useI18n } from "@/i18n";
+import { formatRelativeTime, formatWeekdayMonthDay, getWeekdayLabels } from "@/services/locale-format";
 import type { OngoingChat, Scenario } from "@/types";
-import { addDays, format, formatDistanceToNow, getISOWeek, isSameDay, startOfWeek } from "date-fns";
+import { addDays, format, getISOWeek, isSameDay, startOfWeek } from "date-fns";
 import hanamaruStamp from "@/assets/hanamaru.svg";
 
 interface HomeScreenProps {
@@ -55,6 +57,7 @@ function useWeeklyActivity() {
 }
 
 function ActivityGrid() {
+  const { locale, t } = useI18n();
   const { weekDays, completedDays, weekNumber } = useWeeklyActivity();
 
   const today = new Date();
@@ -63,10 +66,10 @@ function ActivityGrid() {
     <Card className="py-0 gap-0">
       <CardContent className="py-3 px-4">
         <div className="flex items-baseline justify-between mb-2">
-          <span className="text-xs font-medium">Week {weekNumber}</span>
+          <span className="text-xs font-medium">{t("home.week", { weekNumber })}</span>
         </div>
         <div className="grid grid-cols-7 gap-2">
-          {["月", "火", "水", "木", "金", "土", "日"].map((d, i) => (
+          {getWeekdayLabels(locale).map((d, i) => (
             <div key={i} className="text-[9px] text-center text-muted-foreground/60 leading-none mb-0.5">
               {d}
             </div>
@@ -82,7 +85,7 @@ function ActivityGrid() {
                     ? "bg-rose-50 border-rose-300 text-rose-700"
                     : "bg-muted/40 border-border/40 text-muted-foreground/30"
                 } ${isSameDay(day, today) ? "ring-1 ring-foreground/30" : ""}`}
-                title={`${format(day, "EEE, MMM d")}: ${isCompleted ? "Session completed" : "No completed session"}`}
+                title={`${formatWeekdayMonthDay(day, locale)}: ${isCompleted ? t("home.sessionCompleted") : t("home.noCompletedSession")}`}
               >
                 {isCompleted ? (
                   <img
@@ -102,13 +105,14 @@ function ActivityGrid() {
   );
 }
 
-function getGreetingJa(date: Date, name?: string): string {
+function getGreeting(date: Date, name: string | undefined, t: ReturnType<typeof useI18n>["t"]): string {
   const hour = date.getHours();
-  const baseGreeting =
-    hour < 12 ? "おはようございます" :
-    hour < 18 ? "こんにちは" :
-    "こんばんは";
-  return name ? `${baseGreeting}、${name}さん` : baseGreeting;
+  const baseGreeting = hour < 12
+    ? t("home.greetingMorning")
+    : hour < 18
+      ? t("home.greetingAfternoon")
+      : t("home.greetingEvening");
+  return name ? t("home.greetingWithName", { greeting: baseGreeting, name }) : baseGreeting;
 }
 
 export function HomeScreen({
@@ -118,6 +122,7 @@ export function HomeScreen({
   onContinueChat,
   onOngoingChats,
 }: HomeScreenProps) {
+  const { t } = useI18n();
   const [now, setNow] = useState(() => new Date());
   const [dueCount, setDueCount] = useState(0);
   const [lastScenario, setLastScenario] = useState<{
@@ -126,7 +131,7 @@ export function HomeScreen({
   } | null>(null);
   const [lastPersonaChat, setLastPersonaChat] = useState<OngoingChat | null>(null);
   const [profileName, setProfileName] = useState("");
-  const greetingJa = getGreetingJa(now, profileName);
+  const greeting = getGreeting(now, profileName, t);
 
   useEffect(() => {
     const tick = () => setNow(new Date());
@@ -162,7 +167,7 @@ export function HomeScreen({
       <div className="max-w-xl w-full space-y-4 py-4">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-3xl font-bold mb-2">{greetingJa}</h1>
+          <h1 className="text-3xl font-bold mb-2">{greeting}</h1>
         </div>
 
         <div className="grid gap-3 md:grid-cols-3">
@@ -178,18 +183,18 @@ export function HomeScreen({
             }}
           >
             <CardContent className="py-4 px-4 h-full">
-              <p className="text-sm font-medium">Last scenario</p>
+              <p className="text-sm font-medium">{t("home.lastScenario")}</p>
               {lastScenario ? (
                 <>
                   <p className="text-sm text-muted-foreground truncate mt-1">
                     {lastScenario.scenario.title} · {lastScenario.scenario.title_ja}
                   </p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    {formatDistanceToNow(new Date(lastScenario.date), { addSuffix: true })}
+                    {formatRelativeTime(new Date(lastScenario.date))}
                   </p>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground mt-1">No completed scenarios yet</p>
+                <p className="text-sm text-muted-foreground mt-1">{t("home.noCompletedScenarios")}</p>
               )}
             </CardContent>
           </Card>
@@ -206,7 +211,7 @@ export function HomeScreen({
             }}
           >
             <CardContent className="py-4 px-4 h-full">
-              <p className="text-sm font-medium">Last coversation</p>
+              <p className="text-sm font-medium">{t("home.lastConversation")}</p>
               {lastPersonaChat ? (
                 <>
                   <p className="text-sm text-muted-foreground truncate mt-1">
@@ -217,7 +222,7 @@ export function HomeScreen({
                   </p>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground mt-1">No persona chats yet</p>
+                <p className="text-sm text-muted-foreground mt-1">{t("home.noPersonaChats")}</p>
               )}
             </CardContent>
           </Card>
@@ -230,17 +235,19 @@ export function HomeScreen({
             onClick={onFlashcards}
           >
             <CardContent className="py-4 px-4 h-full">
-              <p className="text-sm font-medium">Flashcards due</p>
+              <p className="text-sm font-medium">{t("home.flashcardsDue")}</p>
               <p className="text-sm text-muted-foreground mt-1">
                 {dueCount > 0
-                  ? `${dueCount} overdue card${dueCount !== 1 ? "s" : ""}`
-                  : "No overdue cards"}
+                  ? dueCount === 1
+                    ? t("home.oneOverdueCard")
+                    : t("home.multipleOverdueCards", { count: dueCount })
+                  : t("home.noOverdueCards")}
               </p>
               <div className="text-2xl font-bold mt-2">
                 {dueCount}
                 {dueCount > 0 && (
                   <Badge variant="destructive" className="ml-1.5 text-[10px] px-1.5 py-0 align-top">
-                    due
+                    {t("common.due")}
                   </Badge>
                 )}
               </div>

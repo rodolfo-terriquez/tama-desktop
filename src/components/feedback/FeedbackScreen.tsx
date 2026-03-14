@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { useI18n } from "@/i18n";
 import { generateFeedback } from "@/services/claude";
 import { addVocabItem, saveSession, getVocabulary, getUserProfile, updateUserProfile } from "@/services/storage";
 import type { Message, Scenario, SessionFeedback, Session } from "@/types";
@@ -18,10 +19,10 @@ interface FeedbackScreenProps {
 }
 
 const RATING_CONFIG = {
-  needs_work: { label: "Needs Work", variant: "destructive" as const, icon: "📝" },
-  good: { label: "Good", variant: "default" as const, icon: "👍" },
-  excellent: { label: "Excellent", variant: "secondary" as const, icon: "🌟" },
-};
+  needs_work: { key: "history.needsWork", variant: "destructive" as const, icon: "📝" },
+  good: { key: "history.good", variant: "default" as const, icon: "👍" },
+  excellent: { key: "history.excellent", variant: "secondary" as const, icon: "🌟" },
+} as const;
 
 export function FeedbackScreen({
   messages,
@@ -29,6 +30,7 @@ export function FeedbackScreen({
   onStartNewSession,
   onGoHome,
 }: FeedbackScreenProps) {
+  const { t } = useI18n();
   const [feedback, setFeedback] = useState<SessionFeedback | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +146,7 @@ export function FeedbackScreen({
         if (cancelled) return;
         console.error("Feedback generation failed:", err);
         setError(
-          err instanceof Error ? err.message : "Failed to generate feedback"
+          err instanceof Error ? err.message : t("feedback.generateFailed")
         );
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -155,7 +157,7 @@ export function FeedbackScreen({
       fetchFeedback();
     } else {
       setIsLoading(false);
-      setError("No conversation to analyze.");
+      setError(t("feedback.noConversation"));
     }
 
     return () => {
@@ -209,18 +211,18 @@ export function FeedbackScreen({
       <div className="flex flex-col items-center justify-center h-full p-4">
         <Card className="w-full max-w-lg">
           <CardContent className="py-8 space-y-4 text-center">
-            <h2 className="text-xl font-semibold">Session Complete</h2>
+            <h2 className="text-xl font-semibold">{t("feedback.sessionComplete")}</h2>
             <p className="text-muted-foreground">
-              {messages.length} messages in "{scenario.title}"
+              {t("feedback.messagesInScenario", { count: messages.length, title: scenario.title })}
             </p>
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
             <div className="flex gap-2 justify-center pt-2">
               <Button variant="outline" onClick={onGoHome}>
-                Home
+                {t("common.home")}
               </Button>
-              <Button onClick={onStartNewSession}>New Session</Button>
+              <Button onClick={onStartNewSession}>{t("feedback.newSession")}</Button>
             </div>
           </CardContent>
         </Card>
@@ -240,19 +242,19 @@ export function FeedbackScreen({
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xl">Session Feedback</CardTitle>
+              <CardTitle className="text-xl">{t("feedback.sessionFeedback")}</CardTitle>
               <Badge variant={rating.variant} className="text-sm px-3 py-1">
-                {rating.icon} {rating.label}
+                {rating.icon} {t(rating.key)}
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              {scenario.title_ja} — {userMsgCount} exchanges
+              {scenario.title_ja} — {t("feedback.exchanges", { count: userMsgCount })}
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
             {feedback.summary.topics_covered.length > 0 && (
               <div>
-                <p className="text-sm font-medium mb-1.5">Topics Covered</p>
+                <p className="text-sm font-medium mb-1.5">{t("feedback.topicsCovered")}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {feedback.summary.topics_covered.map((topic, i) => (
                     <Badge key={i} variant="outline" className="text-xs">
@@ -264,7 +266,7 @@ export function FeedbackScreen({
             )}
             {feedback.summary.next_session_hint && (
               <div>
-                <p className="text-sm font-medium mb-1">Next Time</p>
+                <p className="text-sm font-medium mb-1">{t("feedback.nextTime")}</p>
                 <p className="text-sm text-muted-foreground">
                   {feedback.summary.next_session_hint}
                 </p>
@@ -277,7 +279,7 @@ export function FeedbackScreen({
         {feedback.grammar_points.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Grammar Points</CardTitle>
+              <CardTitle className="text-lg">{t("feedback.grammarPoints")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {feedback.grammar_points.map((point, i) => (
@@ -307,7 +309,7 @@ export function FeedbackScreen({
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Vocabulary</CardTitle>
+                <CardTitle className="text-lg">{t("feedback.vocabulary")}</CardTitle>
                 {feedback.vocabulary.length > 1 && (
                   <Button
                     variant="outline"
@@ -316,8 +318,8 @@ export function FeedbackScreen({
                     disabled={feedback.vocabulary.every((v) => addedWords.has(v.word))}
                   >
                     {feedback.vocabulary.every((v) => addedWords.has(v.word))
-                      ? "All Added"
-                      : "Add All to SRS"}
+                      ? t("feedback.allAdded")
+                      : t("feedback.addAllToSrs")}
                   </Button>
                 )}
               </div>
@@ -351,7 +353,7 @@ export function FeedbackScreen({
                     onClick={() => handleAddToSRS(i)}
                     disabled={addedWords.has(vocab.word)}
                   >
-                    {addedWords.has(vocab.word) ? "Added ✓" : "+ SRS"}
+                    {addedWords.has(vocab.word) ? t("feedback.added") : t("feedback.addToSrs")}
                   </Button>
                 </div>
               ))}
@@ -363,7 +365,7 @@ export function FeedbackScreen({
         {feedback.fluency_notes.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Fluency Notes</CardTitle>
+              <CardTitle className="text-lg">{t("feedback.fluencyNotes")}</CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="space-y-2">
@@ -381,9 +383,9 @@ export function FeedbackScreen({
         {/* Actions */}
         <div className="flex gap-3 justify-center pt-2">
           <Button variant="outline" onClick={onGoHome}>
-            Home
+            {t("common.home")}
           </Button>
-          <Button onClick={onStartNewSession}>Start New Session</Button>
+          <Button onClick={onStartNewSession}>{t("feedback.startNewSession")}</Button>
         </div>
       </div>
     </ScrollArea>
@@ -397,6 +399,7 @@ function FeedbackSkeleton({
   messageCount: number;
   scenarioTitle: string;
 }) {
+  const { t } = useI18n();
   return (
     <div className="max-w-2xl mx-auto p-4 pb-12 space-y-6">
       <Card>
@@ -449,7 +452,7 @@ function FeedbackSkeleton({
 
       <div className="text-center">
         <p className="text-sm text-muted-foreground animate-pulse">
-          Analyzing {messageCount} messages from "{scenarioTitle}"...
+          {t("feedback.analyzing", { count: messageCount, title: scenarioTitle })}
         </p>
       </div>
     </div>

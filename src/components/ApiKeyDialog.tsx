@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useI18n } from "@/i18n";
+import { getAppLocale } from "@/services/app-config";
 import {
   setApiKey,
   setLLMProvider,
@@ -25,6 +27,7 @@ interface ApiKeyDialogProps {
 }
 
 export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
+  const { locale, setLocale, t } = useI18n();
   const [provider, setProvider] = useState<LLMProvider>("anthropic");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openrouterKey, setOpenrouterKey] = useState("");
@@ -32,27 +35,31 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
   const [openaiKey, setOpenaiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setLocale(getAppLocale());
+  }, [setLocale]);
+
   const handleSubmit = () => {
     // Validate LLM key based on provider
     if (provider === "anthropic") {
       const trimmed = anthropicKey.trim();
       if (!trimmed) {
-        setError("Please enter your Anthropic API key");
+        setError(t("api.errorAnthropicMissing"));
         return;
       }
       if (!trimmed.startsWith("sk-ant-")) {
-        setError("Invalid Anthropic API key format. It should start with 'sk-ant-'");
+        setError(t("api.errorAnthropicInvalid"));
         return;
       }
       setApiKey(trimmed);
     } else {
       const trimmed = openrouterKey.trim();
       if (!trimmed) {
-        setError("Please enter your OpenRouter API key");
+        setError(t("api.errorOpenRouterMissing"));
         return;
       }
       if (!trimmed.startsWith("sk-or-")) {
-        setError("Invalid OpenRouter API key format. It should start with 'sk-or-'");
+        setError(t("api.errorOpenRouterInvalid"));
         return;
       }
       setOpenRouterApiKey(trimmed);
@@ -63,7 +70,7 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
     // OpenAI key is optional (needed only for OpenAI transcription engine)
     const trimmedOpenai = openaiKey.trim();
     if (trimmedOpenai && !trimmedOpenai.startsWith("sk-")) {
-      setError("Invalid OpenAI API key format. It should start with 'sk-'");
+      setError(t("api.errorOpenAiInvalid"));
       return;
     }
 
@@ -88,17 +95,36 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Welcome to Tama</DialogTitle>
+          <DialogTitle>{t("api.title")}</DialogTitle>
           <DialogDescription>
-            Enter your API keys to start practicing Japanese conversation.
-            Keys are stored locally in your browser only.
+            {t("api.description")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">{t("common.language")}</label>
+            <div className="flex rounded-lg border overflow-hidden">
+              {([
+                ["en", t("common.english")],
+                ["es", t("common.spanish")],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                    locale === value ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                  }`}
+                  onClick={() => setLocale(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* LLM Provider toggle */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">LLM Provider</label>
+            <label className="text-sm font-medium">{t("api.provider")}</label>
             <div className="flex rounded-lg border overflow-hidden">
               <button
                 className={`flex-1 py-2 text-sm font-medium transition-colors ${
@@ -126,7 +152,7 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
           {/* Provider-specific key input */}
           {provider === "anthropic" ? (
             <div className="space-y-2">
-              <label className="text-sm font-medium">Anthropic API Key</label>
+              <label className="text-sm font-medium">{t("api.anthropicKey")}</label>
               <Input
                 type="password"
                 placeholder="sk-ant-..."
@@ -134,21 +160,21 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
                 onChange={(e) => { setAnthropicKey(e.target.value); setError(null); }}
               />
               <p className="text-xs text-muted-foreground">
-                For conversation AI (Claude).{" "}
+                {t("api.anthropicHelp")}{" "}
                 <a
                   href="https://console.anthropic.com/settings/keys"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline hover:text-foreground"
                 >
-                  Get key
+                  {t("api.getKey")}
                 </a>
               </p>
             </div>
           ) : (
             <>
               <div className="space-y-2">
-                <label className="text-sm font-medium">OpenRouter API Key</label>
+                <label className="text-sm font-medium">{t("api.openrouterKey")}</label>
                 <Input
                   type="password"
                   placeholder="sk-or-..."
@@ -156,19 +182,19 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
                   onChange={(e) => { setOpenrouterKey(e.target.value); setError(null); }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Use any model via OpenRouter.{" "}
+                  {t("api.openrouterHelp")}{" "}
                   <a
                     href="https://openrouter.ai/keys"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline hover:text-foreground"
                   >
-                    Get key
+                    {t("api.getKey")}
                   </a>
                 </p>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Model</label>
+                <label className="text-sm font-medium">{t("api.model")}</label>
                 <Input
                   placeholder="anthropic/claude-sonnet-4-6"
                   value={openrouterModel}
@@ -191,7 +217,7 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
 
           {/* OpenAI key (optional; used for OpenAI Whisper engine) */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">OpenAI API Key</label>
+            <label className="text-sm font-medium">{t("api.openAiKey")}</label>
             <Input
               type="password"
               placeholder="sk-..."
@@ -205,14 +231,14 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
               }}
             />
             <p className="text-xs text-muted-foreground">
-              Optional, for OpenAI Whisper transcription.{" "}
+              {t("api.openAiHelp")}{" "}
               <a
                 href="https://platform.openai.com/api-keys"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-foreground"
               >
-                Get key
+                {t("api.getKey")}
               </a>
             </p>
           </div>
@@ -222,10 +248,10 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">
           <Button variant="ghost" onClick={onSkip}>
-            Skip for now
+            {t("api.skip")}
           </Button>
           <Button onClick={handleSubmit} className="w-full sm:w-auto">
-            Start Practicing
+            {t("api.start")}
           </Button>
         </DialogFooter>
       </DialogContent>

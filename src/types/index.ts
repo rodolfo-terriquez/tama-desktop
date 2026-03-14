@@ -1,3 +1,5 @@
+export type AppLocale = "en" | "es";
+
 // Vocabulary item for SRS
 export interface VocabItem {
   id: string;

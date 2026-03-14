@@ -32,6 +32,7 @@ import { getLLMProvider, getOpenRouterModel, hasApiKey } from "@/services/claude
 import { hasOpenAIApiKey } from "@/services/openai";
 import { getTranscriptionEngine } from "@/services/transcription";
 import { getWhisperModelStatus } from "@/services/whisper-local";
+import { useI18n } from "@/i18n";
 
 interface AppSidebarProps {
   currentScreen: string;
@@ -46,6 +47,7 @@ const ENGINE_LABELS: Record<TTSEngineType, string> = {
 type DotColor = "green" | "yellow" | "red" | "gray" | "pulse";
 
 function useStatusInfo() {
+  const { t } = useI18n();
   const [engineType, setEngineType] = useState<TTSEngineType>(getStoredEngineType);
   const [transcriptionEngine, setTranscriptionEngine] = useState(getTranscriptionEngine);
   const [ttsStatus, setTtsStatus] = useState<"checking" | "online" | "offline">("checking");
@@ -130,26 +132,26 @@ function useStatusInfo() {
     dotColor = "pulse";
   } else if (!hasLLMKey || !hasSTTConfig) {
     dotColor = "red";
-    if (!hasLLMKey) issues.push("LLM API key missing");
+    if (!hasLLMKey) issues.push(t("sidebar.issueMissingLlm"));
     if (!hasSTTConfig) {
       issues.push(
         transcriptionEngine === "local"
-          ? "Local Whisper model not loaded"
-          : "OpenAI key missing for transcription"
+          ? t("sidebar.issueMissingLocalWhisper")
+          : t("sidebar.issueMissingOpenAi")
       );
     }
   } else if (ttsStatus === "offline") {
     dotColor = "gray";
-    issues.push(`${ttsLabel} is off`);
+    issues.push(t("sidebar.issueTtsOff", { ttsLabel }));
   } else {
     dotColor = "green";
   }
 
   const tooltipLines = [
-    `LLM: ${llmModel} ${hasLLMKey ? "✓" : "✗"}`,
-    `STT: ${sttLabel} ${hasSTTConfig ? "✓" : "✗"}`,
-    `TTS: ${ttsLabel} ${ttsStatus === "online" ? "✓" : ttsStatus === "checking" ? "…" : "✗"}`,
-    voiceName ? `Voice: ${voiceName}` : null,
+    `${t("sidebar.llm")}: ${llmModel} ${hasLLMKey ? "✓" : "✗"}`,
+    `${t("sidebar.stt")}: ${sttLabel} ${hasSTTConfig ? "✓" : "✗"}`,
+    `${t("sidebar.tts")}: ${ttsLabel} ${ttsStatus === "online" ? "✓" : ttsStatus === "checking" ? "…" : "✗"}`,
+    voiceName ? `${t("sidebar.voice")}: ${voiceName}` : null,
     ...issues.map((i) => `⚠ ${i}`),
   ].filter(Boolean);
 
@@ -166,6 +168,7 @@ function useStatusInfo() {
 
 
 export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
+  const { t } = useI18n();
   const { dotClass, dotColor, tooltipLines } = useStatusInfo();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -234,13 +237,13 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
 
     switch (result.status) {
       case "disabled":
-        setUpdateMessage({ type: "error", text: result.message ?? "Updater is disabled in development builds." });
+        setUpdateMessage({ type: "error", text: result.message ?? t("sidebar.updaterDisabled") });
         break;
       case "up-to-date":
         setAvailableUpdateVersion(null);
         setUpdateMessage({
           type: "success",
-          text: appVersion ? `Tama v${appVersion} is up to date.` : "Tama is up to date.",
+          text: appVersion ? t("sidebar.upToDateVersion", { version: appVersion }) : t("sidebar.upToDate"),
         });
         break;
       case "declined":
@@ -248,8 +251,8 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
         setUpdateMessage({
           type: "success",
           text: result.version
-            ? `Update v${result.version} is available when you're ready.`
-            : "Update is available when you're ready.",
+            ? t("sidebar.updateAvailableVersion", { version: result.version })
+            : t("sidebar.updateAvailable"),
         });
         break;
       case "installed":
@@ -257,54 +260,56 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
         setUpdateMessage({
           type: "success",
           text: result.version
-            ? `Update v${result.version} installed. Restart Tama to finish.`
-            : "Update installed. Restart Tama to finish.",
+            ? t("sidebar.updateInstalledVersion", { version: result.version })
+            : t("sidebar.updateInstalled"),
         });
         break;
       case "error":
         setUpdateMessage({
           type: "error",
-          text: result.message ? `Update check failed: ${result.message}` : "Update check failed.",
+          text: result.message
+            ? t("sidebar.updateFailedWithMessage", { message: result.message })
+            : t("sidebar.updateFailed"),
         });
         break;
       default:
         setUpdateMessage(null);
     }
-  }, [appVersion, availableUpdateVersion, isCheckingForUpdates]);
+  }, [appVersion, availableUpdateVersion, isCheckingForUpdates, t]);
 
   const navItems = [
     {
-      title: "Home",
+      title: t("common.home"),
       icon: Home,
       id: "home",
       isActive: currentScreen === "home",
     },
     {
-      title: "Scenarios",
+      title: t("common.scenarios"),
       icon: Library,
       id: "scenario-select",
       isActive: currentScreen === "scenario-select",
     },
     {
-      title: "Personas",
+      title: t("common.personas"),
       icon: Users,
       id: "ongoing-chats",
       isActive: currentScreen === "ongoing-chats" || currentScreen === "ongoing-chat",
     },
     {
-      title: "Flashcards",
+      title: t("common.flashcards"),
       icon: BookOpen,
       id: "flashcards",
       isActive: currentScreen === "flashcards",
     },
     {
-      title: "History",
+      title: t("common.history"),
       icon: History,
       id: "history",
       isActive: currentScreen === "history",
     },
     {
-      title: "Stats",
+      title: t("common.stats"),
       icon: ChartColumn,
       id: "stats",
       isActive: currentScreen === "stats",
@@ -352,9 +357,9 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
                   <SidebarMenuButton
                     isActive={item.isActive}
                     onClick={() => onNavigate(item.id)}
-                    tooltip={item.title}
-                    className={labelFadeClass}
-                  >
+                tooltip={item.title}
+                className={labelFadeClass}
+              >
                     <item.icon className="h-4 w-4" />
                     <span>{item.title}</span>
                   </SidebarMenuButton>
@@ -373,12 +378,12 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
               <SidebarMenuButton
                 isActive={currentScreen === "settings"}
                 onClick={() => onNavigate("settings")}
-                tooltip="Settings"
+                tooltip={t("common.settings")}
                 className={`min-w-0 flex-1 ${labelFadeClass}`}
               >
                 <Settings className="h-4 w-4" />
                 <span className="flex w-full min-w-0 items-center justify-between gap-2">
-                  <span>Settings</span>
+                  <span>{t("common.settings")}</span>
                   {!isCollapsed && appVersion && (
                     <span className="text-[10px] text-muted-foreground tabular-nums">
                       v{appVersion}
@@ -399,11 +404,11 @@ export function AppSidebar({ currentScreen, onNavigate }: AppSidebarProps) {
                         className="shrink-0"
                       >
                         <RefreshCw className={isCheckingForUpdates ? "animate-spin" : ""} />
-                        <span>{isCheckingForUpdates ? "Checking" : "Update"}</span>
+                        <span>{isCheckingForUpdates ? t("sidebar.checking") : t("sidebar.update")}</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="right">
-                      Install Tama v{availableUpdateVersion}
+                      {t("sidebar.installUpdate", { version: availableUpdateVersion })}
                     </TooltipContent>
                   </Tooltip>
                 )

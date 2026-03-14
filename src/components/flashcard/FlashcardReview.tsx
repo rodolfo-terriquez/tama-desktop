@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Flashcard } from "@/components/flashcard/Flashcard";
+import { useI18n } from "@/i18n";
 import {
   getDueVocabulary,
   getVocabulary,
@@ -19,11 +20,11 @@ import { BookOpenText, CircleCheckBig, PartyPopper } from "lucide-react";
 
 // ── Shared constants ─────────────────────────────────────
 
-const RATINGS: { value: SRSRating; label: string; sublabel: string; className: string }[] = [
-  { value: "again", label: "Again", sublabel: "1d", className: "bg-red-500 hover:bg-red-600 text-white" },
-  { value: "hard", label: "Hard", sublabel: "~3d", className: "bg-orange-500 hover:bg-orange-600 text-white" },
-  { value: "good", label: "Good", sublabel: "~7d", className: "bg-blue-500 hover:bg-blue-600 text-white" },
-  { value: "easy", label: "Easy", sublabel: "~14d+", className: "bg-green-500 hover:bg-green-600 text-white" },
+const RATINGS: { value: SRSRating; labelKey: "flashcards.again" | "flashcards.hard" | "flashcards.good" | "flashcards.easy"; sublabel: string; className: string }[] = [
+  { value: "again", labelKey: "flashcards.again", sublabel: "1d", className: "bg-red-500 hover:bg-red-600 text-white" },
+  { value: "hard", labelKey: "flashcards.hard", sublabel: "~3d", className: "bg-orange-500 hover:bg-orange-600 text-white" },
+  { value: "good", labelKey: "flashcards.good", sublabel: "~7d", className: "bg-blue-500 hover:bg-blue-600 text-white" },
+  { value: "easy", labelKey: "flashcards.easy", sublabel: "~14d+", className: "bg-green-500 hover:bg-green-600 text-white" },
 ];
 
 const RATING_SHORTCUTS = ["1", "2", "3", "4"] as const;
@@ -42,14 +43,14 @@ function isDue(item: VocabItem): boolean {
   return item.next_review <= new Date().toISOString().split("T")[0];
 }
 
-function formatReviewDate(dateStr: string): string {
+function formatReviewDate(dateStr: string, t: ReturnType<typeof useI18n>["t"]): string {
   const today = new Date().toISOString().split("T")[0];
-  if (dateStr <= today) return "Due now";
+  if (dateStr <= today) return t("flashcards.dueNow");
   const diff = Math.round(
     (new Date(dateStr).getTime() - new Date(today).getTime()) / 86_400_000
   );
-  if (diff === 1) return "Tomorrow";
-  return `In ${diff} days`;
+  if (diff === 1) return t("flashcards.tomorrow");
+  return t("flashcards.inDays", { count: diff });
 }
 
 async function exportAnki(vocab: VocabItem[]) {
@@ -73,6 +74,7 @@ async function exportAnki(vocab: VocabItem[]) {
 // ── Main component ───────────────────────────────────────
 
 export function FlashcardReview() {
+  const { t } = useI18n();
   const [tab, setTab] = useState<FlashcardTab>("review");
   const [vocabVersion, setVocabVersion] = useState(0);
   const [allVocab, setAllVocab] = useState<VocabItem[]>([]);
@@ -111,13 +113,13 @@ export function FlashcardReview() {
     try {
       const exported = await exportAnki(allVocab);
       if (exported) {
-        showMessage("success", "Anki export downloaded");
+        showMessage("success", t("flashcards.ankiDownloaded"));
       }
     } catch (error) {
       console.error("Failed to export Anki file:", error);
-      showMessage("error", "Failed to export Anki file", 5000);
+      showMessage("error", t("flashcards.ankiDownloadFailed"), 5000);
     }
-  }, [allVocab, showMessage]);
+  }, [allVocab, showMessage, t]);
 
   if (stats.total === 0) {
     return (
@@ -126,10 +128,9 @@ export function FlashcardReview() {
           <div className="flex justify-center text-muted-foreground">
             <BookOpenText className="size-14" />
           </div>
-          <h2 className="text-xl font-semibold">No vocabulary yet</h2>
+          <h2 className="text-xl font-semibold">{t("flashcards.noVocabulary")}</h2>
           <p className="text-sm text-muted-foreground">
-            Complete a conversation session and add words from the feedback
-            screen to start building your SRS deck.
+            {t("flashcards.noVocabularyDescription")}
           </p>
         </div>
       </div>
@@ -155,20 +156,20 @@ export function FlashcardReview() {
       {/* Stats strip */}
       <div className="flex items-center gap-3 px-4 py-3 border-b text-xs text-muted-foreground flex-wrap">
         <span>
-          <strong className="text-foreground">{stats.total}</strong> cards
+          <strong className="text-foreground">{stats.total}</strong> {t("flashcards.cards")}
         </span>
         <Separator orientation="vertical" className="h-3.5" />
         {stats.due > 0 ? (
-          <span className="text-orange-600 font-medium">{stats.due} due</span>
+          <span className="text-orange-600 font-medium">{stats.due} {t("common.due")}</span>
         ) : (
-          <span className="text-green-600">All caught up</span>
+          <span className="text-green-600">{t("flashcards.allCaughtUp")}</span>
         )}
         <Separator orientation="vertical" className="h-3.5" />
-        <span>{stats.new} new</span>
+        <span>{stats.new} {t("common.new")}</span>
         <span>·</span>
-        <span>{stats.learning} learning</span>
+        <span>{stats.learning} {t("common.learning")}</span>
         <span>·</span>
-        <span>{stats.mature} mature</span>
+        <span>{stats.mature} {t("common.mature")}</span>
         <Separator orientation="vertical" className="h-3.5 ml-auto" />
         <Button
           variant="outline"
@@ -176,7 +177,7 @@ export function FlashcardReview() {
           className="h-6 text-[11px] px-2.5"
           onClick={() => void handleExportAnki()}
         >
-          Export Anki
+          {t("common.exportAnki")}
         </Button>
       </div>
 
@@ -190,7 +191,7 @@ export function FlashcardReview() {
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          Review
+          {t("common.review")}
           {stats.due > 0 && (
             <Badge variant="secondary" className="ml-1.5 text-[10px] h-4 px-1.5 bg-orange-100 text-orange-700">
               {stats.due}
@@ -205,7 +206,7 @@ export function FlashcardReview() {
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          All Cards
+          {t("common.allCards")}
         </button>
       </div>
 
@@ -224,6 +225,7 @@ export function FlashcardReview() {
 type ReviewState = "reviewing" | "complete";
 
 function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
+  const { t } = useI18n();
   const [cards, setCards] = useState<VocabItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [state, setState] = useState<ReviewState>("reviewing");
@@ -330,9 +332,9 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
                 <div className="flex justify-center text-green-600">
                   <CircleCheckBig className="size-14" />
                 </div>
-                <h2 className="text-xl font-semibold">All caught up!</h2>
+                <h2 className="text-xl font-semibold">{t("flashcards.allCaughtUpTitle")}</h2>
                 <p className="text-sm text-muted-foreground">
-                  No cards due for review right now.
+                  {t("flashcards.noCardsDue")}
                 </p>
               </>
             ) : (
@@ -340,27 +342,29 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
                 <div className="flex justify-center text-primary">
                   <PartyPopper className="size-14" />
                 </div>
-                <h2 className="text-xl font-semibold">Review Complete!</h2>
+                <h2 className="text-xl font-semibold">{t("flashcards.complete")}</h2>
                 <p className="text-sm text-muted-foreground">
-                  You reviewed <strong>{results.length}</strong> card
-                  {results.length !== 1 && "s"}
+                  {t("flashcards.reviewedCards", {
+                    count: results.length,
+                    cardLabel: results.length === 1 ? t("flashcards.cardSingular") : t("flashcards.cards"),
+                  })}
                 </p>
                 <div className="flex justify-center gap-3 text-sm">
                   {goodCount > 0 && (
                     <Badge variant="secondary" className="bg-green-100 text-green-800">
-                      {goodCount} correct
+                      {goodCount} {t("flashcards.correct")}
                     </Badge>
                   )}
                   {againCount > 0 && (
                     <Badge variant="secondary" className="bg-red-100 text-red-800">
-                      {againCount} to redo
+                      {againCount} {t("flashcards.toRedo")}
                     </Badge>
                   )}
                 </div>
               </>
             )}
             <Button onClick={handleRestart} variant="outline" className="w-full">
-              Check Again
+              {t("flashcards.checkAgain")}
             </Button>
           </CardContent>
         </Card>
@@ -407,7 +411,7 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
                 isAnswerVisible ? "opacity-100" : "opacity-0"
               }`}
             >
-              How well did you remember?
+              {t("flashcards.howWellRemembered")}
             </p>
             <div className="grid grid-cols-4 gap-2">
               {RATINGS.map((r, index) => (
@@ -420,7 +424,7 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
                   tabIndex={isAnswerVisible ? 0 : -1}
                 >
                   <span className="text-sm font-medium">
-                    {RATING_SHORTCUTS[index]} {r.label}
+                    {RATING_SHORTCUTS[index]} {t(r.labelKey)}
                   </span>
                   <span className="text-[10px] opacity-80">{r.sublabel}</span>
                 </Button>
@@ -431,13 +435,13 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
                 isAnswerVisible ? "opacity-100" : "opacity-0"
               }`}
             >
-              Press Space to flip the card
+              {t("flashcards.pressSpaceToFlip")}
             </p>
           </div>
         ) : (
           <div className="w-full flex items-center justify-center">
             <p className="text-xs text-center text-muted-foreground">
-              Tap the card or press Space to reveal the answer
+              {t("flashcards.tapOrSpace")}
             </p>
           </div>
         )}
@@ -455,6 +459,7 @@ function AllCardsTab({
   vocab: VocabItem[];
   onVocabChange: () => void;
 }) {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -520,7 +525,7 @@ function AllCardsTab({
       {/* Search + sort */}
       <div className="flex items-center gap-2 px-4 py-3">
         <Input
-          placeholder="Search cards…"
+          placeholder={t("flashcards.searchPlaceholder")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="h-8 text-sm"
@@ -530,16 +535,16 @@ function AllCardsTab({
           onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
           className="h-8 text-xs rounded-md border bg-background px-2 text-muted-foreground shrink-0"
         >
-          <option value="next_review">Due date</option>
-          <option value="word">Word</option>
-          <option value="times_reviewed">Most reviewed</option>
+          <option value="next_review">{t("flashcards.sortByNextReview")}</option>
+          <option value="word">{t("flashcards.sortByWord")}</option>
+          <option value="times_reviewed">{t("flashcards.sortByTimesReviewed")}</option>
         </select>
       </div>
 
       {filtered.length === 0 ? (
         <div className="flex-1 flex items-center justify-center p-4">
           <p className="text-sm text-muted-foreground">
-            {search ? "No cards match your search." : "No cards in deck."}
+            {search ? t("flashcards.noMatchingCards") : t("flashcards.noVocabulary")}
           </p>
         </div>
       ) : (
@@ -601,13 +606,14 @@ function VocabCard({
   onCancelDelete: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useI18n();
   const maturity = getMaturity(item);
   const due = isDue(item);
 
   const maturityConfig = {
-    new: { label: "New", class: "bg-blue-100 text-blue-700" },
-    learning: { label: "Learning", class: "bg-yellow-100 text-yellow-700" },
-    mature: { label: "Mature", class: "bg-green-100 text-green-700" },
+    new: { label: t("common.new"), class: "bg-blue-100 text-blue-700" },
+    learning: { label: t("common.learning"), class: "bg-yellow-100 text-yellow-700" },
+    mature: { label: t("common.mature"), class: "bg-green-100 text-green-700" },
   }[maturity];
 
   return (
@@ -628,7 +634,7 @@ function VocabCard({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {due && (
-            <span className="h-2 w-2 rounded-full bg-orange-500" title="Due for review" />
+            <span className="h-2 w-2 rounded-full bg-orange-500" title={t("flashcards.dueNow")} />
           )}
           <Badge variant="secondary" className={`text-[10px] ${maturityConfig.class}`}>
             {maturityConfig.label}
@@ -686,10 +692,10 @@ function VocabCard({
               </div>
               <div className="flex gap-2 pt-1">
                 <Button size="sm" className="h-7 text-xs" onClick={onSaveEdit}>
-                  Save
+                  {t("common.save")}
                 </Button>
                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onCancelEdit}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
               </div>
             </div>
@@ -703,11 +709,11 @@ function VocabCard({
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                 <span>
                   Next review: <strong className={due ? "text-orange-600" : "text-foreground"}>
-                    {formatReviewDate(item.next_review)}
+                    {formatReviewDate(item.next_review, t)}
                   </strong>
                 </span>
                 <span>Interval: {item.interval}d</span>
-                <span>Reviewed: {item.times_reviewed}x</span>
+                <span>{t("flashcards.reviewedCount", { count: item.times_reviewed })}</span>
                 <span>Ease: {item.ease_factor.toFixed(2)}</span>
               </div>
 
@@ -715,16 +721,16 @@ function VocabCard({
 
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onStartEdit}>
-                  Edit
+                  {t("common.edit")}
                 </Button>
                 {confirmDelete ? (
                   <div className="flex items-center gap-1.5 ml-auto">
-                    <span className="text-xs text-destructive">Delete this card?</span>
+                    <span className="text-xs text-destructive">{t("flashcards.deleteCardQuestion")}</span>
                     <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={onDelete}>
-                      Yes
+                      {t("common.delete")}
                     </Button>
                     <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onCancelDelete}>
-                      No
+                      {t("common.cancel")}
                     </Button>
                   </div>
                 ) : (
@@ -734,7 +740,7 @@ function VocabCard({
                     className="h-7 text-xs text-destructive hover:text-destructive ml-auto"
                     onClick={onConfirmDelete}
                   >
-                    Delete
+                    {t("common.delete")}
                   </Button>
                 )}
               </div>

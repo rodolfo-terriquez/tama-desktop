@@ -4,16 +4,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { useI18n } from "@/i18n";
 import { addVocabItem, getSessions, getVocabulary } from "@/services/storage";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDateTime, formatRelativeTime, formatTime } from "@/services/locale-format";
 import type { Session } from "@/types";
 import { Copy } from "lucide-react";
 
 const RATING_CONFIG = {
-  needs_work: { label: "Needs Work", class: "bg-red-100 text-red-800" },
-  good: { label: "Good", class: "bg-green-100 text-green-800" },
-  excellent: { label: "Excellent", class: "bg-blue-100 text-blue-800" },
-};
+  needs_work: { key: "history.needsWork", class: "bg-red-100 text-red-800" },
+  good: { key: "history.good", class: "bg-green-100 text-green-800" },
+  excellent: { key: "history.excellent", class: "bg-blue-100 text-blue-800" },
+} as const;
 
 type DetailTab = "conversation" | "feedback";
 
@@ -29,6 +30,7 @@ function formatDuration(seconds: number): string {
 }
 
 export function SessionHistory() {
+  const { t } = useI18n();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [vocabCount, setVocabCount] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -82,13 +84,13 @@ export function SessionHistory() {
       .join("\n\n");
 
     if (!transcript) {
-      showMessage("error", "No conversation text to copy");
+      showMessage("error", t("history.noConversationToCopy"));
       return;
     }
 
     try {
       await navigator.clipboard.writeText(transcript);
-      showMessage("success", "Conversation copied");
+      showMessage("success", t("history.conversationCopied"));
       return;
     } catch (error) {
       console.warn("Clipboard API copy failed, falling back:", error);
@@ -96,9 +98,9 @@ export function SessionHistory() {
 
     const copied = fallbackCopyText(transcript);
     if (copied) {
-      showMessage("success", "Conversation copied");
+      showMessage("success", t("history.conversationCopied"));
     } else {
-      showMessage("error", "Failed to copy conversation", 5000);
+      showMessage("error", t("history.conversationCopyFailed"), 5000);
     }
   };
 
@@ -121,16 +123,16 @@ export function SessionHistory() {
       {/* Header */}
       <div className="flex items-center justify-between gap-2 mb-4">
         <span className="text-sm text-muted-foreground">
-          {sessions.length} session{sessions.length !== 1 && "s"} · {vocabCount} word{vocabCount !== 1 && "s"}
+          {sessions.length} {t("common.sessions")} · {vocabCount} {t("common.words")}
         </span>
       </div>
 
       {sessions.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center space-y-2">
-            <p className="text-lg font-medium">No sessions yet</p>
+            <p className="text-lg font-medium">{t("history.noSessions")}</p>
             <p className="text-sm text-muted-foreground">
-              Complete a conversation to see your history here.
+              {t("history.noSessionsDescription")}
             </p>
           </div>
         </div>
@@ -176,6 +178,7 @@ function SessionCard({
   onShowMessage: (type: "success" | "error", text: string, duration?: number) => void;
   onVocabularyAdded: () => void;
 }) {
+  const { t } = useI18n();
   const rating = session.feedback?.summary.performance_rating;
   const ratingConfig = rating ? RATING_CONFIG[rating] : null;
   const userMessages = session.messages.filter((m) => m.role === "user").length;
@@ -195,22 +198,22 @@ function SessionCard({
               </div>
 
               <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
-                <span>{format(new Date(session.date), "MMM d, yyyy · h:mm a")}</span>
+                <span>{formatDateTime(new Date(session.date))}</span>
                 <span>·</span>
                 <span>{formatDuration(session.duration_seconds)}</span>
                 <span>·</span>
-                <span>{userMessages} exchange{userMessages !== 1 && "s"}</span>
+                <span>{t("feedback.exchanges", { count: userMessages })}</span>
               </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
               {ratingConfig && (
                 <Badge variant="secondary" className={`text-[10px] ${ratingConfig.class}`}>
-                  {ratingConfig.label}
+                  {t(ratingConfig.key)}
                 </Badge>
               )}
               <span className="text-[10px] text-muted-foreground hidden sm:inline">
-                {formatDistanceToNow(new Date(session.date), { addSuffix: true })}
+                {formatRelativeTime(new Date(session.date))}
               </span>
             </div>
           </div>
@@ -235,7 +238,7 @@ function SessionCard({
                   className="h-7 text-xs shrink-0"
                 >
                   <Copy className="size-3.5" />
-                  Copy
+                  {t("common.copy")}
                 </Button>
               )}
               <Button
@@ -244,7 +247,7 @@ function SessionCard({
                 onClick={onToggle}
                 className="h-7 text-xs shrink-0"
               >
-                {isExpanded ? "Hide" : "Details"}
+                {isExpanded ? t("common.hide") : t("common.details")}
                 <svg
                   className={`ml-1 w-3 h-3 transition-transform ${isExpanded ? "rotate-180" : ""}`}
                   fill="none"
@@ -271,7 +274,7 @@ function SessionCard({
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Conversation
+                {t("common.conversation")}
               </button>
               <button
                 onClick={() => onTabChange("feedback")}
@@ -281,7 +284,7 @@ function SessionCard({
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Feedback
+                {t("common.feedback")}
                 {session.feedback && session.feedback.grammar_points.length > 0 && (
                   <span className="ml-1.5 text-xs text-muted-foreground">
                     ({session.feedback.grammar_points.length})
@@ -310,10 +313,11 @@ function SessionCard({
 }
 
 function ConversationView({ messages }: { messages: Session["messages"] }) {
+  const { t } = useI18n();
   if (messages.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-4">
-        No messages recorded.
+        {t("history.noMessagesRecorded")}
       </p>
     );
   }
@@ -339,7 +343,7 @@ function ConversationView({ messages }: { messages: Session["messages"] }) {
                 msg.role === "user" ? "text-primary-foreground/60" : "text-muted-foreground"
               }`}
             >
-              {format(new Date(msg.timestamp), "h:mm a")}
+              {formatTime(new Date(msg.timestamp))}
             </p>
           </div>
         </div>
@@ -357,6 +361,7 @@ function FeedbackView({
   onShowMessage: (type: "success" | "error", text: string, duration?: number) => void;
   onVocabularyAdded: () => void;
 }) {
+  const { t } = useI18n();
   const feedback = session.feedback;
   const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
 
@@ -388,7 +393,7 @@ function FeedbackView({
   if (!feedback) {
     return (
       <p className="text-sm text-muted-foreground text-center py-4">
-        No feedback available for this session.
+        {t("common.none")}
       </p>
     );
   }
@@ -412,7 +417,7 @@ function FeedbackView({
 
       if (alreadyExists) {
         setAddedWords((prev) => new Set(prev).add(key));
-        onShowMessage("success", `${vocab.word} is already in your flashcards`);
+        onShowMessage("success", `${vocab.word} ${t("feedback.added").replace(" ✓", "")}`);
         return;
       }
 
@@ -426,7 +431,7 @@ function FeedbackView({
 
       setAddedWords((prev) => new Set(prev).add(key));
       onVocabularyAdded();
-      onShowMessage("success", `${vocab.word} added to flashcards`);
+      onShowMessage("success", `${vocab.word} ${t("feedback.added").replace(" ✓", "")}`);
     },
     [addedWords, feedback.vocabulary, onShowMessage, onVocabularyAdded]
   );
@@ -446,7 +451,7 @@ function FeedbackView({
       {feedback.summary.topics_covered.length > 0 && (
         <div>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-            Topics Covered
+            {t("feedback.topicsCovered")}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {feedback.summary.topics_covered.map((topic, i) => (
@@ -461,7 +466,7 @@ function FeedbackView({
       {feedback.summary.next_session_hint && (
         <div>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-            Suggestion for Next Time
+            {t("feedback.nextTime")}
           </p>
           <p className="text-sm">{feedback.summary.next_session_hint}</p>
         </div>
@@ -471,7 +476,7 @@ function FeedbackView({
       {hasGrammar && (
         <div>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-            Grammar Points
+            {t("feedback.grammarPoints")}
           </p>
           <div className="space-y-3">
             {feedback.grammar_points.map((point, i) => (
@@ -500,7 +505,7 @@ function FeedbackView({
           <div>
             <div className="flex items-center justify-between gap-3 mb-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Vocabulary ({feedback.vocabulary.length})
+                {t("feedback.vocabulary")} ({feedback.vocabulary.length})
               </p>
               {feedback.vocabulary.length > 1 && (
                 <Button
@@ -515,8 +520,8 @@ function FeedbackView({
                   {feedback.vocabulary.every((vocab) =>
                     addedWords.has(getFeedbackVocabKey(vocab.word, vocab.meaning))
                   )
-                    ? "All Added"
-                    : "Add All to SRS"}
+                    ? t("feedback.allAdded")
+                    : t("feedback.addAllToSrs")}
                 </Button>
               )}
             </div>
@@ -550,8 +555,8 @@ function FeedbackView({
                       disabled={addedWords.has(getFeedbackVocabKey(vocab.word, vocab.meaning))}
                     >
                       {addedWords.has(getFeedbackVocabKey(vocab.word, vocab.meaning))
-                        ? "Added ✓"
-                        : "+ SRS"}
+                        ? t("feedback.added")
+                        : t("feedback.addToSrs")}
                     </Button>
                   </div>
                 </div>
@@ -567,7 +572,7 @@ function FeedbackView({
           {(hasGrammar || hasVocab) && <Separator />}
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-              Fluency Notes
+              {t("feedback.fluencyNotes")}
             </p>
             <ul className="space-y-1.5">
               {feedback.fluency_notes.map((note, i) => (
@@ -583,7 +588,7 @@ function FeedbackView({
 
       {!hasGrammar && !hasVocab && !hasFluency && (
         <p className="text-sm text-muted-foreground text-center py-2">
-          No detailed feedback for this session.
+          {t("common.none")}
         </p>
       )}
     </div>

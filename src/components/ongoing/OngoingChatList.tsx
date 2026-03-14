@@ -12,6 +12,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { useI18n } from "@/i18n";
+import { formatRelativeTime } from "@/services/locale-format";
 import {
   getOngoingChats,
   createOngoingChat,
@@ -20,7 +22,6 @@ import {
 } from "@/services/storage";
 import type { OngoingChat } from "@/types";
 import { Plus, Pencil, Trash2, MessageSquare, Check, X } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 
 interface OngoingChatListProps {
   onSelectChat: (chatId: string) => void;
@@ -33,6 +34,7 @@ const DEFAULT_PERSONAS = [
 ];
 
 export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
+  const { t } = useI18n();
   const [chats, setChats] = useState<OngoingChat[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingChat, setEditingChat] = useState<OngoingChat | null>(null);
@@ -111,7 +113,7 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
       <div className="flex items-center justify-end mb-4">
         <Button size="sm" onClick={openCreateDialog}>
           <Plus className="size-4 mr-1" />
-          New Persona
+          {t("ongoing.newPersona")}
         </Button>
       </div>
 
@@ -129,7 +131,7 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
                     <div className="flex items-baseline gap-2 flex-wrap">
                       <h3 className="font-medium">{chat.name}</h3>
                       <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(chat.lastActiveAt), { addSuffix: true })}
+                        {formatRelativeTime(new Date(chat.lastActiveAt))}
                       </span>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
@@ -138,11 +140,11 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
                     <div className="flex gap-2 mt-2">
                       <Badge variant="secondary" className="text-xs">
                         <MessageSquare className="size-3 mr-1" />
-                        {chat.totalMessages} messages
+                        {t("ongoing.messageCount", { count: chat.totalMessages })}
                       </Badge>
                       {chat.summary && (
                         <Badge variant="secondary" className="text-xs">
-                          Has history
+                          {t("ongoing.hasHistory")}
                         </Badge>
                       )}
                     </div>
@@ -155,7 +157,7 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
                           size="icon"
                           className="size-8 text-destructive hover:text-destructive"
                           onClick={(e) => handleDeleteConfirm(e, chat.id)}
-                          title="Confirm delete"
+                          title={t("ongoing.confirmDelete")}
                         >
                           <Check className="size-3.5" />
                         </Button>
@@ -164,7 +166,7 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
                           size="icon"
                           className="size-8"
                           onClick={handleDeleteCancel}
-                          title="Cancel"
+                          title={t("ongoing.cancelDelete")}
                         >
                           <X className="size-3.5" />
                         </Button>
@@ -198,9 +200,9 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
           {chats.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <MessageSquare className="size-12 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No ongoing chats yet</p>
+              <p className="font-medium">{t("ongoing.noneYet")}</p>
               <p className="text-sm mt-1">
-                Create a chat partner to start a persistent conversation
+                {t("ongoing.noneYetDescription")}
               </p>
             </div>
           )}
@@ -212,18 +214,18 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {editingChat ? "Edit Chat" : "New Ongoing Chat"}
+              {editingChat ? t("ongoing.editChat") : t("ongoing.newChat")}
             </DialogTitle>
             <DialogDescription>
               {editingChat
-                ? "Update your chat partner's details."
-                : "Create a conversation partner for persistent practice."}
+                ? t("ongoing.editDescription")
+                : t("ongoing.newDescription")}
             </DialogDescription>
           </DialogHeader>
 
           {!editingChat && (
             <div className="space-y-2">
-              <p className="text-sm font-medium">Quick start</p>
+              <p className="text-sm font-medium">{t("ongoing.quickStart")}</p>
               <div className="grid gap-2">
                 {DEFAULT_PERSONAS.map((p) => (
                   <button
@@ -243,7 +245,7 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
                   <span className="w-full border-t" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">or custom</span>
+                  <span className="bg-background px-2 text-muted-foreground">{t("ongoing.orCustom")}</span>
                 </div>
               </div>
             </div>
@@ -251,17 +253,17 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
 
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Name</label>
+              <label className="text-sm font-medium">{t("ongoing.name")}</label>
               <Input
-                placeholder="e.g. Yuki, Tanaka-san"
+                placeholder={t("ongoing.namePlaceholder")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Persona</label>
+              <label className="text-sm font-medium">{t("ongoing.persona")}</label>
               <Textarea
-                placeholder="Describe their personality, interests, and background..."
+                placeholder={t("ongoing.personaPlaceholder")}
                 value={persona}
                 onChange={(e) => setPersona(e.target.value)}
                 rows={3}
@@ -271,13 +273,13 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleSave}
               disabled={!name.trim() || !persona.trim()}
             >
-              {editingChat ? "Save" : "Create"}
+              {editingChat ? t("common.save") : t("common.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
