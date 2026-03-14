@@ -1,21 +1,20 @@
-import { useState, useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { initializeTTS, speak, stopCurrentAudio } from "@/services/tts";
 import type { VocabItem } from "@/types";
 
 interface FlashcardProps {
   item: VocabItem;
-  onFlip?: (isBack: boolean) => void;
+  flipped: boolean;
+  onFlipChange: (isBack: boolean) => void;
 }
 
-export function Flashcard({ item, onFlip }: FlashcardProps) {
-  const [flipped, setFlipped] = useState(false);
+export function Flashcard({ item, flipped, onFlipChange }: FlashcardProps) {
   const [ttsAvailable, setTtsAvailable] = useState(false);
 
   const handleFlip = useCallback(() => {
     const next = !flipped;
-    setFlipped(next);
-    onFlip?.(next);
-  }, [flipped, onFlip]);
+    onFlipChange(next);
+  }, [flipped, onFlipChange]);
 
   const playAudio = useCallback(async (text: string) => {
     if (!text) return;
@@ -65,7 +64,7 @@ export function Flashcard({ item, onFlip }: FlashcardProps) {
       className="w-full max-w-sm aspect-[3/2] cursor-pointer [perspective:800px]"
       onClick={handleFlip}
       onKeyDown={(e) => {
-        if (e.key === " " || e.key === "Enter") {
+        if (e.key === "Enter") {
           e.preventDefault();
           handleFlip();
         }
@@ -82,9 +81,6 @@ export function Flashcard({ item, onFlip }: FlashcardProps) {
         {/* Front — Japanese word + reading */}
         <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border bg-card p-6 shadow-sm [backface-visibility:hidden]">
           <span className="text-4xl font-bold tracking-wide">{item.word}</span>
-          <span className="mt-6 text-xs text-muted-foreground">
-            Tap to reveal
-          </span>
         </div>
 
         {/* Back — meaning + example */}
@@ -108,18 +104,4 @@ export function Flashcard({ item, onFlip }: FlashcardProps) {
       </div>
     </div>
   );
-}
-
-/**
- * Reset the flip state when the card changes.
- * Use this key prop pattern: <Flashcard key={item.id} item={item} />
- */
-export function useFlashcardReset() {
-  const [revealed, setRevealed] = useState(false);
-  const handleFlip = useCallback((isBack: boolean) => {
-    if (isBack) {
-      setRevealed(true);
-    }
-  }, []);
-  return { revealed, handleFlip };
 }

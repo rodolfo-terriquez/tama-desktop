@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Flashcard, useFlashcardReset } from "@/components/flashcard/Flashcard";
+import { Flashcard } from "@/components/flashcard/Flashcard";
 import {
   getDueVocabulary,
   getVocabulary,
@@ -25,6 +25,8 @@ const RATINGS: { value: SRSRating; label: string; sublabel: string; className: s
   { value: "good", label: "Good", sublabel: "~7d", className: "bg-blue-500 hover:bg-blue-600 text-white" },
   { value: "easy", label: "Easy", sublabel: "~14d+", className: "bg-green-500 hover:bg-green-600 text-white" },
 ];
+
+const RATING_SHORTCUTS = ["1", "2", "3", "4"] as const;
 
 type FlashcardTab = "review" | "all-cards";
 
@@ -226,6 +228,8 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [state, setState] = useState<ReviewState>("reviewing");
   const [results, setResults] = useState<{ word: string; rating: SRSRating }[]>([]);
+  const [isAnswerVisible, setIsAnswerVisible] = useState(false);
+  const [hasRevealedCurrentCard, setHasRevealedCurrentCard] = useState(false);
 
   useEffect(() => {
     getDueVocabulary().then((due) => {
@@ -233,8 +237,6 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
       setState(due.length === 0 ? "complete" : "reviewing");
     });
   }, []);
-
-  const { revealed, handleFlip } = useFlashcardReset();
 
   const currentCard = cards[currentIndex] ?? null;
   const progress = cards.length > 0 ? currentIndex / cards.length : 0;
@@ -245,6 +247,8 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
 
       await reviewVocabItem(currentCard, rating);
       setResults((prev) => [...prev, { word: currentCard.word, rating }]);
+      setIsAnswerVisible(false);
+      setHasRevealedCurrentCard(false);
 
       if (currentIndex + 1 >= cards.length) {
         setState("complete");
@@ -261,8 +265,57 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
     setCards(due);
     setCurrentIndex(0);
     setResults([]);
+    setIsAnswerVisible(false);
+    setHasRevealedCurrentCard(false);
     setState(due.length === 0 ? "complete" : "reviewing");
   }, []);
+
+  useEffect(() => {
+    setIsAnswerVisible(false);
+    setHasRevealedCurrentCard(false);
+  }, [currentCard?.id]);
+
+  useEffect(() => {
+    if (isAnswerVisible) {
+      setHasRevealedCurrentCard(true);
+    }
+  }, [isAnswerVisible]);
+
+  useEffect(() => {
+    function isEditableTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) return false;
+      return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || isEditableTarget(event.target)) {
+        return;
+      }
+
+      if (event.code === "Space") {
+        event.preventDefault();
+        setIsAnswerVisible((prev) => !prev);
+        return;
+      }
+
+      if (!isAnswerVisible) return;
+
+      const shortcutIndex =
+        event.code.startsWith("Digit")
+          ? Number(event.code.slice(-1)) - 1
+          : event.code.startsWith("Numpad")
+            ? Number(event.code.slice(-1)) - 1
+            : -1;
+
+      if (shortcutIndex < 0 || shortcutIndex >= RATINGS.length) return;
+
+      event.preventDefault();
+      void handleRate(RATINGS[shortcutIndex].value);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleRate, isAnswerVisible]);
 
   if (state === "complete") {
     const againCount = results.filter((r) => r.rating === "again").length;
@@ -336,34 +389,55 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
       {/* Flashcard */}
       <div className="flex-1 flex items-center justify-center w-full">
         {currentCard && (
-          <Flashcard key={currentCard.id} item={currentCard} onFlip={handleFlip} />
+          <Flashcard
+            key={currentCard.id}
+            item={currentCard}
+            flipped={isAnswerVisible}
+            onFlipChange={setIsAnswerVisible}
+          />
         )}
       </div>
 
       {/* Reserve rating area height so flipping the card doesn't shift the layout */}
       <div className="w-full max-w-sm pb-6 min-h-[108px] flex items-end">
-        {revealed ? (
+        {isAnswerVisible || hasRevealedCurrentCard ? (
           <div className="w-full space-y-2">
-            <p className="text-xs text-center text-muted-foreground mb-3">
+            <p
+              className={`text-xs text-center text-muted-foreground mb-3 transition-opacity ${
+                isAnswerVisible ? "opacity-100" : "opacity-0"
+              }`}
+            >
               How well did you remember?
             </p>
             <div className="grid grid-cols-4 gap-2">
-              {RATINGS.map((r) => (
+              {RATINGS.map((r, index) => (
                 <Button
                   key={r.value}
                   className={`flex flex-col h-auto py-2 ${r.className}`}
                   onClick={() => handleRate(r.value)}
+                  aria-keyshortcuts={RATING_SHORTCUTS[index]}
+                  disabled={!isAnswerVisible}
+                  tabIndex={isAnswerVisible ? 0 : -1}
                 >
-                  <span className="text-sm font-medium">{r.label}</span>
+                  <span className="text-sm font-medium">
+                    {RATING_SHORTCUTS[index]} {r.label}
+                  </span>
                   <span className="text-[10px] opacity-80">{r.sublabel}</span>
                 </Button>
               ))}
             </div>
+            <p
+              className={`text-[11px] text-center text-muted-foreground transition-opacity ${
+                isAnswerVisible ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              Press Space to flip the card
+            </p>
           </div>
         ) : (
           <div className="w-full flex items-center justify-center">
             <p className="text-xs text-center text-muted-foreground">
-              Tap the card to reveal the answer
+              Tap the card or press Space to reveal the answer
             </p>
           </div>
         )}
