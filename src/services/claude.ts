@@ -1,4 +1,4 @@
-import type { Message, Scenario, OngoingChat, ResponseLength, UserProfile } from "@/types";
+import type { AppLocale, Message, Scenario, OngoingChat, ResponseLength, UserProfile } from "@/types";
 import {
   CONVERSATION_TOOLS,
   executeTool,
@@ -614,8 +614,10 @@ ${suffix}`;
 
 export async function generateCustomScenarioDetails(
   title: string,
-  description: string
+  description: string,
+  targetLocale: AppLocale = "en"
 ): Promise<GeneratedCustomScenarioDetails> {
+  const targetLanguage = getTranslationTargetLanguage(targetLocale);
   const systemPrompt = `You help generate Japanese conversation-practice scenarios for a language learning app. Return ONLY valid JSON with no markdown fences and no extra commentary.
 
 Output schema:
@@ -631,6 +633,7 @@ Guidelines:
 - Keep everything concise and practical for spoken conversation practice.
 - Make the scenario feel realistic and easy to role-play.
 - Objectives should be specific student actions.
+- Write setting, character_role, objectives, and custom_prompt in natural ${targetLanguage}.
 - Use natural Japanese for title_ja.
 - Leave custom_prompt empty unless extra structure would genuinely help.`;
 
@@ -683,12 +686,20 @@ Description: ${description.trim()}`;
 
 // ── Translation & Feedback ───────────────────────────────────────
 
+function getTranslationTargetLanguage(locale: AppLocale): "English" | "Spanish" {
+  return locale === "es" ? "Spanish" : "English";
+}
+
 /**
- * Translate Japanese text to English
+ * Translate Japanese text to the current app language.
  */
-export async function translateToEnglish(japaneseText: string): Promise<string> {
+export async function translateJapaneseText(
+  japaneseText: string,
+  targetLocale: AppLocale
+): Promise<string> {
+  const targetLanguage = getTranslationTargetLanguage(targetLocale);
   const systemPrompt =
-    "You are a Japanese to English translator. Translate the given Japanese text to natural English. Only output the translation, nothing else.";
+    `You are a Japanese translator. Translate the given Japanese text to natural ${targetLanguage}. Only output the translation, nothing else.`;
   const provider = getLLMProvider();
 
   if (provider === "openrouter") {
@@ -706,14 +717,20 @@ export async function translateToEnglish(japaneseText: string): Promise<string> 
   return result.text;
 }
 
+export async function translateToEnglish(japaneseText: string): Promise<string> {
+  return translateJapaneseText(japaneseText, "en");
+}
+
 /**
  * Generate feedback for a conversation session.
  * `context` can be a scenario ({ title, description }) or an ongoing chat ({ name, persona }).
  */
 export async function generateFeedback(
   messages: Message[],
-  context: { title: string; description: string } | { name: string; persona: string }
+  context: { title: string; description: string } | { name: string; persona: string },
+  targetLocale: AppLocale = "en"
 ): Promise<string> {
+  const targetLanguage = getTranslationTargetLanguage(targetLocale);
   const systemPrompt = `You are a Japanese language teacher who reviews practice conversation transcripts and returns structured JSON feedback. You NEVER continue the conversation — you only analyze it. Return ONLY valid JSON, no markdown fences, no extra text.`;
 
   const transcript = messages
@@ -734,10 +751,10 @@ ${transcript}
 Return your analysis as JSON in exactly this format:
 {
   "grammar_points": [
-    { "issue": "what the student said wrong", "correction": "correct form", "explanation": "brief explanation in English" }
+    { "issue": "what the student said wrong", "correction": "correct form", "explanation": "brief explanation in ${targetLanguage}" }
   ],
   "vocabulary": [
-    { "word": "Japanese word", "reading": "hiragana reading", "meaning": "English meaning", "example": "example sentence using the word", "source_session": "${new Date().toISOString().split("T")[0]}" }
+    { "word": "Japanese word", "reading": "hiragana reading", "meaning": "${targetLanguage} meaning", "example": "example sentence using the word", "source_session": "${new Date().toISOString().split("T")[0]}" }
   ],
   "fluency_notes": ["observations about natural phrasing, nuance, etc."],
   "summary": {
@@ -752,6 +769,7 @@ Focus on:
 - Key vocabulary from the conversation (especially words the student used or should learn)
 - Natural phrasing alternatives
 - Overall performance
+- Write grammar explanations, vocabulary meanings, fluency notes, topics_covered, and next_session_hint in natural ${targetLanguage}
 
 Be encouraging but honest.`;
 

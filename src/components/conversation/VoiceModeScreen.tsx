@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
 import { TranscriptBubbles } from "@/components/conversation/TranscriptBubbles";
 import { MessageBubble } from "@/components/conversation/MessageBubble";
+import { localizeScenario } from "@/data/scenarios";
 import { useVADRecorder } from "@/hooks/useVADRecorder";
+import { useI18n } from "@/i18n";
 import {
   getEnglishVoiceDisplayName,
   initializeTTS,
@@ -37,6 +39,8 @@ interface VoiceModeScreenProps {
 }
 
 export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps) {
+  const { locale, t } = useI18n();
+  const localizedScenario = localizeScenario(scenario, locale);
   const [messages, setMessages] = useState<Message[]>([]);
   const [started, setStarted] = useState(false);
   const [inputMode, setInputMode] = useState<InputMode>("voice");
@@ -144,7 +148,7 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
         if (sessionEndedRef.current) return undefined;
         const errMsg = err instanceof Error ? err.message : "Failed to process";
         const friendlyMsg = errMsg.includes("No text content")
-          ? "The AI didn't respond with text. Please try again."
+          ? t("scenario.aiNoText")
           : errMsg;
         setError(friendlyMsg);
         setTimeout(() => setError(null), 5000);
@@ -306,10 +310,10 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
       setConversationState("listening");
     } catch (err) {
       console.error("Error starting session:", err);
-      setError(err instanceof Error ? err.message : "Failed to start conversation");
+      setError(err instanceof Error ? err.message : t("scenario.failedToStart"));
       setConversationState("idle");
     }
-  }, [getStartVADOptions, scenario, ttsStatus.available, startVAD, userProfile]);
+  }, [getStartVADOptions, scenario, t, ttsStatus.available, startVAD, userProfile]);
 
   // --- Mode switching ---
   const handleSwitchToText = useCallback(() => {
@@ -350,15 +354,15 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
               <CardTitle className="text-center">
                 {scenario.title_ja}
                 <span className="block text-sm font-normal text-muted-foreground mt-1">
-                  {scenario.title}
+                  {localizedScenario.title}
                 </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-muted-foreground">{scenario.description}</p>
+              <p className="text-muted-foreground">{localizedScenario.description}</p>
 
               <div className="text-sm">
-                <p><strong>Setting:</strong> {scenario.setting}</p>
+                <p><strong>{t("scenario.settingLabel")}</strong> {localizedScenario.setting}</p>
               </div>
 
               {scenario.isCustom && (
@@ -369,24 +373,24 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
                   className="w-full"
                   onClick={() => setDetailsExpanded((prev) => !prev)}
                 >
-                  {detailsExpanded ? "Hide Scenario Details" : "Show Scenario Details"}
+                  {detailsExpanded ? t("scenario.hideDetails") : t("scenario.showDetails")}
                 </Button>
               )}
 
               {detailsExpanded && (
                 <div className="text-sm space-y-2">
-                  <p><strong>Your partner:</strong> {scenario.character_role}</p>
+                  <p><strong>{t("scenario.partnerLabel")}</strong> {localizedScenario.character_role}</p>
                   <div>
-                    <strong>Objectives:</strong>
+                    <strong>{t("scenario.objectivesLabel")}</strong>
                     <ul className="list-disc list-inside mt-1">
-                      {scenario.objectives.map((obj, i) => (
+                      {localizedScenario.objectives.map((obj, i) => (
                         <li key={i}>{obj}</li>
                       ))}
                     </ul>
                   </div>
                   {scenario.custom_prompt && (
                     <div>
-                      <strong>Conversation structure:</strong>
+                      <strong>{t("scenario.structureLabel")}</strong>
                       <p className="mt-1 text-muted-foreground whitespace-pre-line text-xs bg-muted/50 rounded p-2">
                         {scenario.custom_prompt}
                       </p>
@@ -399,11 +403,11 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
                 {userProfile && (
                   <>
                     <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                      Level: {userProfile.jlpt_level}
+                      {t("scenario.levelLabel", { level: userProfile.jlpt_level })}
                     </Badge>
                     {userProfile.include_flashcard_vocab_in_conversations && (
                       <Badge variant="secondary" className="bg-amber-100 text-amber-900">
-                        Vocab review: On
+                        {t("scenario.vocabReviewOn")}
                       </Badge>
                     )}
                   </>
@@ -414,8 +418,8 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
                     className={ttsStatus.available ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
                   >
                     {ttsStatus.available
-                      ? `TTS: ${getEnglishVoiceDisplayName(ttsStatus.speakerName)}`
-                      : `TTS: ${getStoredEngineType() === "voicevox" ? "VOICEVOX" : "SBV2"} not running`}
+                      ? t("scenario.ttsVoice", { voice: getEnglishVoiceDisplayName(ttsStatus.speakerName) })
+                      : t("scenario.ttsOffline", { engine: getStoredEngineType() === "voicevox" ? "VOICEVOX" : "SBV2" })}
                   </Badge>
                 )}
               </div>
@@ -432,7 +436,7 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
                 size="lg"
                 disabled={!ttsStatus.available || vadLoading}
               >
-                Start Session
+                {t("scenario.startSession")}
               </Button>
             </CardContent>
           </Card>
@@ -474,14 +478,14 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
 
         <div className="flex-shrink-0 flex justify-center gap-3 py-3 px-4">
           <Button variant="ghost" size="sm" onClick={() => setShowCaptions(!showCaptions)}>
-            {showCaptions ? "Hide Transcript" : "Show Transcript"}
+            {showCaptions ? t("scenario.hideTranscript") : t("scenario.showTranscript")}
           </Button>
           <Button variant="ghost" size="sm" onClick={handleSwitchToText}>
             <Keyboard className="size-4 mr-1" />
-            Text
+            {t("scenario.textMode")}
           </Button>
           <Button variant="outline" size="sm" onClick={endSession}>
-            End Conversation
+            {t("scenario.endConversation")}
           </Button>
         </div>
       </div>
@@ -533,11 +537,11 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
       >
         <Input
           name="textInput"
-          placeholder="Type in Japanese..."
+          placeholder={t("scenario.typeInJapanese")}
           disabled={isLoading}
           className="flex-1"
         />
-        <Button type="submit" disabled={isLoading} size="icon" title="Send">
+        <Button type="submit" disabled={isLoading} size="icon" title={t("scenario.send")}>
           <Send className="size-4" />
         </Button>
         <Button
@@ -545,7 +549,7 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
           variant="outline"
           size="icon"
           onClick={handleSwitchToVoice}
-          title="Switch to voice"
+          title={t("scenario.switchToVoice")}
         >
           <Mic className="size-4" />
         </Button>
@@ -554,7 +558,7 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
           variant="outline"
           size="icon"
           onClick={endSession}
-          title="End session"
+          title={t("scenario.endSession")}
         >
           <LogOut className="size-4" />
         </Button>

@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useI18n } from "@/i18n";
 import { getSBV2BaseUrl } from "@/services/tts";
 
 interface SBV2Status {
@@ -30,6 +31,7 @@ function getSbv2Port(): number {
 }
 
 export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProps) {
+  const { t } = useI18n();
   const [status, setStatus] = useState<SBV2Status | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,19 +101,19 @@ export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProp
             }`}
           >
             <span className={`w-2 h-2 rounded-full ${status?.running ? "bg-green-500" : "bg-red-500"}`} />
-            {status?.running ? "Running" : "Stopped"}
+            {status?.running ? t("sbv2.running") : t("sbv2.stopped")}
           </span>
           {status?.running ? (
             <Button variant="outline" size="sm" onClick={stopSbv2} disabled={loading} className="h-7 text-xs">
-              {actionInProgress === "stopping" ? "..." : "Stop"}
+              {actionInProgress === "stopping" ? "..." : t("sbv2.stop")}
             </Button>
           ) : status?.installed ? (
             <Button variant="default" size="sm" onClick={startSbv2} disabled={loading} className="h-7 text-xs">
-              {actionInProgress === "starting" ? "..." : "Start"}
+              {actionInProgress === "starting" ? "..." : t("sbv2.start")}
             </Button>
           ) : (
             <a href="https://github.com/litagin02/Style-Bert-VITS2" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
-              Install
+              {t("sbv2.install")}
             </a>
           )}
         </div>
@@ -121,26 +123,26 @@ export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProp
   }
 
   return (
-    <Card>
+      <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <span className={`w-3 h-3 rounded-full ${status?.running ? "bg-green-500" : "bg-red-500"}`} />
-          Style-Bert-VITS2
+          {t("sbv2.title")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="text-sm space-y-1">
           <p>
-            <span className="font-medium">Status:</span>{" "}
+            <span className="font-medium">{t("sbv2.statusLabel")}</span>{" "}
             {status?.running ? (
-              <span className="text-green-600">Running on port {status.port}</span>
+              <span className="text-green-600">{t("sbv2.runningOnPort", { port: status.port })}</span>
             ) : (
-              <span className="text-red-600">Not running</span>
+              <span className="text-red-600">{t("sbv2.notRunning")}</span>
             )}
           </p>
           {status?.python && (
             <p className="text-muted-foreground text-xs">
-              <span className="font-medium">Python:</span> {status.python}
+              <span className="font-medium">{t("sbv2.pythonLabel")}</span> {status.python}
             </p>
           )}
         </div>
@@ -154,11 +156,11 @@ export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProp
         {status && !status.installed && !status.running && (
           <Alert>
             <AlertDescription>
-              Style-Bert-VITS2 is not installed. Install it with:{" "}
+              {t("sbv2.notInstalled")}{" "}
               <code className="bg-muted px-1.5 py-0.5 rounded text-xs">pip install style-bert-vits2</code>
               <br />
               <a href="https://github.com/litagin02/Style-Bert-VITS2" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium text-xs mt-1 inline-block">
-                View installation guide
+                {t("sbv2.installGuide")}
               </a>
             </AlertDescription>
           </Alert>
@@ -167,25 +169,25 @@ export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProp
         <div className="flex gap-2">
           {status?.running ? (
             <Button variant="outline" onClick={stopSbv2} disabled={loading} className="flex-1">
-              {actionInProgress === "stopping" ? "Stopping..." : "Stop SBV2"}
+              {actionInProgress === "stopping" ? t("sbv2.stopping") : t("sbv2.stopEngine")}
             </Button>
           ) : status?.installed ? (
             <Button onClick={startSbv2} disabled={loading} className="flex-1">
-              {actionInProgress === "starting" ? "Starting..." : "Start SBV2"}
+              {actionInProgress === "starting" ? t("sbv2.starting") : t("sbv2.startEngine")}
             </Button>
           ) : (
             <Button asChild className="flex-1">
               <a href="https://github.com/litagin02/Style-Bert-VITS2" target="_blank" rel="noopener noreferrer">
-                Install Style-Bert-VITS2
+                {t("sbv2.install")}
               </a>
             </Button>
           )}
-          <Button variant="ghost" onClick={checkStatus} disabled={loading}>Refresh</Button>
+          <Button variant="ghost" onClick={checkStatus} disabled={loading}>{t("common.refresh")}</Button>
         </div>
 
         {actionInProgress === "starting" && (
           <p className="text-sm text-muted-foreground text-center">
-            Starting Style-Bert-VITS2... This may take up to 30 seconds while models load.
+            {t("sbv2.startingEngine")}
           </p>
         )}
       </CardContent>

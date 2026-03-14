@@ -1,4 +1,4 @@
-import type { Scenario } from "@/types";
+import type { AppLocale, Scenario } from "@/types";
 
 export const FREE_PRACTICE_SCENARIO: Scenario = {
   id: "free-practice",
@@ -172,3 +172,162 @@ export const SCENARIOS: Scenario[] = [
     ],
   },
 ];
+
+type BuiltInScenarioCopy = Pick<Scenario, "title" | "description" | "setting" | "character_role" | "objectives">;
+
+const SCENARIO_COPY_ES: Record<string, BuiltInScenarioCopy> = {
+  "free-practice": {
+    title: "Practica libre",
+    description: "Conversacion abierta sobre cualquier tema. Practica lo que quieras.",
+    setting: "Cualquier contexto: la conversacion puede ir a donde quieras.",
+    character_role: "Una persona japonesa amistosa y nativa, feliz de charlar sobre cualquier cosa.",
+    objectives: [
+      "Practicar conversacion natural",
+      "Explorar temas que te interesan",
+      "Ganar confianza hablando libremente",
+    ],
+  },
+  intro: {
+    title: "Presentacion personal",
+    description: "Presentate y conoce a alguien nuevo.",
+    setting: "Conoces a alguien por primera vez en una reunion social.",
+    character_role: "Una persona japonesa amigable que acabas de conocer en una fiesta.",
+    objectives: [
+      "Decir tu nombre y de donde eres",
+      "Hablar sobre tus hobbies o trabajo",
+      "Preguntar a la otra persona sobre si misma",
+    ],
+  },
+  convenience: {
+    title: "Tienda de conveniencia",
+    description: "Compra productos y realiza una transaccion en un konbini.",
+    setting: "Una tienda de conveniencia japonesa tipica (コンビニ).",
+    character_role: "Un empleado educado de una tienda de conveniencia.",
+    objectives: [
+      "Preguntar donde esta un articulo",
+      "Completar el proceso de pago",
+      "Responder a preguntas comunes del empleado (bolsa, palillos, calentar comida)",
+    ],
+  },
+  restaurant: {
+    title: "Restaurante",
+    description: "Pide comida, pregunta por el menu y paga la cuenta.",
+    setting: "Un restaurante japones informal (居酒屋 o 定食屋).",
+    character_role: "Un mesero o mesera amable del restaurante.",
+    objectives: [
+      "Pedir una mesa y sentarte",
+      "Preguntar por platos del menu y ordenar",
+      "Pedir la cuenta y pagar",
+    ],
+  },
+  weather: {
+    title: "Charla sobre el clima",
+    description: "Conversacion casual sobre el clima de hoy y temas de temporada.",
+    setting: "Te encuentras con un vecino o companero de trabajo.",
+    character_role: "Un vecino amable al que ves con frecuencia.",
+    objectives: [
+      "Comentar el clima de hoy",
+      "Hablar sobre planes o actividades de temporada",
+      "Usar vocabulario relacionado con el clima de forma natural",
+    ],
+  },
+  hobbies: {
+    title: "Hobbies e intereses",
+    description: "Habla sobre tus hobbies y descubre intereses compartidos.",
+    setting: "Una charla casual en una cafeteria con una persona que acabas de conocer.",
+    character_role: "Una persona japonesa que disfruta compartir sus hobbies.",
+    objectives: [
+      "Describir tus hobbies con detalle",
+      "Preguntar por los intereses de la otra persona",
+      "Encontrar puntos en comun y hablar sobre actividades compartidas",
+    ],
+  },
+  directions: {
+    title: "Pedir direcciones",
+    description: "Encuentra tu camino pidiendo indicaciones.",
+    setting: "Estas perdido en una ciudad japonesa y buscas un lugar especifico.",
+    character_role: "Una persona en la calle dispuesta a ayudarte.",
+    objectives: [
+      "Preguntar como llegar a un lugar especifico",
+      "Entender palabras de direccion (derecha, izquierda, recto)",
+      "Agradecer y confirmar que entendiste",
+    ],
+  },
+  doctor: {
+    title: "Visita al medico",
+    description: "Describe tus sintomas y entiende consejos medicos.",
+    setting: "Una pequena clinica en Japon.",
+    character_role: "Un doctor paciente y amable.",
+    objectives: [
+      "Describir tus sintomas claramente",
+      "Responder las preguntas del doctor sobre tu condicion",
+      "Entender el diagnostico y las instrucciones del tratamiento",
+    ],
+  },
+  shopping: {
+    title: "Compras",
+    description: "Explora una tienda, pregunta por productos y realiza una compra.",
+    setting: "Una tienda departamental o de ropa en Japon.",
+    character_role: "Un dependiente amable.",
+    objectives: [
+      "Preguntar por tallas, colores o disponibilidad",
+      "Probarte o comparar articulos",
+      "Completar la compra",
+    ],
+  },
+  hotel: {
+    title: "Registro en hotel",
+    description: "Haz el check-in en un hotel y resuelve solicitudes comunes.",
+    setting: "La recepcion de un hotel japones o ryokan.",
+    character_role: "Un recepcionista profesional y educado.",
+    objectives: [
+      "Hacer el check-in con tu reservacion",
+      "Preguntar por servicios y amenidades del hotel",
+      "Hacer una solicitud especial (almohada extra, salida tarde, etc.)",
+    ],
+  },
+  phone: {
+    title: "Llamada telefonica",
+    description: "Gestiona una conversacion por telefono, mas dificil sin pistas visuales.",
+    setting: "Una llamada para hacer una reservacion o una consulta.",
+    character_role: "Personal de un restaurante o negocio que contesta el telefono.",
+    objectives: [
+      "Saludar apropiadamente en una llamada",
+      "Explicar claramente el motivo de la llamada",
+      "Confirmar detalles y terminar la llamada con cortesia",
+    ],
+  },
+  train: {
+    title: "Estacion de tren",
+    description: "Navega el sistema ferroviario y compra boletos.",
+    setting: "Una estacion de tren concurrida en Japon.",
+    character_role: "Un empleado de informacion de la estacion.",
+    objectives: [
+      "Preguntar que tren o andén debes usar",
+      "Comprar un boleto o preguntar por tarjetas IC",
+      "Preguntar por informacion sobre transbordos",
+    ],
+  },
+  "post-office": {
+    title: "Oficina postal",
+    description: "Envía un paquete o compra estampillas en la oficina de correos.",
+    setting: "Una oficina postal japonesa (郵便局).",
+    character_role: "Un empleado de correos servicial.",
+    objectives: [
+      "Explicar qué quieres enviar y adónde",
+      "Elegir un método de envío y entender los costos",
+      "Llenar formularios con ayuda",
+    ],
+  },
+};
+
+export function localizeScenario(scenario: Scenario, locale: AppLocale): Scenario {
+  if (locale !== "es") return scenario;
+  if (scenario.isCustom) return scenario;
+  const translated = SCENARIO_COPY_ES[scenario.id];
+  if (!translated) return scenario;
+  return {
+    ...scenario,
+    ...translated,
+  };
+}

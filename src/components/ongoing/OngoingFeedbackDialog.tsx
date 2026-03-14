@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { useI18n } from "@/i18n";
 import { generateFeedback } from "@/services/claude";
 import { addVocabItem, getVocabulary } from "@/services/storage";
 import type { Message, SessionFeedback } from "@/types";
@@ -61,6 +62,7 @@ export function OngoingFeedbackDialog({
   chatPersona,
   onFeedbackGenerated,
 }: OngoingFeedbackDialogProps) {
+  const { locale } = useI18n();
   const [feedback, setFeedback] = useState<SessionFeedback | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export function OngoingFeedbackDialog({
         const raw = await generateFeedback(messages, {
           name: chatName,
           persona: chatPersona,
-        });
+        }, locale);
         if (cancelled) return;
         setFeedback(parseFeedback(raw));
         setGenerated(true);
@@ -94,7 +96,7 @@ export function OngoingFeedbackDialog({
     })();
 
     return () => { cancelled = true; };
-  }, [open, generated, messages, chatName, chatPersona, onFeedbackGenerated]);
+  }, [open, generated, messages, chatName, chatPersona, locale, onFeedbackGenerated]);
 
   const handleClose = (nextOpen: boolean) => {
     if (!nextOpen) {

@@ -30,7 +30,7 @@ export function FeedbackScreen({
   onStartNewSession,
   onGoHome,
 }: FeedbackScreenProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [feedback, setFeedback] = useState<SessionFeedback | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -135,7 +135,7 @@ export function FeedbackScreen({
         const raw = await generateFeedback(messages, {
           title: scenario.title,
           description: scenario.description,
-        });
+        }, locale);
 
         if (cancelled) return;
 

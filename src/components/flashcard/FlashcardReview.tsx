@@ -16,7 +16,7 @@ import {
 import { reviewVocabItem } from "@/services/srs";
 import type { VocabItem, SRSRating } from "@/types";
 import { format } from "date-fns";
-import { BookOpenText, CircleCheckBig, PartyPopper } from "lucide-react";
+import { BookOpenText, ChevronDown, CircleCheckBig, PartyPopper } from "lucide-react";
 
 // ── Shared constants ─────────────────────────────────────
 
@@ -530,15 +530,18 @@ function AllCardsTab({
           onChange={(e) => setSearch(e.target.value)}
           className="h-8 text-sm"
         />
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-          className="h-8 text-xs rounded-md border bg-background px-2 text-muted-foreground shrink-0"
-        >
-          <option value="next_review">{t("flashcards.sortByNextReview")}</option>
-          <option value="word">{t("flashcards.sortByWord")}</option>
-          <option value="times_reviewed">{t("flashcards.sortByTimesReviewed")}</option>
-        </select>
+        <div className="relative shrink-0">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            className="h-8 appearance-none rounded-md border bg-background px-2 pr-7 text-xs text-muted-foreground"
+          >
+            <option value="next_review">{t("flashcards.sortByNextReview")}</option>
+            <option value="word">{t("flashcards.sortByWord")}</option>
+            <option value="times_reviewed">{t("flashcards.sortByTimesReviewed")}</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-foreground/80" />
+        </div>
       </div>
 
       {filtered.length === 0 ? (

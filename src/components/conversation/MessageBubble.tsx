@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from "react";
-import { translateToEnglish } from "@/services/claude";
+import { translateJapaneseText } from "@/services/claude";
 import { speak } from "@/services/tts";
 import { Volume2, Languages, Loader2 } from "lucide-react";
+import { useI18n } from "@/i18n";
+import type { AppLocale } from "@/types";
 import type { Message } from "@/types";
 
 function renderMarkdown(text: string): ReactNode[] {
@@ -31,7 +33,8 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, isSpeaking: externalSpeaking }: MessageBubbleProps) {
-  const [translation, setTranslation] = useState<string | null>(null);
+  const { locale, t } = useI18n();
+  const [translations, setTranslations] = useState<Partial<Record<AppLocale, string>>>({});
   const [isTranslating, setIsTranslating] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -39,6 +42,8 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
   const showGlow = isAssistant && (isPlaying || externalSpeaking);
+  const translation = translations[locale];
+  const targetLanguage = t(locale === "es" ? "common.spanish" : "common.english");
 
   const handleTranslate = async () => {
     if (translation) {
@@ -48,12 +53,12 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
 
     setIsTranslating(true);
     try {
-      const result = await translateToEnglish(message.content);
-      setTranslation(result);
+      const result = await translateJapaneseText(message.content, locale);
+      setTranslations((prev) => ({ ...prev, [locale]: result }));
       setShowTranslation(true);
     } catch (err) {
       console.error("Translation error:", err);
-      setTranslation("Failed to translate");
+      setTranslations((prev) => ({ ...prev, [locale]: t("message.failedToTranslate") }));
       setShowTranslation(true);
     } finally {
       setIsTranslating(false);
@@ -103,7 +108,7 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
                     className="inline-flex items-center justify-center size-7 opacity-60 hover:opacity-100 hover:bg-black/5 rounded transition-opacity"
                     onClick={handleReplay}
                     disabled={isPlaying}
-                    title="Replay audio"
+                    title={t("message.replayAudio")}
                     data-1p-ignore
                   >
                     {isPlaying ? (
@@ -117,7 +122,11 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
                     className="inline-flex items-center justify-center size-7 opacity-60 hover:opacity-100 hover:bg-black/5 rounded transition-opacity"
                     onClick={handleTranslate}
                     disabled={isTranslating}
-                    title={showTranslation ? "Show Japanese" : "Translate to English"}
+                    title={
+                      showTranslation && translation
+                        ? t("message.showJapanese")
+                        : t("message.translateToLanguage", { language: targetLanguage })
+                    }
                     data-1p-ignore
                   >
                     {isTranslating ? (

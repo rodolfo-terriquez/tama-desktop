@@ -11,6 +11,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { useI18n } from "@/i18n";
 import { generateCustomScenarioDetails, hasApiKey } from "@/services/claude";
 import type { Scenario } from "@/types";
 import { Loader2, Sparkles, Plus, Trash2 } from "lucide-react";
@@ -38,6 +39,7 @@ export function CustomScenarioForm({
   onSave,
   editingScenario,
 }: CustomScenarioFormProps) {
+  const { locale, t } = useI18n();
   const [form, setForm] = useState(EMPTY_FORM);
   const [detailsReady, setDetailsReady] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -103,7 +105,7 @@ export function CustomScenarioForm({
     setIsGenerating(true);
 
     try {
-      const generated = await generateCustomScenarioDetails(form.title, form.description);
+      const generated = await generateCustomScenarioDetails(form.title, form.description, locale);
       setForm((prev) => ({
         ...prev,
         title_ja: generated.title_ja || prev.title_ja,
@@ -115,7 +117,7 @@ export function CustomScenarioForm({
       setDetailsReady(true);
     } catch (error) {
       setGenerationError(
-        error instanceof Error ? error.message : "Failed to generate scenario details"
+        error instanceof Error ? error.message : t("custom.generateFailed")
       );
     } finally {
       setIsGenerating(false);
@@ -149,20 +151,18 @@ export function CustomScenarioForm({
       <DialogContent className="sm:max-w-xl max-h-[85vh] !flex !flex-col overflow-hidden">
         <DialogHeader className="shrink-0">
           <DialogTitle>
-            {editingScenario ? "Edit Scenario" : "Create Custom Scenario"}
+            {editingScenario ? t("custom.editTitle") : t("custom.createTitle")}
           </DialogTitle>
-          <DialogDescription>
-            Define a conversation scenario for practice. Great for exam prep with specific structures.
-          </DialogDescription>
+          <DialogDescription>{t("custom.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6">
           <div className="space-y-4 pb-2">
             <div className={`grid gap-3 ${showDetails ? "grid-cols-2" : "grid-cols-1"}`}>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Title</label>
+                <label className="text-sm font-medium">{t("custom.titleLabel")}</label>
                 <Input
-                  placeholder="e.g. City Hall Help"
+                  placeholder={t("custom.titlePlaceholder")}
                   value={form.title}
                   onChange={(e) => updateField("title", e.target.value)}
                 />
@@ -170,10 +170,13 @@ export function CustomScenarioForm({
               {showDetails && (
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">
-                    Title (Japanese) <span className="text-muted-foreground font-normal">optional</span>
+                    {t("custom.titleJaLabel")}{" "}
+                    <span className="text-muted-foreground font-normal">
+                      {t("custom.optional")}
+                    </span>
                   </label>
                   <Input
-                    placeholder="e.g. 市役所での相談"
+                    placeholder={t("custom.titleJaPlaceholder")}
                     value={form.title_ja}
                     onChange={(e) => updateField("title_ja", e.target.value)}
                   />
@@ -182,9 +185,9 @@ export function CustomScenarioForm({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Description</label>
+              <label className="text-sm font-medium">{t("custom.descriptionLabel")}</label>
               <Textarea
-                placeholder="Describe what this scenario should practice and the kind of situation you want."
+                placeholder={t("custom.descriptionPlaceholder")}
                 value={form.description}
                 onChange={(e) => updateField("description", e.target.value)}
                 rows={showDetails ? 3 : 4}
@@ -194,16 +197,16 @@ export function CustomScenarioForm({
             {!showDetails && !editingScenario && (
               <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">Draft the rest with AI</p>
+                  <p className="text-sm font-medium">{t("custom.aiDraftTitle")}</p>
                   <p className="text-xs text-muted-foreground">
-                    Start with the scenario name and description, then let the AI fill in the setting, role, objectives, and optional conversation structure. You can edit everything afterward.
+                    {t("custom.aiDraftDescription")}
                   </p>
                 </div>
 
                 {!hasApiKey() && (
                   <Alert>
                     <AlertDescription>
-                      Add an API key in Settings to use AI generation, or continue manually.
+                      {t("custom.addApiKey")}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -223,17 +226,17 @@ export function CustomScenarioForm({
                     {isGenerating ? (
                       <>
                         <Loader2 className="size-4 mr-1 animate-spin" />
-                        Generating...
+                        {t("custom.generating")}
                       </>
                     ) : (
                       <>
                         <Sparkles className="size-4 mr-1" />
-                        Fill with AI
+                        {t("custom.fillWithAi")}
                       </>
                     )}
                   </Button>
                   <Button variant="outline" onClick={handleFillManually}>
-                    Fill Manually
+                    {t("custom.fillManually")}
                   </Button>
                 </div>
               </div>
@@ -244,9 +247,9 @@ export function CustomScenarioForm({
                 {!editingScenario && (
                   <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
                     <div>
-                      <p className="text-sm font-medium">Scenario details</p>
+                      <p className="text-sm font-medium">{t("custom.detailsTitle")}</p>
                       <p className="text-xs text-muted-foreground">
-                        Review and tweak the generated fields before saving.
+                        {t("custom.detailsDescription")}
                       </p>
                     </div>
                     <Button
@@ -258,12 +261,12 @@ export function CustomScenarioForm({
                       {isGenerating ? (
                         <>
                           <Loader2 className="size-4 mr-1 animate-spin" />
-                          Regenerating...
+                          {t("custom.regenerating")}
                         </>
                       ) : (
                         <>
                           <Sparkles className="size-4 mr-1" />
-                          Regenerate
+                          {t("custom.regenerate")}
                         </>
                       )}
                     </Button>
@@ -277,30 +280,30 @@ export function CustomScenarioForm({
                 )}
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Setting</label>
+                  <label className="text-sm font-medium">{t("custom.settingLabel")}</label>
                   <Input
-                    placeholder="e.g. You are at a city hall asking for help with paperwork"
+                    placeholder={t("custom.settingPlaceholder")}
                     value={form.setting}
                     onChange={(e) => updateField("setting", e.target.value)}
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">AI Character Role</label>
+                  <label className="text-sm font-medium">{t("custom.roleLabel")}</label>
                   <Input
-                    placeholder="e.g. A city hall clerk helping with the process"
+                    placeholder={t("custom.rolePlaceholder")}
                     value={form.character_role}
                     onChange={(e) => updateField("character_role", e.target.value)}
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Objectives</label>
+                  <label className="text-sm font-medium">{t("custom.objectivesLabel")}</label>
                   <div className="space-y-2">
                     {form.objectives.map((obj, i) => (
                       <div key={i} className="flex gap-2">
                         <Input
-                          placeholder={`Objective ${i + 1}`}
+                          placeholder={t("custom.objectivePlaceholder", { number: i + 1 })}
                           value={obj}
                           onChange={(e) => updateObjective(i, e.target.value)}
                         />
@@ -323,24 +326,26 @@ export function CustomScenarioForm({
                       className="w-full"
                     >
                       <Plus className="size-4 mr-1" />
-                      Add Objective
+                      {t("custom.addObjective")}
                     </Button>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">
-                    Conversation Structure / Extra Instructions{" "}
-                    <span className="text-muted-foreground font-normal">optional</span>
+                    {t("custom.structureLabel")}{" "}
+                    <span className="text-muted-foreground font-normal">
+                      {t("custom.optional")}
+                    </span>
                   </label>
                   <Textarea
-                    placeholder={`Add specific instructions for how the conversation should flow. Useful for exam prep.\n\nExample:\nThis is a JLPT N3 exam roleplay. Follow this structure:\n1. Examiner greets and sets the scene\n2. Ask about the student's daily routine\n3. Follow-up: ask what they do on weekends\n4. Ask about future plans\n5. Wrap up naturally`}
+                    placeholder={t("custom.structurePlaceholder")}
                     value={form.custom_prompt}
                     onChange={(e) => updateField("custom_prompt", e.target.value)}
                     rows={6}
                   />
                   <p className="text-xs text-muted-foreground">
-                    These instructions are sent to the AI to guide the conversation flow.
+                    {t("custom.structureHelp")}
                   </p>
                 </div>
               </>
@@ -350,10 +355,10 @@ export function CustomScenarioForm({
 
         <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={handleSave} disabled={!isValid || !showDetails}>
-            {editingScenario ? "Save Changes" : "Create Scenario"}
+            {editingScenario ? t("custom.saveChanges") : t("custom.createScenario")}
           </Button>
         </DialogFooter>
       </DialogContent>

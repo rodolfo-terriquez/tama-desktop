@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Volume2, Languages, Loader2 } from "lucide-react";
+import { useI18n } from "@/i18n";
 import { speak } from "@/services/tts";
-import { translateToEnglish } from "@/services/claude";
+import { translateJapaneseText } from "@/services/claude";
 import type { Message } from "@/types";
 
 function renderMarkdown(text: string): ReactNode[] {
@@ -34,11 +35,13 @@ export function TranscriptBubbles({
   messages,
   visibleCount = 3,
 }: TranscriptBubblesProps) {
+  const { locale, t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [showTranslation, setShowTranslation] = useState<Record<string, boolean>>({});
   const [loadingTranslation, setLoadingTranslation] = useState<Record<string, boolean>>({});
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const targetLanguage = t(locale === "es" ? "common.spanish" : "common.english");
 
   useEffect(() => {
     if (containerRef.current) {
@@ -56,7 +59,7 @@ export function TranscriptBubbles({
   };
 
   const handleTranslate = async (message: Message) => {
-    const id = message.id;
+    const id = `${message.id}:${locale}`;
 
     if (showTranslation[id]) {
       setShowTranslation((prev) => ({ ...prev, [id]: false }));
@@ -69,11 +72,13 @@ export function TranscriptBubbles({
 
     setLoadingTranslation((prev) => ({ ...prev, [id]: true }));
     try {
-      const translation = await translateToEnglish(message.content);
+      const translation = await translateJapaneseText(message.content, locale);
       setTranslations((prev) => ({ ...prev, [id]: translation }));
       setShowTranslation((prev) => ({ ...prev, [id]: true }));
     } catch (err) {
       console.error("Translation error:", err);
+      setTranslations((prev) => ({ ...prev, [id]: t("message.failedToTranslate") }));
+      setShowTranslation((prev) => ({ ...prev, [id]: true }));
     } finally {
       setLoadingTranslation((prev) => ({ ...prev, [id]: false }));
     }
@@ -109,7 +114,7 @@ export function TranscriptBubbles({
         {messages.map((message, index) => {
           const isUser = message.role === "user";
           const opacity = getOpacity(index);
-          const id = message.id;
+          const id = `${message.id}:${locale}`;
           const isShowingTranslation = showTranslation[id];
           const isLoadingTranslation = loadingTranslation[id];
           const translation = translations[id];
@@ -141,7 +146,7 @@ export function TranscriptBubbles({
 
                 {isLoadingTranslation && (
                   <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 italic">
-                    Translating...
+                    {t("message.translating")}
                   </div>
                 )}
 
@@ -152,7 +157,7 @@ export function TranscriptBubbles({
                       className="inline-flex items-center justify-center size-6 opacity-40 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-opacity"
                       onClick={() => handleReplay(message)}
                       disabled={isPlaying}
-                      title="Replay audio"
+                      title={t("message.replayAudio")}
                     >
                       {isPlaying ? (
                         <Loader2 className="size-3 animate-spin" />
@@ -165,7 +170,11 @@ export function TranscriptBubbles({
                       className="inline-flex items-center justify-center size-6 opacity-40 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-opacity"
                       onClick={() => handleTranslate(message)}
                       disabled={isLoadingTranslation}
-                      title={isShowingTranslation ? "Hide translation" : "Translate"}
+                      title={
+                        isShowingTranslation && translation
+                          ? t("message.hideTranslation")
+                          : t("message.translateToLanguage", { language: targetLanguage })
+                      }
                     >
                       {isLoadingTranslation ? (
                         <Loader2 className="size-3 animate-spin" />

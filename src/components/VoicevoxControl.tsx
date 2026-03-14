@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useI18n } from "@/i18n";
 
 interface DownloadState {
   in_progress: boolean;
@@ -39,6 +40,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxControlProps) {
+  const { t } = useI18n();
   const [status, setStatus] = useState<VoicevoxStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -164,26 +166,26 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
               }`}
             />
             {isDownloading
-              ? "Downloading..."
+              ? t("voicevox.downloading")
               : status?.running
-              ? "Running"
-              : "Stopped"}
+              ? t("voicevox.running")
+              : t("voicevox.stopped")}
           </span>
           {status?.running ? (
             <Button variant="outline" size="sm" onClick={stopVoicevox} disabled={loading} className="h-7 text-xs">
-              {actionInProgress === "stopping" ? "..." : "Stop"}
+              {actionInProgress === "stopping" ? "..." : t("voicevox.stop")}
             </Button>
           ) : status?.installed ? (
             <Button variant="default" size="sm" onClick={startVoicevox} disabled={loading} className="h-7 text-xs">
-              {actionInProgress === "starting" ? "..." : "Start"}
+              {actionInProgress === "starting" ? "..." : t("voicevox.start")}
             </Button>
           ) : isDownloading ? null : status?.can_download ? (
             <Button variant="default" size="sm" onClick={downloadVoicevox} disabled={loading} className="h-7 text-xs">
-              Download
+              {t("voicevox.download")}
             </Button>
           ) : (
             <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
-              Install
+              {t("voicevox.install")}
             </a>
           )}
         </div>
@@ -194,7 +196,7 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
             </div>
             <p className="text-xs text-muted-foreground">
               {dlStatus === "downloading" && `${dlProgress}% - ${formatBytes(downloadProgress?.downloaded_size || 0)}`}
-              {dlStatus === "extracting" && "Extracting..."}
+              {dlStatus === "extracting" && t("voicevox.extracting")}
             </p>
           </div>
         )}
@@ -204,28 +206,28 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
   }
 
   return (
-    <Card>
+      <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <span className={`w-3 h-3 rounded-full ${status?.running ? "bg-green-500" : isDownloading ? "bg-blue-500 animate-pulse" : "bg-red-500"}`} />
-          VOICEVOX Engine
+          {t("voicevox.engineTitle")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="text-sm space-y-1">
           <p>
-            <span className="font-medium">Status:</span>{" "}
+            <span className="font-medium">{t("voicevox.statusLabel")}</span>{" "}
             {status?.running ? (
-              <span className="text-green-600">Running on localhost:50021</span>
+              <span className="text-green-600">{t("voicevox.runningOnHost")}</span>
             ) : isDownloading ? (
-              <span className="text-blue-600">Downloading engine...</span>
+              <span className="text-blue-600">{t("voicevox.downloadingEngine")}</span>
             ) : (
-              <span className="text-red-600">Not running</span>
+              <span className="text-red-600">{t("voicevox.notRunning")}</span>
             )}
           </p>
           {status?.installed && status.path && (
             <p className="text-muted-foreground text-xs truncate">
-              <span className="font-medium">Path:</span> {status.path}
+              <span className="font-medium">{t("voicevox.pathLabel")}</span> {status.path}
             </p>
           )}
         </div>
@@ -237,8 +239,8 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
             </div>
             <p className="text-sm text-muted-foreground text-center">
               {dlStatus === "downloading" && <>Downloading: {dlProgress}% ({formatBytes(downloadProgress?.downloaded_size || 0)} / {formatBytes(downloadProgress?.total_size || 0)})</>}
-              {dlStatus === "extracting" && "Extracting archive..."}
-              {dlStatus === "starting" && "Starting download..."}
+              {dlStatus === "extracting" && t("voicevox.extractingArchive")}
+              {dlStatus === "starting" && t("voicevox.startingDownload")}
             </p>
           </div>
         )}
@@ -253,12 +255,12 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
           <Alert>
             <AlertDescription>
               {status.can_download ? (
-                <>VOICEVOX engine is not installed. Click "Download" to automatically download and set it up (~1.6GB).</>
+                <>{t("voicevox.notInstalledDownload")}</>
               ) : (
                 <>
-                  VOICEVOX is not installed and automatic download is not available for your platform ({status.platform}).{" "}
+                  {t("voicevox.notInstalledManual", { platform: status.platform })}{" "}
                   <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
-                    Download VOICEVOX manually
+                    {t("voicevox.downloadManual")}
                   </a>
                 </>
               )}
@@ -269,31 +271,31 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
         <div className="flex gap-2">
           {status?.running ? (
             <Button variant="outline" onClick={stopVoicevox} disabled={loading} className="flex-1">
-              {actionInProgress === "stopping" ? "Stopping..." : "Stop VOICEVOX"}
+              {actionInProgress === "stopping" ? t("voicevox.stopping") : t("voicevox.stopEngine")}
             </Button>
           ) : status?.installed ? (
             <Button onClick={startVoicevox} disabled={loading} className="flex-1">
-              {actionInProgress === "starting" ? "Starting..." : "Start VOICEVOX"}
+              {actionInProgress === "starting" ? t("voicevox.starting") : t("voicevox.startEngine")}
             </Button>
           ) : isDownloading ? (
-            <Button disabled className="flex-1">Downloading...</Button>
+            <Button disabled className="flex-1">{t("voicevox.downloading")}</Button>
           ) : status?.can_download ? (
             <Button onClick={downloadVoicevox} disabled={loading} className="flex-1">
-              Download VOICEVOX (~1.6GB)
+              {t("voicevox.downloadEngineSize")}
             </Button>
           ) : (
             <Button asChild className="flex-1">
-              <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noopener noreferrer">Download VOICEVOX</a>
+              <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noopener noreferrer">{t("voicevox.downloadEngine")}</a>
             </Button>
           )}
           <Button variant="ghost" onClick={checkStatus} disabled={loading || !!isDownloading}>
-            Refresh
+            {t("common.refresh")}
           </Button>
         </div>
 
         {actionInProgress === "starting" && (
           <p className="text-sm text-muted-foreground text-center">
-            Starting VOICEVOX engine... This may take up to 30 seconds.
+            {t("voicevox.startingEngine")}
           </p>
         )}
       </CardContent>

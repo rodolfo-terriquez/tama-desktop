@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { localizeScenario } from "@/data/scenarios";
 import { getDueVocabulary, getLastSession, getOngoingChats, getSessions, getUserProfile } from "@/services/storage";
 import { useI18n } from "@/i18n";
 import { formatRelativeTime, formatWeekdayMonthDay, getWeekdayLabels } from "@/services/locale-format";
@@ -105,14 +106,14 @@ function ActivityGrid() {
   );
 }
 
-function getGreeting(date: Date, name: string | undefined, t: ReturnType<typeof useI18n>["t"]): string {
+function getGreeting(date: Date, name: string | undefined): string {
   const hour = date.getHours();
   const baseGreeting = hour < 12
-    ? t("home.greetingMorning")
+    ? "おはようございます"
     : hour < 18
-      ? t("home.greetingAfternoon")
-      : t("home.greetingEvening");
-  return name ? t("home.greetingWithName", { greeting: baseGreeting, name }) : baseGreeting;
+      ? "こんにちは"
+      : "こんばんは";
+  return name ? `${baseGreeting}、${name}` : baseGreeting;
 }
 
 export function HomeScreen({
@@ -122,7 +123,7 @@ export function HomeScreen({
   onContinueChat,
   onOngoingChats,
 }: HomeScreenProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [now, setNow] = useState(() => new Date());
   const [dueCount, setDueCount] = useState(0);
   const [lastScenario, setLastScenario] = useState<{
@@ -131,7 +132,7 @@ export function HomeScreen({
   } | null>(null);
   const [lastPersonaChat, setLastPersonaChat] = useState<OngoingChat | null>(null);
   const [profileName, setProfileName] = useState("");
-  const greeting = getGreeting(now, profileName, t);
+  const greeting = getGreeting(now, profileName);
 
   useEffect(() => {
     const tick = () => setNow(new Date());
@@ -187,7 +188,7 @@ export function HomeScreen({
               {lastScenario ? (
                 <>
                   <p className="text-sm text-muted-foreground truncate mt-1">
-                    {lastScenario.scenario.title} · {lastScenario.scenario.title_ja}
+                    {localizeScenario(lastScenario.scenario, locale).title} · {lastScenario.scenario.title_ja}
                   </p>
                   <p className="text-xs text-muted-foreground mt-2">
                     {formatRelativeTime(new Date(lastScenario.date))}

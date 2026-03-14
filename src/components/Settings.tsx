@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useI18n } from "@/i18n";
+import { ChevronDown } from "lucide-react";
 import {
   getApiKey,
   setApiKey,
@@ -56,14 +57,6 @@ import {
 } from "@/services/display";
 import { setApiOnboardingDismissed } from "@/services/app-config";
 import type { JLPTLevel, ResponseLength } from "@/types";
-
-const JLPT_LEVELS: { value: JLPTLevel; label: string; description: string }[] = [
-  { value: "N5", label: "N5 - Beginner", description: "Basic phrases, hiragana, katakana, ~100 kanji" },
-  { value: "N4", label: "N4 - Elementary", description: "Basic conversations, ~300 kanji" },
-  { value: "N3", label: "N3 - Intermediate", description: "Everyday situations, ~650 kanji" },
-  { value: "N2", label: "N2 - Upper Intermediate", description: "Most situations, newspapers, ~1000 kanji" },
-  { value: "N1", label: "N1 - Advanced", description: "Complex texts, nuanced expression, ~2000 kanji" },
-];
 
 const DISPLAY_MODE_OPTIONS: { value: DisplayMode; label: string }[] = [
   { value: "light", label: "Light" },
@@ -121,7 +114,7 @@ const STYLE_ENGLISH_NAMES: Record<string, string> = {
 };
 
 const SELECT_CLASSNAME =
-  "h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]";
+  "h-9 w-full appearance-none rounded-md border border-input bg-transparent px-3 py-1 pr-10 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]";
 
 function groupVoicesBySpeaker(voices: VoiceOption[]): SpeakerGroup[] {
   const groups = new Map<string, VoiceOption[]>();
@@ -177,9 +170,20 @@ export function Settings() {
   const [whisperProgress, setWhisperProgress] = useState<DownloadProgress | null>(null);
   const [whisperDeleting, setWhisperDeleting] = useState(false);
 
+  const jlptLevels = useMemo(
+    () => [
+      { value: "N5" as const, label: t("settings.jlptN5Label"), description: t("settings.jlptN5Description") },
+      { value: "N4" as const, label: t("settings.jlptN4Label"), description: t("settings.jlptN4Description") },
+      { value: "N3" as const, label: t("settings.jlptN3Label"), description: t("settings.jlptN3Description") },
+      { value: "N2" as const, label: t("settings.jlptN2Label"), description: t("settings.jlptN2Description") },
+      { value: "N1" as const, label: t("settings.jlptN1Label"), description: t("settings.jlptN1Description") },
+    ],
+    [t]
+  );
+
   const selectedJlptInfo = useMemo(
-    () => JLPT_LEVELS.find((level) => level.value === jlptLevel),
-    [jlptLevel]
+    () => jlptLevels.find((level) => level.value === jlptLevel),
+    [jlptLevel, jlptLevels]
   );
 
   const speakerGroups = useMemo(
@@ -591,8 +595,9 @@ export function Settings() {
               <label htmlFor="profile-age" className="text-sm font-medium">{t("settings.age")}</label>
               <Input
                 id="profile-age"
-                type="number"
-                min={0}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder={t("settings.agePlaceholder")}
                 value={profileAge}
                 onChange={(e) => setProfileAge(e.target.value)}
@@ -689,18 +694,21 @@ export function Settings() {
               <label htmlFor="jlpt-level-select" className="text-sm font-medium">
                 {t("settings.currentLevel")}
               </label>
-              <select
-                id="jlpt-level-select"
-                value={jlptLevel}
-                onChange={(e) => handleJlptChange(e.target.value as JLPTLevel)}
-                className={SELECT_CLASSNAME}
-              >
-                {JLPT_LEVELS.map((level) => (
-                  <option key={level.value} value={level.value}>
-                    {level.label}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  id="jlpt-level-select"
+                  value={jlptLevel}
+                  onChange={(e) => handleJlptChange(e.target.value as JLPTLevel)}
+                  className={SELECT_CLASSNAME}
+                >
+                  {jlptLevels.map((level) => (
+                    <option key={level.value} value={level.value}>
+                      {level.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-foreground/80" />
+              </div>
               {selectedJlptInfo && (
                 <p className="text-xs text-muted-foreground">{selectedJlptInfo.description}</p>
               )}
@@ -966,44 +974,50 @@ export function Settings() {
                     <label htmlFor="voice-speaker-select" className="text-sm font-medium">
                       {t("settings.voiceLabel")}
                     </label>
-                    <select
-                      id="voice-speaker-select"
-                      value={selectedSpeakerName}
-                      onChange={(e) => handleSpeakerChange(e.target.value)}
-                      className={SELECT_CLASSNAME}
-                    >
-                      {speakerGroups.map((group) => (
-                        <option key={group.speakerName} value={group.speakerName}>
-                          {group.englishName !== group.speakerName
-                            ? `${group.englishName} (${group.speakerName})`
-                            : group.englishName}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        id="voice-speaker-select"
+                        value={selectedSpeakerName}
+                        onChange={(e) => handleSpeakerChange(e.target.value)}
+                        className={SELECT_CLASSNAME}
+                      >
+                        {speakerGroups.map((group) => (
+                          <option key={group.speakerName} value={group.speakerName}>
+                            {group.englishName !== group.speakerName
+                              ? `${group.englishName} (${group.speakerName})`
+                              : group.englishName}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-foreground/80" />
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
                     <label htmlFor="voice-style-select" className="text-sm font-medium">
                       {t("settings.styleLabel")}
                     </label>
-                    <select
-                      id="voice-style-select"
-                      value={selectedStyleId}
-                      onChange={(e) => handleVoiceChange(e.target.value)}
-                      className={SELECT_CLASSNAME}
-                      disabled={!selectedSpeaker || selectedSpeaker.styles.length === 0}
-                    >
-                      {selectedSpeaker?.styles.map((voice) => {
-                        const styleEn = STYLE_ENGLISH_NAMES[voice.styleName];
-                        return (
-                          <option key={voice.id} value={voice.id}>
-                            {styleEn && styleEn !== voice.styleName
-                              ? `${styleEn} (${voice.styleName})`
-                              : voice.styleName}
-                          </option>
-                        );
-                      })}
-                    </select>
+                    <div className="relative">
+                      <select
+                        id="voice-style-select"
+                        value={selectedStyleId}
+                        onChange={(e) => handleVoiceChange(e.target.value)}
+                        className={SELECT_CLASSNAME}
+                        disabled={!selectedSpeaker || selectedSpeaker.styles.length === 0}
+                      >
+                        {selectedSpeaker?.styles.map((voice) => {
+                          const styleEn = STYLE_ENGLISH_NAMES[voice.styleName];
+                          return (
+                            <option key={voice.id} value={voice.id}>
+                              {styleEn && styleEn !== voice.styleName
+                                ? `${styleEn} (${voice.styleName})`
+                                : voice.styleName}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-foreground/80" />
+                    </div>
                   </div>
 
                   {selectedVoice && (

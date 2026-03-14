@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CustomScenarioForm } from "@/components/CustomScenarioForm";
+import { localizeScenario } from "@/data/scenarios";
 import { useI18n } from "@/i18n";
 import { getRecommendedScenarios, pickBestScenario } from "@/services/scenarios";
 import {
@@ -20,7 +21,7 @@ interface ScenarioPickerProps {
 }
 
 export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [ranked, setRanked] = useState<Awaited<ReturnType<typeof getRecommendedScenarios>>>([]);
   const [customScenarios, setCustomScenarios] = useState<Scenario[]>([]);
   const [formOpen, setFormOpen] = useState(false);
@@ -35,7 +36,7 @@ export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
 
   const handleSurpriseMe = async () => {
     const scenario = await pickBestScenario();
-    onSelect(scenario);
+    onSelect(localizeScenario(scenario, locale));
   };
 
   const handleCreateScenario = async (data: Omit<Scenario, "id" | "isCustom">) => {
@@ -146,27 +147,29 @@ export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
               {t("scenario.builtInScenarios")}
             </h2>
           )}
-          {ranked.map(({ scenario, reason }, i) => (
+          {ranked.map(({ scenario, reasonKey }, i) => {
+            const localizedScenario = localizeScenario(scenario, locale);
+            return (
             <Card
               key={scenario.id}
               className="cursor-pointer transition-colors hover:border-primary/50 py-0 gap-0"
-              onClick={() => onSelect(scenario)}
+              onClick={() => onSelect(localizedScenario)}
             >
               <CardContent className="py-2.5 px-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2 flex-wrap">
-                      <h3 className="font-medium">{scenario.title}</h3>
+                      <h3 className="font-medium">{localizedScenario.title}</h3>
                       <span className="text-sm text-muted-foreground">
-                        {scenario.title_ja}
+                        {localizedScenario.title_ja}
                       </span>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {scenario.description}
+                      {localizedScenario.description}
                     </p>
-                    {reason && i < 3 && (
+                    {reasonKey && i < 3 && (
                       <Badge variant="secondary" className="mt-2 text-xs">
-                        {reason}
+                        {t(reasonKey as never)}
                       </Badge>
                     )}
                   </div>
@@ -178,7 +181,8 @@ export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       </ScrollArea>
 

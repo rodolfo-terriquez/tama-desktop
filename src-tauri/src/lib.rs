@@ -197,6 +197,7 @@ fn build_app_menu<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>) -> tauri:
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .menu(build_app_menu)
         .manage(WhisperModelState::new())
         .manage(TTSProcessState::new())

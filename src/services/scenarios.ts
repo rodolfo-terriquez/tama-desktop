@@ -5,7 +5,7 @@ import type { Scenario } from "@/types";
 interface ScoredScenario {
   scenario: Scenario;
   score: number;
-  reason: string;
+  reasonKey: string;
 }
 
 /**
@@ -34,13 +34,13 @@ export async function getRecommendedScenarios(): Promise<ScoredScenario[]> {
 
   const scored: ScoredScenario[] = allScenarios.map((scenario) => {
     let score = 50;
-    let reason = "";
+    let reasonKey = "";
 
     // Penalize recently used scenarios
     const recentIndex = recentScenarioIds.indexOf(scenario.id);
     if (recentIndex === 0) {
       score -= 30;
-      reason = "Just practiced";
+      reasonKey = "scenario.reason.justPracticed";
     } else if (recentIndex > 0) {
       score -= 15 / (recentIndex + 1);
     }
@@ -49,7 +49,7 @@ export async function getRecommendedScenarios(): Promise<ScoredScenario[]> {
     const everUsed = sessions.some((s) => s.scenario.id === scenario.id);
     if (!everUsed) {
       score += 15;
-      reason = reason || "New scenario";
+      reasonKey = reasonKey || "scenario.reason.newScenario";
     }
 
     // Favor simpler scenarios for struggling users
@@ -58,11 +58,11 @@ export async function getRecommendedScenarios(): Promise<ScoredScenario[]> {
 
     if (lastRating === "needs_work" && simpleScenarios.includes(scenario.id)) {
       score += 10;
-      reason = reason || "Good for building confidence";
+      reasonKey = reasonKey || "scenario.reason.buildConfidence";
     }
     if (lastRating === "excellent" && challengingScenarios.includes(scenario.id)) {
       score += 10;
-      reason = reason || "Ready for a challenge";
+      reasonKey = reasonKey || "scenario.reason.challenge";
     }
 
     // Boost if due vocabulary words relate to scenario keywords
@@ -75,14 +75,14 @@ export async function getRecommendedScenarios(): Promise<ScoredScenario[]> {
       ).length;
       if (vocabMatches > 0) {
         score += vocabMatches * 5;
-        reason = reason || "Good for reviewing vocabulary";
+        reasonKey = reasonKey || "scenario.reason.reviewVocab";
       }
     }
 
     // Slight randomness to keep things fresh
     score += Math.random() * 8;
 
-    return { scenario, score: Math.round(score), reason };
+    return { scenario, score: Math.round(score), reasonKey };
   });
 
   scored.sort((a, b) => b.score - a.score);
