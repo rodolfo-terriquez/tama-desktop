@@ -236,6 +236,10 @@ function rowToSession(row: SessionRow): Session {
   };
 }
 
+function isOngoingChatSession(session: Session): boolean {
+  return session.scenario.id.startsWith("ongoing-chat:");
+}
+
 export async function getSessions(): Promise<Session[]> {
   const d = await getDb();
   const rows = await d.select<SessionRow[]>("SELECT * FROM sessions ORDER BY date DESC");
@@ -260,8 +264,9 @@ export async function saveSession(session: Session): Promise<void> {
 
 export async function getLastSession(): Promise<Session | null> {
   const d = await getDb();
-  const rows = await d.select<SessionRow[]>("SELECT * FROM sessions ORDER BY date DESC LIMIT 1");
-  return rows.length > 0 ? rowToSession(rows[0]) : null;
+  const rows = await d.select<SessionRow[]>("SELECT * FROM sessions ORDER BY date DESC");
+  const sessions = rows.map(rowToSession);
+  return sessions.find((session) => !isOngoingChatSession(session)) ?? null;
 }
 
 // ── Custom Scenarios ────────────────────────────────────────────────

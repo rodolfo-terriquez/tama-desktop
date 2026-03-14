@@ -458,6 +458,7 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
       <OngoingFeedbackDialog
         open={feedbackOpen}
         onOpenChange={setFeedbackOpen}
+        chatId={chat.id}
         messages={feedbackMessages}
         chatName={chat.name}
         chatPersona={chat.persona}

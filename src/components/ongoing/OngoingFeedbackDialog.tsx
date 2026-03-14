@@ -14,12 +14,19 @@ import {
 } from "@/components/ui/dialog";
 import { useI18n } from "@/i18n";
 import { generateFeedback } from "@/services/claude";
-import { addVocabItem, getVocabulary } from "@/services/storage";
-import type { Message, SessionFeedback } from "@/types";
+import {
+  addVocabItem,
+  getUserProfile,
+  getVocabulary,
+  saveSession,
+  updateUserProfile,
+} from "@/services/storage";
+import type { Message, Session, SessionFeedback } from "@/types";
 
 interface OngoingFeedbackDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  chatId: string;
   messages: Message[];
   chatName: string;
   chatPersona: string;
@@ -57,6 +64,7 @@ function parseFeedback(raw: string): SessionFeedback {
 export function OngoingFeedbackDialog({
   open,
   onOpenChange,
+  chatId,
   messages,
   chatName,
   chatPersona,
@@ -68,6 +76,58 @@ export function OngoingFeedbackDialog({
   const [error, setError] = useState<string | null>(null);
   const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
   const [generated, setGenerated] = useState(false);
+  const [sessionSaved, setSessionSaved] = useState(false);
+
+  const saveSessionData = useCallback(
+    async (fb: SessionFeedback) => {
+      if (sessionSaved || messages.length === 0) return;
+
+      const firstMsg = messages[0];
+      const lastMsg = messages[messages.length - 1];
+      const startTime = new Date(firstMsg?.timestamp || Date.now());
+      const endTime = new Date(lastMsg?.timestamp || Date.now());
+      const durationSeconds = Math.max(
+        0,
+        Math.round((endTime.getTime() - startTime.getTime()) / 1000)
+      );
+
+      const session: Session = {
+        id: crypto.randomUUID(),
+        date: new Date().toISOString(),
+        scenario: {
+          id: `ongoing-chat:${chatId}`,
+          title: chatName,
+          title_ja: "",
+          description: chatPersona,
+          setting: "Ongoing conversation",
+          character_role: chatPersona,
+          objectives: [],
+        },
+        messages,
+        feedback: fb,
+        duration_seconds: durationSeconds,
+      };
+
+      await saveSession(session);
+
+      const profile = await getUserProfile();
+      const newTopics = fb.summary.topics_covered.filter(
+        (topic) => !profile.topics_covered.includes(topic)
+      );
+      const newStruggles = fb.grammar_points
+        .slice(0, 3)
+        .map((point) => point.explanation);
+
+      await updateUserProfile({
+        total_sessions: profile.total_sessions + 1,
+        topics_covered: [...profile.topics_covered, ...newTopics].slice(-20),
+        recent_struggles: newStruggles.length > 0 ? newStruggles : profile.recent_struggles,
+      });
+
+      setSessionSaved(true);
+    },
+    [chatId, chatName, chatPersona, messages, sessionSaved]
+  );
 
   useEffect(() => {
     if (!open || generated || messages.length === 0) return;
@@ -83,9 +143,24 @@ export function OngoingFeedbackDialog({
           persona: chatPersona,
         }, locale);
         if (cancelled) return;
-        setFeedback(parseFeedback(raw));
+        const parsed = parseFeedback(raw);
+        setFeedback(parsed);
         setGenerated(true);
-        onFeedbackGenerated();
+        setIsLoading(false);
+
+        try {
+          await saveSessionData(parsed);
+          if (!cancelled) {
+            onFeedbackGenerated();
+          }
+        } catch (saveErr) {
+          console.error("Failed to save ongoing feedback session:", saveErr);
+          if (!cancelled) {
+            setError(
+              saveErr instanceof Error ? saveErr.message : "Failed to save feedback to history"
+            );
+          }
+        }
       } catch (err) {
         if (cancelled) return;
         console.error("Feedback generation failed:", err);
@@ -96,12 +171,13 @@ export function OngoingFeedbackDialog({
     })();
 
     return () => { cancelled = true; };
-  }, [open, generated, messages, chatName, chatPersona, locale, onFeedbackGenerated]);
+  }, [open, generated, messages, chatName, chatPersona, locale, onFeedbackGenerated, saveSessionData]);
 
   const handleClose = (nextOpen: boolean) => {
     if (!nextOpen) {
       setFeedback(null);
       setGenerated(false);
+      setSessionSaved(false);
       setError(null);
       setAddedWords(new Set());
     }

@@ -629,21 +629,17 @@ export function Settings() {
             <p className="text-sm text-muted-foreground">
               {t("settings.languageDescription")}
             </p>
-            <div className="flex rounded-lg border overflow-hidden">
-              {([
-                ["en", t("common.english")],
-                ["es", t("common.spanish")],
-              ] as const).map(([value, label]) => (
-                <button
-                  key={value}
-                  className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                    locale === value ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-                  }`}
-                  onClick={() => setLocale(value)}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="relative">
+              <select
+                id="app-language-select"
+                value={locale}
+                onChange={(e) => setLocale(e.target.value as "en" | "es")}
+                className={SELECT_CLASSNAME}
+              >
+                <option value="en">{t("common.english")}</option>
+                <option value="es">{t("common.spanish")}</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-foreground/80" />
             </div>
           </CardContent>
         </Card>

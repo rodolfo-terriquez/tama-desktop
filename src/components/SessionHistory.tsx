@@ -192,9 +192,11 @@ function SessionCard({
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-2 flex-wrap">
                 <h3 className="font-medium text-sm">{session.scenario.title}</h3>
-                <span className="text-xs text-muted-foreground">
-                  {session.scenario.title_ja}
-                </span>
+                {session.scenario.title_ja && (
+                  <span className="text-xs text-muted-foreground">
+                    {session.scenario.title_ja}
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">

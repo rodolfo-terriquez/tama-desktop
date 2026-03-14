@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ChevronDown } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { getAppLocale } from "@/services/app-config";
 import {
@@ -25,6 +26,9 @@ interface ApiKeyDialogProps {
   onComplete: () => void;
   onSkip: () => void;
 }
+
+const SELECT_CLASSNAME =
+  "h-9 w-full appearance-none rounded-md border border-input bg-transparent px-3 py-1 pr-10 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]";
 
 export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
   const { locale, setLocale, t } = useI18n();
@@ -104,21 +108,17 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">{t("common.language")}</label>
-            <div className="flex rounded-lg border overflow-hidden">
-              {([
-                ["en", t("common.english")],
-                ["es", t("common.spanish")],
-              ] as const).map(([value, label]) => (
-                <button
-                  key={value}
-                  className={`flex-1 py-2 text-sm font-medium transition-colors ${
-                    locale === value ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-                  }`}
-                  onClick={() => setLocale(value)}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="relative">
+              <select
+                id="api-language-select"
+                value={locale}
+                onChange={(e) => setLocale(e.target.value as "en" | "es")}
+                className={SELECT_CLASSNAME}
+              >
+                <option value="en">{t("common.english")}</option>
+                <option value="es">{t("common.spanish")}</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-foreground/80" />
             </div>
           </div>
 
