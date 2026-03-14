@@ -132,20 +132,20 @@ export function TranscriptBubbles({
               <div
                 className={`max-w-[85%] px-4 py-2 rounded-2xl text-sm ${
                   isUser
-                    ? "bg-blue-500 text-white rounded-br-md"
-                    : "bg-gray-100 text-gray-900 rounded-bl-md dark:bg-gray-800 dark:text-gray-100"
+                    ? "bg-primary text-primary-foreground rounded-br-md"
+                    : "bg-secondary text-secondary-foreground rounded-bl-md border border-border/60"
                 }`}
               >
                 <div>{renderMarkdown(message.content)}</div>
 
                 {isShowingTranslation && translation && (
-                  <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300">
+                  <div className="mt-2 pt-2 border-t border-current/15 text-xs text-current/75">
                     {renderMarkdown(translation)}
                   </div>
                 )}
 
                 {isLoadingTranslation && (
-                  <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 italic">
+                  <div className="mt-2 pt-2 border-t border-current/15 text-xs text-current/65 italic">
                     {t("message.translating")}
                   </div>
                 )}
@@ -154,7 +154,7 @@ export function TranscriptBubbles({
                   <div className="flex items-center justify-end mt-1.5 gap-0.5">
                     <button
                       type="button"
-                      className="inline-flex items-center justify-center size-6 opacity-40 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-opacity"
+                      className="inline-flex items-center justify-center size-6 opacity-40 hover:opacity-100 hover:bg-primary/10 rounded transition-opacity"
                       onClick={() => handleReplay(message)}
                       disabled={isPlaying}
                       title={t("message.replayAudio")}
@@ -167,7 +167,7 @@ export function TranscriptBubbles({
                     </button>
                     <button
                       type="button"
-                      className="inline-flex items-center justify-center size-6 opacity-40 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-opacity"
+                      className="inline-flex items-center justify-center size-6 opacity-40 hover:opacity-100 hover:bg-primary/10 rounded transition-opacity"
                       onClick={() => handleTranslate(message)}
                       disabled={isLoadingTranslation}
                       title={

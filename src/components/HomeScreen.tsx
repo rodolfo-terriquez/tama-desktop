@@ -83,7 +83,7 @@ function ActivityGrid() {
                 key={dateKey}
                 className={`h-16 rounded-md border flex items-center justify-center ${
                   isCompleted
-                    ? "bg-rose-50 border-rose-300 text-rose-700"
+                    ? "bg-primary/12 border-primary/28 text-primary"
                     : "bg-muted/40 border-border/40 text-muted-foreground/30"
                 } ${isSameDay(day, today) ? "ring-1 ring-foreground/30" : ""}`}
                 title={`${formatWeekdayMonthDay(day, locale)}: ${isCompleted ? t("home.sessionCompleted") : t("home.noCompletedSession")}`}

@@ -108,7 +108,7 @@
     --success-foreground: #ffffff;
     --success-soft: color-mix(in srgb, #8fb09c 22%, #1b1721);
     --success-soft-foreground: #bed4c5;
-    --border: color-mix(in srgb, #9974B8 30%, rgba(255, 255, 255, 0.14));
+    --border: color-mix(in srgb, #9974B8 22%, rgba(255, 255, 255, 0.1));
     --input: color-mix(in srgb, #9974B8 18%, #2a2432);
     --ring: #9974B8;
     --chart-1: oklch(0.488 0.243 264.376);
@@ -122,7 +122,7 @@
     --sidebar-primary-foreground: #ffffff;
     --sidebar-accent: #9974B833;
     --sidebar-accent-foreground: #ffffff;
-    --sidebar-border: color-mix(in srgb, #9974B8 26%, rgba(255, 255, 255, 0.12));
+    --sidebar-border: color-mix(in srgb, #9974B8 18%, rgba(255, 255, 255, 0.08));
     --sidebar-ring: #9974B8;
 }
 

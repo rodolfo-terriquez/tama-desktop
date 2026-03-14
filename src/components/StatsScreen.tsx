@@ -148,7 +148,7 @@ export function StatsScreen() {
                     key={day}
                     className={`h-12 rounded-md border relative flex items-center justify-center ${
                       hasSession
-                        ? "bg-rose-50 border-rose-300"
+                        ? "bg-primary/12 border-primary/28"
                         : "bg-muted/35 border-border/40"
                     }`}
                     title={t("stats.sessionsForDay", { count: sessionCount })}

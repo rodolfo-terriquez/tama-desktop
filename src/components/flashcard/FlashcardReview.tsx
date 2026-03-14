@@ -614,9 +614,9 @@ function VocabCard({
   const due = isDue(item);
 
   const maturityConfig = {
-    new: { label: t("common.new"), class: "bg-blue-100 text-blue-700" },
-    learning: { label: t("common.learning"), class: "bg-yellow-100 text-yellow-700" },
-    mature: { label: t("common.mature"), class: "bg-success-soft text-success-soft-foreground" },
+    new: { label: t("common.new"), class: "border border-primary/25 bg-primary/14 text-[#62457d] dark:bg-primary/22 dark:text-[#eadcf7]" },
+    learning: { label: t("common.learning"), class: "border border-[#c49a5c]/25 bg-[#c49a5c]/14 text-[#8a5d20] dark:bg-[#c49a5c]/20 dark:text-[#f0d5af]" },
+    mature: { label: t("common.mature"), class: "border border-success/25 bg-success/12 text-[#4f6b5a] dark:bg-success/20 dark:text-[#d3e1d7]" },
   }[maturity];
 
   return (
