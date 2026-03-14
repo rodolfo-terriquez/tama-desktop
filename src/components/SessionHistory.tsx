@@ -11,9 +11,9 @@ import type { Session } from "@/types";
 import { Copy } from "lucide-react";
 
 const RATING_CONFIG = {
-  needs_work: { key: "history.needsWork", class: "bg-red-100 text-red-800" },
-  good: { key: "history.good", class: "bg-green-100 text-green-800" },
-  excellent: { key: "history.excellent", class: "bg-blue-100 text-blue-800" },
+  needs_work: { key: "history.needsWork", class: "border border-destructive/25 bg-destructive/12 text-[#9b3754] dark:bg-destructive/18 dark:text-[#f4d2db]" },
+  good: { key: "history.good", class: "border border-success/25 bg-success/12 text-[#4f6b5a] dark:bg-success/20 dark:text-[#d3e1d7]" },
+  excellent: { key: "history.excellent", class: "border border-primary/28 bg-primary/14 text-[#62457d] dark:bg-primary/22 dark:text-[#eadcf7]" },
 } as const;
 
 type DetailTab = "conversation" | "feedback";
@@ -111,7 +111,7 @@ export function SessionHistory() {
           <div
             className={`px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium ${
               message.type === "success"
-                ? "bg-green-600 text-white"
+                ? "bg-primary text-primary-foreground"
                 : "bg-red-600 text-white"
             }`}
           >
@@ -488,7 +488,7 @@ function FeedbackView({
                   <p className="text-sm">{point.issue}</p>
                 </div>
                 <div className="flex items-start gap-2">
-                  <span className="text-green-600 text-sm mt-0.5 shrink-0">✓</span>
+                  <span className="text-success text-sm mt-0.5 shrink-0">✓</span>
                   <p className="text-sm font-medium">{point.correction}</p>
                 </div>
                 <p className="text-xs text-muted-foreground pl-5">

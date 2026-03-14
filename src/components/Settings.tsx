@@ -562,7 +562,7 @@ export function Settings() {
             <div
               className={`px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium ${
                 message.type === "success"
-                  ? "bg-green-600 text-white"
+                  ? "bg-primary text-primary-foreground"
                   : "bg-red-600 text-white"
               }`}
             >
@@ -1086,7 +1086,7 @@ export function Settings() {
                       <span className="text-sm font-medium">{t("settings.whisperModel")}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         whisperStatus.loaded
-                          ? "bg-green-100 text-green-700"
+                          ? "bg-success-soft text-success-soft-foreground"
                           : whisperStatus.model_exists
                             ? "bg-yellow-100 text-yellow-700"
                             : "bg-gray-100 text-gray-600"
@@ -1180,9 +1180,9 @@ export function Settings() {
         </Card>
 
         {/* Danger Zone */}
-        <Card className="border-red-200">
+        <Card className="border-destructive/40">
           <CardHeader>
-            <CardTitle className="text-lg text-red-600">{t("settings.dangerZone")}</CardTitle>
+            <CardTitle className="text-lg text-destructive">{t("settings.dangerZone")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">

@@ -97,10 +97,10 @@ export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProp
         <div className="flex items-center gap-2">
           <span
             className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
-              status?.running ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+              status?.running ? "bg-success-soft text-success-soft-foreground" : "bg-red-100 text-red-800"
             }`}
           >
-            <span className={`w-2 h-2 rounded-full ${status?.running ? "bg-green-500" : "bg-red-500"}`} />
+            <span className={`w-2 h-2 rounded-full ${status?.running ? "bg-success" : "bg-red-500"}`} />
             {status?.running ? t("sbv2.running") : t("sbv2.stopped")}
           </span>
           {status?.running ? (
@@ -126,7 +126,7 @@ export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProp
       <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <span className={`w-3 h-3 rounded-full ${status?.running ? "bg-green-500" : "bg-red-500"}`} />
+          <span className={`w-3 h-3 rounded-full ${status?.running ? "bg-success" : "bg-red-500"}`} />
           {t("sbv2.title")}
         </CardTitle>
       </CardHeader>
@@ -135,7 +135,7 @@ export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProp
           <p>
             <span className="font-medium">{t("sbv2.statusLabel")}</span>{" "}
             {status?.running ? (
-              <span className="text-green-600">{t("sbv2.runningOnPort", { port: status.port })}</span>
+              <span className="text-success">{t("sbv2.runningOnPort", { port: status.port })}</span>
             ) : (
               <span className="text-red-600">{t("sbv2.notRunning")}</span>
             )}

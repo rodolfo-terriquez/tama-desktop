@@ -150,7 +150,7 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
           <span
             className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
               status?.running
-                ? "bg-green-100 text-green-800"
+                ? "bg-success-soft text-success-soft-foreground"
                 : isDownloading
                 ? "bg-blue-100 text-blue-800"
                 : "bg-red-100 text-red-800"
@@ -159,7 +159,7 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
             <span
               className={`w-2 h-2 rounded-full ${
                 status?.running
-                  ? "bg-green-500"
+                  ? "bg-success"
                   : isDownloading
                   ? "bg-blue-500 animate-pulse"
                   : "bg-red-500"
@@ -209,7 +209,7 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
       <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <span className={`w-3 h-3 rounded-full ${status?.running ? "bg-green-500" : isDownloading ? "bg-blue-500 animate-pulse" : "bg-red-500"}`} />
+          <span className={`w-3 h-3 rounded-full ${status?.running ? "bg-success" : isDownloading ? "bg-blue-500 animate-pulse" : "bg-red-500"}`} />
           {t("voicevox.engineTitle")}
         </CardTitle>
       </CardHeader>
@@ -218,7 +218,7 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
           <p>
             <span className="font-medium">{t("voicevox.statusLabel")}</span>{" "}
             {status?.running ? (
-              <span className="text-green-600">{t("voicevox.runningOnHost")}</span>
+              <span className="text-success">{t("voicevox.runningOnHost")}</span>
             ) : isDownloading ? (
               <span className="text-blue-600">{t("voicevox.downloadingEngine")}</span>
             ) : (

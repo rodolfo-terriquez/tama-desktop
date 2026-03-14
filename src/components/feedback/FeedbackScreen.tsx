@@ -291,7 +291,7 @@ export function FeedbackScreen({
                       <p className="text-sm">{point.issue}</p>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="text-green-600 text-sm mt-0.5 shrink-0">✓</span>
+                      <span className="text-success text-sm mt-0.5 shrink-0">✓</span>
                       <p className="text-sm font-medium">{point.correction}</p>
                     </div>
                     <p className="text-xs text-muted-foreground pl-5">

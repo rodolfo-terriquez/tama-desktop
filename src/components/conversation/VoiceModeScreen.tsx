@@ -415,7 +415,7 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
                 {ttsStatus.checked && (
                   <Badge
                     variant="secondary"
-                    className={ttsStatus.available ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
+                    className={ttsStatus.available ? "bg-success-soft text-success-soft-foreground" : "bg-red-100 text-red-800"}
                   >
                     {ttsStatus.available
                       ? t("scenario.ttsVoice", { voice: getEnglishVoiceDisplayName(ttsStatus.speakerName) })

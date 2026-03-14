@@ -286,7 +286,7 @@ export function OngoingFeedbackDialog({
                             <p className="text-sm">{point.issue}</p>
                           </div>
                           <div className="flex items-start gap-2">
-                            <span className="text-green-600 text-sm shrink-0">✓</span>
+                            <span className="text-success text-sm shrink-0">✓</span>
                             <p className="text-sm font-medium">{point.correction}</p>
                           </div>
                           <p className="text-xs text-muted-foreground pl-5">

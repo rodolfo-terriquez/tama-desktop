@@ -156,7 +156,7 @@ function useStatusInfo() {
   ].filter(Boolean);
 
   const DOT_CLASSES: Record<DotColor, string> = {
-    green: "bg-green-500",
+    green: "bg-success",
     yellow: "bg-yellow-400",
     red: "bg-red-500",
     gray: "bg-gray-400",

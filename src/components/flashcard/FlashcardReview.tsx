@@ -24,7 +24,7 @@ const RATINGS: { value: SRSRating; labelKey: "flashcards.again" | "flashcards.ha
   { value: "again", labelKey: "flashcards.again", sublabel: "1d", className: "bg-red-500 hover:bg-red-600 text-white" },
   { value: "hard", labelKey: "flashcards.hard", sublabel: "~3d", className: "bg-orange-500 hover:bg-orange-600 text-white" },
   { value: "good", labelKey: "flashcards.good", sublabel: "~7d", className: "bg-blue-500 hover:bg-blue-600 text-white" },
-  { value: "easy", labelKey: "flashcards.easy", sublabel: "~14d+", className: "bg-green-500 hover:bg-green-600 text-white" },
+  { value: "easy", labelKey: "flashcards.easy", sublabel: "~14d+", className: "bg-success hover:bg-success/90 text-success-foreground" },
 ];
 
 const RATING_SHORTCUTS = ["1", "2", "3", "4"] as const;
@@ -144,7 +144,7 @@ export function FlashcardReview() {
           <div
             className={`px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium ${
               message.type === "success"
-                ? "bg-green-600 text-white"
+                ? "bg-primary text-primary-foreground"
                 : "bg-red-600 text-white"
             }`}
           >
@@ -162,7 +162,7 @@ export function FlashcardReview() {
         {stats.due > 0 ? (
           <span className="text-orange-600 font-medium">{stats.due} {t("common.due")}</span>
         ) : (
-          <span className="text-green-600">{t("flashcards.allCaughtUp")}</span>
+          <span className="text-success">{t("flashcards.allCaughtUp")}</span>
         )}
         <Separator orientation="vertical" className="h-3.5" />
         <span>{stats.new} {t("common.new")}</span>
@@ -329,7 +329,7 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
           <CardContent className="py-8 space-y-5 text-center">
             {results.length === 0 ? (
               <>
-                <div className="flex justify-center text-green-600">
+                <div className="flex justify-center text-success">
                   <CircleCheckBig className="size-14" />
                 </div>
                 <h2 className="text-xl font-semibold">{t("flashcards.allCaughtUpTitle")}</h2>
@@ -351,7 +351,7 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
                 </p>
                 <div className="flex justify-center gap-3 text-sm">
                   {goodCount > 0 && (
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                    <Badge variant="secondary" className="bg-success-soft text-success-soft-foreground">
                       {goodCount} {t("flashcards.correct")}
                     </Badge>
                   )}
@@ -616,7 +616,7 @@ function VocabCard({
   const maturityConfig = {
     new: { label: t("common.new"), class: "bg-blue-100 text-blue-700" },
     learning: { label: t("common.learning"), class: "bg-yellow-100 text-yellow-700" },
-    mature: { label: t("common.mature"), class: "bg-green-100 text-green-700" },
+    mature: { label: t("common.mature"), class: "bg-success-soft text-success-soft-foreground" },
   }[maturity];
 
   return (
