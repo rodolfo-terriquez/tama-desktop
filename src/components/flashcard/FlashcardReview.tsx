@@ -21,9 +21,9 @@ import { BookOpenText, ChevronDown, CircleCheckBig, PartyPopper } from "lucide-r
 // ── Shared constants ─────────────────────────────────────
 
 const RATINGS: { value: SRSRating; labelKey: "flashcards.again" | "flashcards.hard" | "flashcards.good" | "flashcards.easy"; sublabel: string; className: string }[] = [
-  { value: "again", labelKey: "flashcards.again", sublabel: "1d", className: "bg-red-500 hover:bg-red-600 text-white" },
-  { value: "hard", labelKey: "flashcards.hard", sublabel: "~3d", className: "bg-orange-500 hover:bg-orange-600 text-white" },
-  { value: "good", labelKey: "flashcards.good", sublabel: "~7d", className: "bg-blue-500 hover:bg-blue-600 text-white" },
+  { value: "again", labelKey: "flashcards.again", sublabel: "1d", className: "bg-review-again hover:bg-review-again/90 text-review-again-foreground" },
+  { value: "hard", labelKey: "flashcards.hard", sublabel: "~3d", className: "bg-review-hard hover:bg-review-hard/90 text-review-hard-foreground" },
+  { value: "good", labelKey: "flashcards.good", sublabel: "~7d", className: "bg-review-good hover:bg-review-good/90 text-review-good-foreground" },
   { value: "easy", labelKey: "flashcards.easy", sublabel: "~14d+", className: "bg-success hover:bg-success/90 text-success-foreground" },
 ];
 
@@ -160,7 +160,7 @@ export function FlashcardReview() {
         </span>
         <Separator orientation="vertical" className="h-3.5" />
         {stats.due > 0 ? (
-          <span className="text-orange-600 font-medium">{stats.due} {t("common.due")}</span>
+          <span className="text-review-due font-medium">{stats.due} {t("common.due")}</span>
         ) : (
           <span className="text-success">{t("flashcards.allCaughtUp")}</span>
         )}
@@ -193,7 +193,7 @@ export function FlashcardReview() {
         >
           {t("common.review")}
           {stats.due > 0 && (
-            <Badge variant="secondary" className="ml-1.5 text-[10px] h-4 px-1.5 bg-orange-100 text-orange-700">
+            <Badge variant="secondary" className="ml-1.5 h-4 border border-review-due/20 bg-review-due-soft px-1.5 text-[10px] text-review-due-soft-foreground">
               {stats.due}
             </Badge>
           )}
@@ -402,45 +402,45 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
         )}
       </div>
 
-      {/* Reserve rating area height so flipping the card doesn't shift the layout */}
-      <div className="w-full max-w-sm pb-6 min-h-[108px] flex items-end">
-        {isAnswerVisible || hasRevealedCurrentCard ? (
-          <div className="w-full space-y-2">
-            <p
-              className={`text-xs text-center text-muted-foreground mb-3 transition-opacity ${
-                isAnswerVisible ? "opacity-100" : "opacity-0"
-              }`}
-            >
-              {t("flashcards.howWellRemembered")}
-            </p>
-            <div className="grid grid-cols-4 gap-2">
-              {RATINGS.map((r, index) => (
-                <Button
-                  key={r.value}
-                  className={`flex flex-col h-auto py-2 ${r.className}`}
-                  onClick={() => handleRate(r.value)}
-                  aria-keyshortcuts={RATING_SHORTCUTS[index]}
-                  disabled={!isAnswerVisible}
-                  tabIndex={isAnswerVisible ? 0 : -1}
-                >
-                  <span className="text-sm font-medium">
-                    {RATING_SHORTCUTS[index]} {t(r.labelKey)}
-                  </span>
-                  <span className="text-[10px] opacity-80">{r.sublabel}</span>
-                </Button>
-              ))}
-            </div>
-            <p
-              className={`text-[11px] text-center text-muted-foreground transition-opacity ${
-                isAnswerVisible ? "opacity-100" : "opacity-0"
-              }`}
-            >
-              {t("flashcards.pressSpaceToFlip")}
-            </p>
+      {/* Keep the full rating block in flow so flipping the card doesn't shift the layout */}
+      <div className="relative w-full max-w-sm pb-6">
+        <div className="w-full space-y-2">
+          <p
+            className={`mb-3 text-center text-xs text-muted-foreground transition-opacity ${
+              isAnswerVisible ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            {t("flashcards.howWellRemembered")}
+          </p>
+          <div className="grid grid-cols-4 gap-2">
+            {RATINGS.map((r, index) => (
+              <Button
+                key={r.value}
+                className={`flex h-auto flex-col py-2 transition-opacity ${isAnswerVisible ? "opacity-100" : "opacity-0"} ${!isAnswerVisible ? "invisible" : ""} ${r.className}`}
+                onClick={() => handleRate(r.value)}
+                aria-keyshortcuts={RATING_SHORTCUTS[index]}
+                disabled={!isAnswerVisible}
+                tabIndex={isAnswerVisible ? 0 : -1}
+              >
+                <span className="text-sm font-medium">
+                  {RATING_SHORTCUTS[index]} {t(r.labelKey)}
+                </span>
+                <span className="text-[10px] opacity-80">{r.sublabel}</span>
+              </Button>
+            ))}
           </div>
-        ) : (
-          <div className="w-full flex items-center justify-center">
-            <p className="text-xs text-center text-muted-foreground">
+          <p
+            className={`text-center text-[11px] text-muted-foreground transition-opacity ${
+              isAnswerVisible ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            {t("flashcards.pressSpaceToFlip")}
+          </p>
+        </div>
+
+        {!hasRevealedCurrentCard && !isAnswerVisible && (
+          <div className="absolute inset-x-0 top-0 bottom-6 flex items-center justify-center">
+            <p className="text-center text-xs text-muted-foreground">
               {t("flashcards.tapOrSpace")}
             </p>
           </div>
@@ -637,7 +637,7 @@ function VocabCard({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {due && (
-            <span className="h-2 w-2 rounded-full bg-orange-500" title={t("flashcards.dueNow")} />
+            <span className="h-2 w-2 rounded-full bg-review-due" title={t("flashcards.dueNow")} />
           )}
           <Badge variant="secondary" className={`text-[10px] ${maturityConfig.class}`}>
             {maturityConfig.label}
@@ -711,7 +711,7 @@ function VocabCard({
 
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                 <span>
-                  Next review: <strong className={due ? "text-orange-600" : "text-foreground"}>
+                  Next review: <strong className={due ? "text-review-due" : "text-foreground"}>
                     {formatReviewDate(item.next_review, t)}
                   </strong>
                 </span>

@@ -231,7 +231,7 @@ export function HomeScreen({
           {/* Overdue cards */}
           <Card
             className={`cursor-pointer transition-colors hover:border-primary/50 py-0 gap-0 ${
-              dueCount > 0 ? "border-orange-300" : ""
+              dueCount > 0 ? "border-review-due/45" : ""
             }`}
             onClick={onFlashcards}
           >
@@ -247,7 +247,10 @@ export function HomeScreen({
               <div className="text-2xl font-bold mt-2">
                 {dueCount}
                 {dueCount > 0 && (
-                  <Badge variant="destructive" className="ml-1.5 text-[10px] px-1.5 py-0 align-top">
+                  <Badge
+                    variant="secondary"
+                    className="ml-1.5 border border-review-due/20 bg-review-due-soft px-1.5 py-0 text-[10px] align-top text-review-due-soft-foreground"
+                  >
                     {t("common.due")}
                   </Badge>
                 )}

@@ -402,11 +402,17 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
               <div className="flex flex-wrap gap-2 text-xs">
                 {userProfile && (
                   <>
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                    <Badge
+                      variant="secondary"
+                      className="border border-primary/20 bg-primary/12 text-[#604480] dark:bg-primary/20 dark:text-[#eadcf7]"
+                    >
                       {t("scenario.levelLabel", { level: userProfile.jlpt_level })}
                     </Badge>
                     {userProfile.include_flashcard_vocab_in_conversations && (
-                      <Badge variant="secondary" className="bg-amber-100 text-amber-900">
+                      <Badge
+                        variant="secondary"
+                        className="border border-review-due/18 bg-review-due-soft text-review-due-soft-foreground"
+                      >
                         {t("scenario.vocabReviewOn")}
                       </Badge>
                     )}
@@ -415,7 +421,11 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
                 {ttsStatus.checked && (
                   <Badge
                     variant="secondary"
-                    className={ttsStatus.available ? "bg-success-soft text-success-soft-foreground" : "bg-red-100 text-red-800"}
+                    className={
+                      ttsStatus.available
+                        ? "border border-success/18 bg-success-soft text-success-soft-foreground"
+                        : "border border-destructive/20 bg-destructive/12 text-destructive dark:bg-destructive/20 dark:text-[#f2c0cf]"
+                    }
                   >
                     {ttsStatus.available
                       ? t("scenario.ttsVoice", { voice: getEnglishVoiceDisplayName(ttsStatus.speakerName) })
