@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useI18n } from "@/i18n";
-import { renderSimpleMarkdown } from "@/lib/simple-markdown";
+import { SimpleMarkdown } from "@/lib/simple-markdown";
 import {
   createSenseiThread,
   listSenseiThreads,
@@ -80,37 +80,39 @@ function SenseiConversation({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="absolute top-3 left-3 right-3 z-10 flex items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onClose}
-          title={t("sensei.closeChat")}
-          className="h-8 rounded-full px-2.5"
-        >
-          <ArrowLeft className="size-4" />
-          <span className="sr-only">{t("sensei.closeChat")}</span>
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => void onCreateNewChat()}
-          title={t("sensei.newChat")}
-          className="h-8 rounded-full px-2.5"
-        >
-          <Plus className="size-4" />
-          <span className="sr-only">{t("sensei.newChat")}</span>
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onToggleHistory}
-          title={t("sensei.history")}
-          className={cn("ml-auto h-8 rounded-full px-2.5", historyOpen && "bg-accent text-accent-foreground")}
-        >
-          <History className="size-4" />
-          <span className="sr-only">{t("sensei.history")}</span>
-        </Button>
+      <div className="absolute top-0 left-0 right-0 z-10 px-3 py-3">
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            title={t("sensei.closeChat")}
+            className="h-8 rounded-full px-2.5"
+          >
+            <ArrowLeft className="size-4" />
+            <span className="sr-only">{t("sensei.closeChat")}</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void onCreateNewChat()}
+            title={t("sensei.newChat")}
+            className="h-8 rounded-full px-2.5"
+          >
+            <Plus className="size-4" />
+            <span className="sr-only">{t("sensei.newChat")}</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onToggleHistory}
+            title={t("sensei.history")}
+            className={cn("ml-auto h-8 rounded-full px-2.5", historyOpen && "bg-accent text-accent-foreground")}
+          >
+            <History className="size-4" />
+            <span className="sr-only">{t("sensei.history")}</span>
+          </Button>
+        </div>
       </div>
       {historyOpen && (
         <div className="absolute top-14 left-3 right-3 z-20 overflow-hidden rounded-2xl border border-border bg-popover shadow-lg">
@@ -171,7 +173,7 @@ function SenseiConversation({
                       : "bg-card text-card-foreground"
                   )}
                 >
-                  <p className="whitespace-pre-wrap">{renderSimpleMarkdown(message.content)}</p>
+                  <SimpleMarkdown content={message.content} />
                 </div>
               </div>
             ))

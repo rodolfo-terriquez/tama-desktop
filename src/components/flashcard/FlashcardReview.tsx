@@ -409,9 +409,9 @@ function ReviewTab({
   }
 
   return (
-    <div className="flex flex-col items-center flex-1 p-4">
+    <div className="flex flex-col items-center flex-1 px-4 pt-5 pb-6">
       {/* Progress bar */}
-      <div className="w-full max-w-sm mb-6 space-y-1.5">
+      <div className="w-full max-w-sm mb-8 space-y-2">
         <div className="flex justify-between text-xs text-muted-foreground">
           <span>
             {currentIndex + 1} / {cards.length}
@@ -427,7 +427,7 @@ function ReviewTab({
       </div>
 
       {/* Flashcard */}
-      <div className="flex-1 flex items-center justify-center w-full">
+      <div className="flex flex-1 items-center justify-center w-full pb-5">
         {currentCard && (
           <Flashcard
             key={currentCard.id}
@@ -439,20 +439,20 @@ function ReviewTab({
       </div>
 
       {/* Keep the full rating block in flow so flipping the card doesn't shift the layout */}
-      <div className="relative w-full max-w-sm pb-6">
-        <div className="w-full space-y-2">
+      <div className="relative w-full max-w-sm pb-7">
+        <div className="w-full space-y-3">
           <p
-            className={`mb-3 text-center text-xs text-muted-foreground transition-opacity ${
+            className={`mb-4 text-center text-xs text-muted-foreground transition-opacity ${
               isAnswerVisible ? "opacity-100" : "opacity-0"
             }`}
           >
             {t("flashcards.howWellRemembered")}
           </p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 gap-3">
             {RATINGS.map((r, index) => (
               <Button
                 key={r.value}
-                className={`flex h-auto flex-col py-2 transition-opacity ${isAnswerVisible ? "opacity-100" : "opacity-0"} ${!isAnswerVisible ? "invisible" : ""} ${r.className}`}
+                className={`flex h-auto flex-col py-2.5 transition-opacity ${isAnswerVisible ? "opacity-100" : "opacity-0"} ${!isAnswerVisible ? "invisible" : ""} ${r.className}`}
                 onClick={() => handleRate(r.value)}
                 aria-keyshortcuts={RATING_SHORTCUTS[index]}
                 disabled={!isAnswerVisible}

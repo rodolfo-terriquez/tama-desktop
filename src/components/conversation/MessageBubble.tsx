@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { translateJapaneseText } from "@/services/claude";
+import { SimpleMarkdown } from "@/lib/simple-markdown";
 import { speak } from "@/services/tts";
-import { renderSimpleMarkdown } from "@/lib/simple-markdown";
 import { Volume2, Languages, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n";
 import type { AppLocale } from "@/types";
@@ -72,14 +72,14 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
             isUser ? "bg-primary text-primary-foreground" : "bg-muted"
           }`}
         >
-          <p className="text-lg whitespace-pre-wrap">{renderSimpleMarkdown(message.content)}</p>
+          <SimpleMarkdown content={message.content} className="text-lg" />
 
           {isAssistant && (
             <>
               {showTranslation && translation && (
-                <p className="text-sm mt-2 pt-2 border-t border-current/20 opacity-80 italic">
-                  {renderSimpleMarkdown(translation)}
-                </p>
+                <div className="mt-2 border-t border-current/20 pt-2 text-sm opacity-80 italic">
+                  <SimpleMarkdown content={translation} />
+                </div>
               )}
               <div className="flex items-center justify-end mt-2">
                 <div className="flex gap-1">

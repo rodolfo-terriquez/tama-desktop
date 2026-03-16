@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { localizeScenario } from "@/data/scenarios";
@@ -132,6 +133,7 @@ export function HomeScreen({
   } | null>(null);
   const [lastPersonaChat, setLastPersonaChat] = useState<OngoingChat | null>(null);
   const [profileName, setProfileName] = useState("");
+  const [appVersion, setAppVersion] = useState("");
   const greeting = getGreeting(now, profileName);
 
   useEffect(() => {
@@ -161,6 +163,12 @@ export function HomeScreen({
         setProfileName(profile.name?.trim() ?? "");
       }
     );
+  }, []);
+
+  useEffect(() => {
+    getVersion()
+      .then((version) => setAppVersion(version))
+      .catch(() => setAppVersion(""));
   }, []);
 
   return (
@@ -260,6 +268,9 @@ export function HomeScreen({
         </div>
 
         <ActivityGrid />
+        <p className="text-center text-xs text-muted-foreground">
+          {t("common.version")} {appVersion ? `v${appVersion}` : t("app.loading")}
+        </p>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useI18n } from "@/i18n";
 import { getSBV2BaseUrl } from "@/services/tts";
@@ -123,14 +123,8 @@ export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProp
   }
 
   return (
-      <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <span className={`w-3 h-3 rounded-full ${status?.running ? "bg-success" : "bg-red-500"}`} />
-          {t("sbv2.title")}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Card className="gap-3 py-3">
+      <CardContent className="space-y-3 px-5 pt-0">
         <div className="text-sm space-y-1">
           <p>
             <span className="font-medium">{t("sbv2.statusLabel")}</span>{" "}

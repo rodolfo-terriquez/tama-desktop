@@ -294,9 +294,9 @@ function App() {
               currentViewContext={senseiViewContext}
               dataVersion={dataVersion}
             />
-            <main className="min-h-0 flex-1 overflow-auto">
+            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
               <Suspense fallback={<ScreenLoader />}>
-                <div key={`${currentScreen}-${dataVersion}`}>
+                <div key={`${currentScreen}-${dataVersion}`} className="min-w-0 w-full">
                   {renderContent()}
                 </div>
               </Suspense>

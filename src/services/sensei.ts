@@ -49,8 +49,14 @@ function getCurrentDateTimeBlock(locale: AppLocale): string {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const localeCode = locale === "es" ? "es-MX" : "en-US";
   const localDateTime = new Intl.DateTimeFormat(localeCode, {
-    dateStyle: "full",
-    timeStyle: "long",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone,
     timeZoneName: "short",
   }).format(now);
 
