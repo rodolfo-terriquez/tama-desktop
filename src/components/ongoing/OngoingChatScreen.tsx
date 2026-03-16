@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { MessageBubble } from "@/components/conversation/MessageBubble";
 import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
 import { TranscriptBubbles } from "@/components/conversation/TranscriptBubbles";
 import { useVADRecorder } from "@/hooks/useVADRecorder";
+import { buildOngoingChatSenseiViewContext } from "@/services/sensei-context";
 import {
   sendMessage,
   buildOngoingChatPrompt,
@@ -16,9 +17,9 @@ import {
 } from "@/services/claude";
 import { initializeTTS, speak, stopCurrentAudio } from "@/services/tts";
 import { getOngoingChat, saveOngoingChat, getUserProfile } from "@/services/storage";
-import type { Message, OngoingChat, UserProfile } from "@/types";
+import type { Message, OngoingChat, SenseiViewContext, UserProfile } from "@/types";
 import { v4 as uuidv4 } from "uuid";
-import { Loader2, ClipboardCheck, LogOut, Send, Mic, Keyboard } from "lucide-react";
+import { ArrowUp, Loader2, ClipboardCheck, LogOut, Mic, Keyboard } from "lucide-react";
 import { OngoingFeedbackDialog } from "@/components/ongoing/OngoingFeedbackDialog";
 
 type InputMode = "text" | "voice";
@@ -26,9 +27,10 @@ type InputMode = "text" | "voice";
 interface OngoingChatScreenProps {
   chatId: string;
   onBack: () => void;
+  onContextChange?: (context: SenseiViewContext) => void;
 }
 
-export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
+export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingChatScreenProps) {
   const [chat, setChat] = useState<OngoingChat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -39,6 +41,7 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [inputMode, setInputMode] = useState<InputMode>("text");
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [draftMessage, setDraftMessage] = useState("");
 
   // Voice mode state
   const [voiceConvState, setVoiceConvState] = useState<
@@ -74,6 +77,20 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isLoading, inputMode]);
+
+  useEffect(() => {
+    if (!chat) return;
+    onContextChange?.(
+      buildOngoingChatSenseiViewContext({
+        chatId: chat.id,
+        name: chat.name,
+        persona: chat.persona,
+        summary: chat.summary,
+        inputMode,
+        messages,
+      })
+    );
+  }, [chat, inputMode, messages, onContextChange]);
 
   const persistMessages = useCallback(
     async (updatedMessages: Message[]) => {
@@ -407,52 +424,77 @@ export function OngoingChatScreen({ chatId, onBack }: OngoingChatScreenProps) {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          const form = e.target as HTMLFormElement;
-          const input = form.elements.namedItem("textInput") as HTMLInputElement;
-          if (input.value.trim()) {
-            handleTextSubmit(input.value.trim());
-            input.value = "";
+          const value = draftMessage.trim();
+          if (value) {
+            void handleTextSubmit(value);
+            setDraftMessage("");
           }
         }}
-        className="flex gap-1.5 shrink-0"
+        className="shrink-0"
       >
-        <Input
-          name="textInput"
-          placeholder={`Message ${chat.name}...`}
-          disabled={isLoading}
-          className="flex-1"
-        />
-        <Button type="submit" disabled={isLoading} size="icon" title="Send">
-          <Send className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={handleSwitchToVoice}
-          title="Switch to voice"
-        >
-          <Mic className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={() => setFeedbackOpen(true)}
-          disabled={!hasFeedbackMessages || isLoading}
-          title={hasFeedbackMessages ? "Get feedback on recent messages" : "No new messages to review"}
-        >
-          <ClipboardCheck className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={handleEndSession}
-          title="End session"
-        >
-          <LogOut className="size-4" />
-        </Button>
+        <div className="rounded-2xl border border-border/70 bg-card px-3 py-3">
+          <Textarea
+            placeholder={`Message ${chat.name}...`}
+            disabled={isLoading}
+            value={draftMessage}
+            onChange={(event) => setDraftMessage(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                const value = draftMessage.trim();
+                if (value && !isLoading) {
+                  void handleTextSubmit(value);
+                  setDraftMessage("");
+                }
+              }
+            }}
+            className="min-h-[72px] resize-none border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
+          />
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleSwitchToVoice}
+                title="Switch to voice"
+                className="size-8 rounded-full"
+              >
+                <Mic className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setFeedbackOpen(true)}
+                disabled={!hasFeedbackMessages || isLoading}
+                title={hasFeedbackMessages ? "Get feedback on recent messages" : "No new messages to review"}
+                className="size-8 rounded-full"
+              >
+                <ClipboardCheck className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleEndSession}
+                title="End session"
+                className="size-8 rounded-full"
+              >
+                <LogOut className="size-4" />
+              </Button>
+            </div>
+            <Button
+              type="submit"
+              disabled={isLoading || !draftMessage.trim()}
+              size="icon"
+              title="Send"
+              className="size-9 rounded-full"
+            >
+              <ArrowUp className="size-4" />
+            </Button>
+          </div>
+        </div>
       </form>
 
       <OngoingFeedbackDialog

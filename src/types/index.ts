@@ -1,4 +1,15 @@
 export type AppLocale = "en" | "es";
+export type AppScreen =
+  | "home"
+  | "scenario-select"
+  | "conversation"
+  | "flashcards"
+  | "history"
+  | "stats"
+  | "settings"
+  | "session-complete"
+  | "ongoing-chats"
+  | "ongoing-chat";
 
 // Vocabulary item for SRS
 export interface VocabItem {
@@ -115,3 +126,124 @@ export interface OngoingChat {
 
 // SRS rating
 export type SRSRating = "again" | "hard" | "good" | "easy";
+
+export interface SenseiThread {
+  id: string;
+  messages: Message[];
+  summary: string;
+  createdAt: string;
+  lastActiveAt: string;
+  totalMessages: number;
+}
+
+export interface AccountPreferences {
+  appLocale: AppLocale;
+  apiOnboardingDismissed: boolean;
+  llmProvider: "anthropic" | "openrouter";
+  openRouterModel: string;
+  displayMode: "light" | "dark" | "system";
+  ttsEngine: "voicevox" | "sbv2";
+  ttsVoiceId: string | null;
+  sbv2BaseUrl: string;
+  transcriptionEngine: "local" | "openai";
+}
+
+export interface AccountBundleV1 {
+  schemaVersion: 1;
+  exportedAt: string;
+  appVersion: string;
+  profile: UserProfile;
+  sessions: Session[];
+  vocabulary: VocabItem[];
+  ongoingChats: OngoingChat[];
+  customScenarios: Scenario[];
+  preferences: AccountPreferences;
+  sensei?: SenseiThread;
+}
+
+export interface SenseiScenarioSummary {
+  id: string;
+  title: string;
+  title_ja: string;
+  description: string;
+}
+
+export interface SenseiFlashcardResult {
+  word: string;
+  rating: SRSRating;
+}
+
+export type SenseiViewContext =
+  | {
+      kind: "screen";
+      screen: AppScreen;
+    }
+  | {
+      kind: "scenario-select";
+      screen: "scenario-select";
+      recommendedScenarios: SenseiScenarioSummary[];
+      customScenarioCount: number;
+    }
+  | {
+      kind: "scenario-preview";
+      screen: "conversation";
+      scenario: SenseiScenarioSummary & {
+        setting: string;
+        characterRole: string;
+        objectives: string[];
+        customPrompt?: string;
+      };
+      level?: JLPTLevel;
+      vocabReviewEnabled?: boolean;
+      ttsStatus: "available" | "unavailable" | "checking";
+    }
+  | {
+      kind: "scenario-conversation";
+      screen: "conversation";
+      scenario: SenseiScenarioSummary & {
+        setting: string;
+        characterRole: string;
+      };
+      inputMode: "voice" | "text";
+      conversationState: "idle" | "listening" | "transcribing" | "thinking" | "speaking";
+      started: boolean;
+      recentMessages: Message[];
+    }
+  | {
+      kind: "ongoing-chat";
+      screen: "ongoing-chat";
+      chatId: string;
+      name: string;
+      persona: string;
+      summary: string;
+      inputMode: "text" | "voice";
+      recentMessages: Message[];
+    }
+  | {
+      kind: "flashcard-review";
+      screen: "flashcards";
+      tab: "review" | "all-cards";
+      dueCount: number;
+      totalCards: number;
+      reviewState?: "reviewing" | "complete";
+      currentCard?: {
+        word: string;
+        reading: string;
+        meaning: string;
+        example: string;
+        nextReview: string;
+      };
+      isAnswerVisible?: boolean;
+      recentResults?: SenseiFlashcardResult[];
+      selectedCard?: {
+        word: string;
+        reading: string;
+        meaning: string;
+        nextReview: string;
+      };
+    };
+
+export interface SenseiRequestContext {
+  locale: AppLocale;
+  view: SenseiViewContext;
+}

@@ -100,6 +100,21 @@ ALTER TABLE user_profile ADD COLUMN include_flashcard_vocab_in_conversations INT
         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "Add persistent sensei thread storage",
+            sql: r#"
+CREATE TABLE IF NOT EXISTS sensei_threads (
+  id TEXT PRIMARY KEY,
+  messages TEXT NOT NULL DEFAULT '[]',
+  summary TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  last_active_at TEXT NOT NULL,
+  total_messages INTEGER NOT NULL DEFAULT 0
+);
+        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

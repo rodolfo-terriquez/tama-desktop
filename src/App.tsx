@@ -1,15 +1,20 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import { AppSidebar } from "@/components/AppSidebar";
+import { SenseiSidebar } from "@/components/SenseiSidebar";
 import { SidebarProvider, SidebarInset, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { hasApiKey } from "@/services/claude";
 import { isApiOnboardingDismissed, setApiOnboardingDismissed } from "@/services/app-config";
+import {
+  buildFallbackSenseiViewContext,
+  buildScenarioSelectSenseiViewContext,
+} from "@/services/sensei-context";
 import { checkForAppUpdatesOnLaunch } from "@/services/updater";
 import { useI18n } from "@/i18n";
-import type { Message, Scenario } from "@/types";
+import type { AppScreen, Message, Scenario, SenseiViewContext } from "@/types";
 
-type Screen = "home" | "scenario-select" | "conversation" | "flashcards" | "history" | "stats" | "settings" | "session-complete" | "ongoing-chats" | "ongoing-chat";
+type Screen = AppScreen;
 
 const VoiceModeScreen = lazy(() =>
   import("@/components/conversation/VoiceModeScreen").then((m) => ({ default: m.VoiceModeScreen }))
@@ -60,6 +65,7 @@ function ExpandButton() {
 }
 
 function App() {
+  const { locale } = useI18n();
   const [needsApiKey, setNeedsApiKey] = useState(
     !hasApiKey() && !isApiOnboardingDismissed()
   );
@@ -70,6 +76,11 @@ function App() {
     scenario: Scenario;
   } | null>(null);
   const [selectedOngoingChatId, setSelectedOngoingChatId] = useState<string | null>(null);
+  const [senseiOpen, setSenseiOpen] = useState(false);
+  const [dataVersion, setDataVersion] = useState(0);
+  const [senseiViewContext, setSenseiViewContext] = useState<SenseiViewContext>(
+    buildFallbackSenseiViewContext("home")
+  );
 
   useEffect(() => {
     void checkForAppUpdatesOnLaunch();
@@ -85,6 +96,39 @@ function App() {
       window.removeEventListener("tama-config-changed", syncApiRequirements);
     };
   }, []);
+
+  useEffect(() => {
+    const handleDataChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<{ reason?: string }>;
+      if (customEvent.detail?.reason === "account-restore") {
+        setSelectedScenario(null);
+        setSelectedOngoingChatId(null);
+        setLastSession(null);
+        setCurrentScreen("home");
+      }
+      setDataVersion((value) => value + 1);
+    };
+
+    window.addEventListener("tama-data-changed", handleDataChanged);
+    return () => window.removeEventListener("tama-data-changed", handleDataChanged);
+  }, []);
+
+  useEffect(() => {
+    switch (currentScreen) {
+      case "scenario-select":
+        setSenseiViewContext(buildScenarioSelectSenseiViewContext([], 0, locale));
+        break;
+      case "conversation":
+        setSenseiViewContext(buildFallbackSenseiViewContext("conversation"));
+        break;
+      case "ongoing-chat":
+        setSenseiViewContext(buildFallbackSenseiViewContext("ongoing-chat"));
+        break;
+      default:
+        setSenseiViewContext(buildFallbackSenseiViewContext(currentScreen));
+        break;
+    }
+  }, [currentScreen, locale]);
 
   const handleApiKeyComplete = () => {
     setApiOnboardingDismissed(false);
@@ -143,6 +187,7 @@ function App() {
       case "scenario-select":
         return (
           <ScenarioPicker
+            onContextChange={setSenseiViewContext}
             onSelect={(scenario) => {
               setSelectedScenario(scenario);
               setCurrentScreen("conversation");
@@ -165,6 +210,7 @@ function App() {
           <VoiceModeScreen
             scenario={selectedScenario}
             onEndSession={handleSessionEnd}
+            onContextChange={setSenseiViewContext}
           />
         );
       }
@@ -193,6 +239,7 @@ function App() {
         return (
           <OngoingChatScreen
             chatId={selectedOngoingChatId}
+            onContextChange={setSenseiViewContext}
             onBack={() => {
               setSelectedOngoingChatId(null);
               setCurrentScreen("ongoing-chats");
@@ -201,7 +248,7 @@ function App() {
         );
 
       case "flashcards":
-        return <FlashcardReview />;
+        return <FlashcardReview onContextChange={setSenseiViewContext} />;
 
       case "history":
         return <SessionHistory />;
@@ -231,18 +278,30 @@ function App() {
 
   return (
     <TooltipProvider>
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={false}>
         <AppSidebar
           currentScreen={currentScreen}
           onNavigate={handleNavigate}
+          senseiOpen={senseiOpen}
+          onToggleSensei={() => setSenseiOpen((open) => !open)}
         />
         <SidebarInset>
           <ExpandButton />
-          <main className="flex-1 h-screen overflow-auto">
-            <Suspense fallback={<ScreenLoader />}>
-              {renderContent()}
-            </Suspense>
-          </main>
+          <div className="flex h-screen min-h-0 overflow-hidden">
+            <SenseiSidebar
+              open={senseiOpen}
+              onOpenChange={setSenseiOpen}
+              currentViewContext={senseiViewContext}
+              dataVersion={dataVersion}
+            />
+            <main className="min-h-0 flex-1 overflow-auto">
+              <Suspense fallback={<ScreenLoader />}>
+                <div key={`${currentScreen}-${dataVersion}`}>
+                  {renderContent()}
+                </div>
+              </Suspense>
+            </main>
+          </div>
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>

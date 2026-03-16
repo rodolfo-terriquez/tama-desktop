@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -50,6 +50,7 @@ import {
 import { VoicevoxControl } from "@/components/VoicevoxControl";
 import { SBV2Control } from "@/components/SBV2Control";
 import { clearAllData, getUserProfile, updateUserProfile } from "@/services/storage";
+import { exportAccountBackup, restoreAccountBackupFromText } from "@/services/account";
 import {
   type DisplayMode,
   getDisplayMode,
@@ -169,6 +170,7 @@ export function Settings() {
   const [whisperDownloading, setWhisperDownloading] = useState(false);
   const [whisperProgress, setWhisperProgress] = useState<DownloadProgress | null>(null);
   const [whisperDeleting, setWhisperDeleting] = useState(false);
+  const restoreInputRef = useRef<HTMLInputElement | null>(null);
 
   const jlptLevels = useMemo(
     () => [
@@ -553,9 +555,55 @@ export function Settings() {
     }
   };
 
+  const handleExportAccount = async () => {
+    try {
+      await exportAccountBackup();
+      setMessage({ type: "success", text: t("settings.accountExported") });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err) {
+      console.error("Failed to export account backup:", err);
+      setMessage({ type: "error", text: t("settings.accountExportFailed") });
+      setTimeout(() => setMessage(null), 5000);
+    }
+  };
+
+  const handleRestoreAccountClick = () => {
+    restoreInputRef.current?.click();
+  };
+
+  const handleRestoreAccount = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+    if (!window.confirm(t("settings.accountRestoreConfirm"))) return;
+
+    try {
+      const text = await file.text();
+      await restoreAccountBackupFromText(text);
+      setMessage({ type: "success", text: t("settings.accountRestored") });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err) {
+      console.error("Failed to restore account backup:", err);
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : t("settings.accountRestoreFailed"),
+      });
+      setTimeout(() => setMessage(null), 5000);
+    }
+  };
+
   return (
     <div className="h-full bg-background p-4 overflow-auto">
       <div className="max-w-lg mx-auto space-y-6 pb-4">
+        <input
+          ref={restoreInputRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={handleRestoreAccount}
+        />
+
         {/* Toast message — fixed position so it doesn't shift layout */}
         {message && (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -1176,6 +1224,28 @@ export function Settings() {
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">{t("settings.accountBackup")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {t("settings.accountBackupDescription")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t("settings.accountBackupExcludesKeys")}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleExportAccount}>
+                {t("settings.exportAccount")}
+              </Button>
+              <Button variant="secondary" onClick={handleRestoreAccountClick}>
+                {t("settings.restoreAccount")}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

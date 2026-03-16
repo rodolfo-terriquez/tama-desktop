@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { CustomScenarioForm } from "@/components/CustomScenarioForm";
 import { localizeScenario } from "@/data/scenarios";
 import { useI18n } from "@/i18n";
+import { buildScenarioSelectSenseiViewContext } from "@/services/sensei-context";
 import { getRecommendedScenarios, pickBestScenario } from "@/services/scenarios";
 import {
   getCustomScenarios,
@@ -13,14 +14,15 @@ import {
   updateCustomScenario,
   deleteCustomScenario,
 } from "@/services/storage";
-import type { Scenario } from "@/types";
+import type { Scenario, SenseiViewContext } from "@/types";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 interface ScenarioPickerProps {
   onSelect: (scenario: Scenario) => void;
+  onContextChange?: (context: SenseiViewContext) => void;
 }
 
-export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
+export function ScenarioPicker({ onSelect, onContextChange }: ScenarioPickerProps) {
   const { locale, t } = useI18n();
   const [ranked, setRanked] = useState<Awaited<ReturnType<typeof getRecommendedScenarios>>>([]);
   const [customScenarios, setCustomScenarios] = useState<Scenario[]>([]);
@@ -33,6 +35,16 @@ export function ScenarioPicker({ onSelect }: ScenarioPickerProps) {
   useEffect(() => {
     getCustomScenarios().then(setCustomScenarios);
   }, []);
+
+  useEffect(() => {
+    onContextChange?.(
+      buildScenarioSelectSenseiViewContext(
+        ranked.map((entry) => entry.scenario),
+        customScenarios.length,
+        locale
+      )
+    );
+  }, [customScenarios.length, locale, onContextChange, ranked]);
 
   const handleSurpriseMe = async () => {
     const scenario = await pickBestScenario();

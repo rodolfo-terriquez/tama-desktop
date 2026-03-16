@@ -1,31 +1,11 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { translateJapaneseText } from "@/services/claude";
 import { speak } from "@/services/tts";
+import { renderSimpleMarkdown } from "@/lib/simple-markdown";
 import { Volume2, Languages, Loader2 } from "lucide-react";
 import { useI18n } from "@/i18n";
 import type { AppLocale } from "@/types";
 import type { Message } from "@/types";
-
-function renderMarkdown(text: string): ReactNode[] {
-  const parts: ReactNode[] = [];
-  const regex = /\*\*(.+?)\*\*/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
-    }
-    parts.push(<strong key={match.index}>{match[1]}</strong>);
-    lastIndex = regex.lastIndex;
-  }
-
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
-
-  return parts;
-}
 
 interface MessageBubbleProps {
   message: Message;
@@ -92,13 +72,13 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
             isUser ? "bg-primary text-primary-foreground" : "bg-muted"
           }`}
         >
-          <p className="text-lg">{renderMarkdown(message.content)}</p>
+          <p className="text-lg whitespace-pre-wrap">{renderSimpleMarkdown(message.content)}</p>
 
           {isAssistant && (
             <>
               {showTranslation && translation && (
                 <p className="text-sm mt-2 pt-2 border-t border-current/20 opacity-80 italic">
-                  {renderMarkdown(translation)}
+                  {renderSimpleMarkdown(translation)}
                 </p>
               )}
               <div className="flex items-center justify-end mt-2">

@@ -11,6 +11,10 @@ import { localizeScenario } from "@/data/scenarios";
 import { useVADRecorder } from "@/hooks/useVADRecorder";
 import { useI18n } from "@/i18n";
 import {
+  buildScenarioConversationSenseiViewContext,
+  buildScenarioPreviewSenseiViewContext,
+} from "@/services/sensei-context";
+import {
   getEnglishVoiceDisplayName,
   initializeTTS,
   speak,
@@ -20,7 +24,7 @@ import {
 import { getTranscriptionEngine } from "@/services/transcription";
 import { sendMessage, sendMessageWithTools, buildScenarioPrompt } from "@/services/claude";
 import { getUserProfile } from "@/services/storage";
-import type { Message, Scenario, UserProfile } from "@/types";
+import type { Message, Scenario, SenseiViewContext, UserProfile } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 import { Send, Mic, Keyboard, LogOut } from "lucide-react";
 
@@ -36,9 +40,10 @@ type ConversationState =
 interface VoiceModeScreenProps {
   scenario: Scenario;
   onEndSession?: (messages: Message[], scenario: Scenario) => void;
+  onContextChange?: (context: SenseiViewContext) => void;
 }
 
-export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps) {
+export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: VoiceModeScreenProps) {
   const { locale, t } = useI18n();
   const localizedScenario = localizeScenario(scenario, locale);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -81,6 +86,32 @@ export function VoiceModeScreen({ scenario, onEndSession }: VoiceModeScreenProps
   useEffect(() => {
     setDetailsExpanded(!scenario.isCustom);
   }, [scenario.id, scenario.isCustom]);
+
+  useEffect(() => {
+    if (!started) {
+      onContextChange?.(
+        buildScenarioPreviewSenseiViewContext({
+          scenario,
+          locale,
+          level: userProfile?.jlpt_level,
+          vocabReviewEnabled: userProfile?.include_flashcard_vocab_in_conversations,
+          ttsStatus: !ttsStatus.checked ? "checking" : ttsStatus.available ? "available" : "unavailable",
+        })
+      );
+      return;
+    }
+
+    onContextChange?.(
+      buildScenarioConversationSenseiViewContext({
+        scenario,
+        locale,
+        inputMode,
+        conversationState,
+        started,
+        messages,
+      })
+    );
+  }, [conversationState, inputMode, locale, messages, onContextChange, scenario, started, ttsStatus.available, ttsStatus.checked, userProfile]);
 
   useEffect(() => {
     async function checkTTS() {

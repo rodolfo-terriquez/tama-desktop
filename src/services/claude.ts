@@ -900,3 +900,46 @@ Return ONLY the summary text, no headers or formatting. Keep it under 500 words.
   if (!result.text) throw new ClaudeError("Failed to generate summary");
   return result.text;
 }
+
+export async function summarizeSenseiConversation(
+  existingSummary: string,
+  messagesToSummarize: Message[],
+  targetLocale: AppLocale = "en"
+): Promise<string> {
+  const targetLanguage = getTranslationTargetLanguage(targetLocale);
+  const systemPrompt = `You summarize a persistent Japanese-learning teacher chat. You will receive the previous summary and a block of messages between the student and Sensei. Produce a concise updated summary that preserves:
+- the student's current goals and recurring questions
+- useful facts about the student's level, struggles, and preferences
+- any study plans, explanations, or follow-up topics Sensei should remember
+- important context from the current app views that came up in the discussion
+
+Return ONLY the summary text, no headers or markdown. Keep it under 500 words and write it in natural ${targetLanguage}.`;
+
+  const transcript = messagesToSummarize
+    .map((message) => `[${message.role === "user" ? "Student" : "Sensei"}]: ${message.content}`)
+    .join("\n");
+
+  const userMessage = existingSummary
+    ? `PREVIOUS SUMMARY:\n${existingSummary}\n\nNEW MESSAGES TO INCORPORATE:\n${transcript}`
+    : `MESSAGES TO SUMMARIZE:\n${transcript}`;
+
+  const provider = getLLMProvider();
+
+  if (provider === "openrouter") {
+    const result = await callOpenRouter(
+      systemPrompt,
+      [{ role: "user", content: userMessage }],
+      { maxTokens: 1024 }
+    );
+    if (!result.text) throw new ClaudeError("Failed to generate Sensei summary");
+    return result.text;
+  }
+
+  const result = await callAnthropic(
+    systemPrompt,
+    [{ role: "user", content: userMessage }],
+    { maxTokens: 1024 }
+  );
+  if (!result.text) throw new ClaudeError("Failed to generate Sensei summary");
+  return result.text;
+}

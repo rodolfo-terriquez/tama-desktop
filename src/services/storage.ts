@@ -1,5 +1,13 @@
 import Database from "@tauri-apps/plugin-sql";
-import type { UserProfile, VocabItem, Session, Scenario, OngoingChat } from "@/types";
+import type {
+  AccountBundleV1,
+  OngoingChat,
+  Scenario,
+  SenseiThread,
+  Session,
+  UserProfile,
+  VocabItem,
+} from "@/types";
 
 // ── DB singleton ────────────────────────────────────────────────────
 
@@ -436,6 +444,50 @@ export async function deleteOngoingChat(id: string): Promise<boolean> {
   return result.rowsAffected > 0;
 }
 
+// ── Sensei thread ───────────────────────────────────────────────────
+
+interface SenseiRow {
+  id: string;
+  messages: string;
+  summary: string;
+  created_at: string;
+  last_active_at: string;
+  total_messages: number;
+}
+
+function rowToSenseiThread(row: SenseiRow): SenseiThread {
+  return {
+    id: row.id,
+    messages: JSON.parse(row.messages || "[]"),
+    summary: row.summary,
+    createdAt: row.created_at,
+    lastActiveAt: row.last_active_at,
+    totalMessages: row.total_messages,
+  };
+}
+
+export async function getSenseiThread(id = "global"): Promise<SenseiThread | null> {
+  const d = await getDb();
+  const rows = await d.select<SenseiRow[]>("SELECT * FROM sensei_threads WHERE id = $1", [id]);
+  return rows.length > 0 ? rowToSenseiThread(rows[0]) : null;
+}
+
+export async function saveSenseiThread(thread: SenseiThread): Promise<void> {
+  const d = await getDb();
+  await d.execute(
+    `INSERT OR REPLACE INTO sensei_threads (id, messages, summary, created_at, last_active_at, total_messages)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      thread.id,
+      JSON.stringify(thread.messages),
+      thread.summary,
+      thread.createdAt,
+      thread.lastActiveAt,
+      thread.totalMessages,
+    ]
+  );
+}
+
 // ── Clear All Data ──────────────────────────────────────────────────
 
 export async function clearAllData(): Promise<void> {
@@ -444,7 +496,139 @@ export async function clearAllData(): Promise<void> {
   await d.execute("DELETE FROM sessions");
   await d.execute("DELETE FROM custom_scenarios");
   await d.execute("DELETE FROM ongoing_chats");
+  await d.execute("DELETE FROM sensei_threads");
   await d.execute("UPDATE user_profile SET jlpt_level='N5', auto_adjust_level=0, estimated_level='beginner', response_length='natural', include_flashcard_vocab_in_conversations=1, user_name=NULL, age=NULL, about_you=NULL, interests='[]', topics_covered='[]', recent_struggles='[]', total_sessions=0, voicevox_speaker_id=NULL, voicevox_speaker_name=NULL WHERE id=1");
+}
+
+export async function replaceAccountBundle(bundle: AccountBundleV1): Promise<void> {
+  const d = await getDb();
+  await d.execute("BEGIN");
+
+  try {
+    const profile = bundle.profile;
+
+    await d.execute("DELETE FROM vocab_items");
+    await d.execute("DELETE FROM sessions");
+    await d.execute("DELETE FROM custom_scenarios");
+    await d.execute("DELETE FROM ongoing_chats");
+    await d.execute("DELETE FROM sensei_threads");
+
+    await d.execute(
+      `UPDATE user_profile SET
+        jlpt_level = $1, auto_adjust_level = $2, estimated_level = $3,
+        response_length = $4, include_flashcard_vocab_in_conversations = $5,
+        user_name = $6, age = $7, about_you = $8,
+        interests = $9, topics_covered = $10, recent_struggles = $11,
+        total_sessions = $12, voicevox_speaker_id = $13, voicevox_speaker_name = $14
+      WHERE id = 1`,
+      [
+        profile.jlpt_level,
+        profile.auto_adjust_level ? 1 : 0,
+        profile.estimated_level,
+        profile.response_length,
+        profile.include_flashcard_vocab_in_conversations ? 1 : 0,
+        profile.name ?? null,
+        profile.age ?? null,
+        profile.aboutYou ?? null,
+        JSON.stringify(profile.interests),
+        JSON.stringify(profile.topics_covered),
+        JSON.stringify(profile.recent_struggles),
+        profile.total_sessions,
+        profile.voicevox_speaker_id ?? null,
+        profile.voicevox_speaker_name ?? null,
+      ]
+    );
+
+    for (const item of bundle.vocabulary) {
+      await d.execute(
+        `INSERT INTO vocab_items (id, word, reading, meaning, example, source_session, interval_days, ease_factor, next_review, times_seen_in_conversation, times_reviewed)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          item.id,
+          item.word,
+          item.reading,
+          item.meaning,
+          item.example,
+          item.source_session,
+          item.interval,
+          item.ease_factor,
+          item.next_review,
+          item.times_seen_in_conversation,
+          item.times_reviewed,
+        ]
+      );
+    }
+
+    for (const session of bundle.sessions) {
+      await d.execute(
+        `INSERT INTO sessions (id, date, scenario, messages, feedback, duration_seconds)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          session.id,
+          session.date,
+          JSON.stringify(session.scenario),
+          JSON.stringify(session.messages),
+          session.feedback ? JSON.stringify(session.feedback) : null,
+          session.duration_seconds,
+        ]
+      );
+    }
+
+    for (const scenario of bundle.customScenarios) {
+      await d.execute(
+        `INSERT INTO custom_scenarios (id, title, title_ja, description, setting, character_role, objectives, custom_prompt)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          scenario.id,
+          scenario.title,
+          scenario.title_ja,
+          scenario.description,
+          scenario.setting,
+          scenario.character_role,
+          JSON.stringify(scenario.objectives),
+          scenario.custom_prompt ?? null,
+        ]
+      );
+    }
+
+    for (const chat of bundle.ongoingChats) {
+      await d.execute(
+        `INSERT INTO ongoing_chats (id, name, persona, messages, summary, created_at, last_active_at, total_messages, last_feedback_at_total)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          chat.id,
+          chat.name,
+          chat.persona,
+          JSON.stringify(chat.messages),
+          chat.summary,
+          chat.createdAt,
+          chat.lastActiveAt,
+          chat.totalMessages,
+          chat.lastFeedbackAtTotal,
+        ]
+      );
+    }
+
+    if (bundle.sensei) {
+      await d.execute(
+        `INSERT INTO sensei_threads (id, messages, summary, created_at, last_active_at, total_messages)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          bundle.sensei.id,
+          JSON.stringify(bundle.sensei.messages),
+          bundle.sensei.summary,
+          bundle.sensei.createdAt,
+          bundle.sensei.lastActiveAt,
+          bundle.sensei.totalMessages,
+        ]
+      );
+    }
+
+    await d.execute("COMMIT");
+  } catch (error) {
+    await d.execute("ROLLBACK");
+    throw error;
+  }
 }
 
 // ── localStorage → SQLite migration ─────────────────────────────────

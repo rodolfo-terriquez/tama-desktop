@@ -118,6 +118,10 @@ export function setStoredVoiceId(id: string): void {
   localStorage.setItem(STORAGE_KEY_VOICE, id);
 }
 
+export function clearStoredVoiceId(): void {
+  localStorage.removeItem(STORAGE_KEY_VOICE);
+}
+
 export function getSBV2BaseUrl(): string {
   return localStorage.getItem(STORAGE_KEY_SBV2_URL) || "http://localhost:5001";
 }

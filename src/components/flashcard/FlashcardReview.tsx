@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Flashcard } from "@/components/flashcard/Flashcard";
 import { useI18n } from "@/i18n";
+import { buildFlashcardSenseiViewContext } from "@/services/sensei-context";
 import {
   getDueVocabulary,
   getVocabulary,
@@ -14,7 +15,7 @@ import {
   deleteVocabItem,
 } from "@/services/storage";
 import { reviewVocabItem } from "@/services/srs";
-import type { VocabItem, SRSRating } from "@/types";
+import type { SenseiFlashcardResult, SenseiViewContext, VocabItem, SRSRating } from "@/types";
 import { format } from "date-fns";
 import { BookOpenText, ChevronDown, CircleCheckBig, PartyPopper } from "lucide-react";
 
@@ -73,7 +74,7 @@ async function exportAnki(vocab: VocabItem[]) {
 
 // ── Main component ───────────────────────────────────────
 
-export function FlashcardReview() {
+export function FlashcardReview({ onContextChange }: { onContextChange?: (context: SenseiViewContext) => void }) {
   const { t } = useI18n();
   const [tab, setTab] = useState<FlashcardTab>("review");
   const [vocabVersion, setVocabVersion] = useState(0);
@@ -212,9 +213,20 @@ export function FlashcardReview() {
 
       {/* Tab content */}
       {tab === "review" ? (
-        <ReviewTab onReviewComplete={refreshVocab} />
+        <ReviewTab
+          onReviewComplete={refreshVocab}
+          onContextChange={onContextChange}
+          dueCount={stats.due}
+          totalCards={stats.total}
+        />
       ) : (
-        <AllCardsTab vocab={allVocab} onVocabChange={refreshVocab} />
+        <AllCardsTab
+          vocab={allVocab}
+          onVocabChange={refreshVocab}
+          onContextChange={onContextChange}
+          dueCount={stats.due}
+          totalCards={stats.total}
+        />
       )}
     </div>
   );
@@ -224,12 +236,22 @@ export function FlashcardReview() {
 
 type ReviewState = "reviewing" | "complete";
 
-function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
+function ReviewTab({
+  onReviewComplete,
+  onContextChange,
+  dueCount,
+  totalCards,
+}: {
+  onReviewComplete: () => void;
+  onContextChange?: (context: SenseiViewContext) => void;
+  dueCount: number;
+  totalCards: number;
+}) {
   const { t } = useI18n();
   const [cards, setCards] = useState<VocabItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [state, setState] = useState<ReviewState>("reviewing");
-  const [results, setResults] = useState<{ word: string; rating: SRSRating }[]>([]);
+  const [results, setResults] = useState<SenseiFlashcardResult[]>([]);
   const [isAnswerVisible, setIsAnswerVisible] = useState(false);
   const [hasRevealedCurrentCard, setHasRevealedCurrentCard] = useState(false);
 
@@ -282,6 +304,20 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
       setHasRevealedCurrentCard(true);
     }
   }, [isAnswerVisible]);
+
+  useEffect(() => {
+    onContextChange?.(
+      buildFlashcardSenseiViewContext({
+        tab: "review",
+        dueCount,
+        totalCards,
+        reviewState: state,
+        currentCard,
+        isAnswerVisible,
+        recentResults: results,
+      })
+    );
+  }, [currentCard, dueCount, isAnswerVisible, onContextChange, results, state, totalCards]);
 
   useEffect(() => {
     function isEditableTarget(target: EventTarget | null) {
@@ -455,9 +491,15 @@ function ReviewTab({ onReviewComplete }: { onReviewComplete: () => void }) {
 function AllCardsTab({
   vocab,
   onVocabChange,
+  onContextChange,
+  dueCount,
+  totalCards,
 }: {
   vocab: VocabItem[];
   onVocabChange: () => void;
+  onContextChange?: (context: SenseiViewContext) => void;
+  dueCount: number;
+  totalCards: number;
 }) {
   const { t } = useI18n();
   const [search, setSearch] = useState("");
@@ -519,6 +561,18 @@ function AllCardsTab({
     setConfirmDeleteId(null);
     onVocabChange();
   };
+
+  useEffect(() => {
+    const selectedCard = expandedId ? vocab.find((item) => item.id === expandedId) ?? null : null;
+    onContextChange?.(
+      buildFlashcardSenseiViewContext({
+        tab: "all-cards",
+        dueCount,
+        totalCards,
+        selectedCard,
+      })
+    );
+  }, [dueCount, expandedId, onContextChange, totalCards, vocab]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
