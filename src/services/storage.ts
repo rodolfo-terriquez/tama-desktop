@@ -472,6 +472,14 @@ export async function getSenseiThread(id = "global"): Promise<SenseiThread | nul
   return rows.length > 0 ? rowToSenseiThread(rows[0]) : null;
 }
 
+export async function getSenseiThreads(): Promise<SenseiThread[]> {
+  const d = await getDb();
+  const rows = await d.select<SenseiRow[]>(
+    "SELECT * FROM sensei_threads ORDER BY datetime(last_active_at) DESC, datetime(created_at) DESC"
+  );
+  return rows.map(rowToSenseiThread);
+}
+
 export async function saveSenseiThread(thread: SenseiThread): Promise<void> {
   const d = await getDb();
   await d.execute(
@@ -486,6 +494,12 @@ export async function saveSenseiThread(thread: SenseiThread): Promise<void> {
       thread.totalMessages,
     ]
   );
+}
+
+export async function deleteSenseiThread(id: string): Promise<boolean> {
+  const d = await getDb();
+  const result = await d.execute("DELETE FROM sensei_threads WHERE id = $1", [id]);
+  return result.rowsAffected > 0;
 }
 
 // ── Clear All Data ──────────────────────────────────────────────────
@@ -609,17 +623,19 @@ export async function replaceAccountBundle(bundle: AccountBundleV1): Promise<voi
       );
     }
 
-    if (bundle.sensei) {
+    const threads = bundle.senseiThreads ?? (bundle.sensei ? [bundle.sensei] : []);
+
+    for (const thread of threads) {
       await d.execute(
         `INSERT INTO sensei_threads (id, messages, summary, created_at, last_active_at, total_messages)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [
-          bundle.sensei.id,
-          JSON.stringify(bundle.sensei.messages),
-          bundle.sensei.summary,
-          bundle.sensei.createdAt,
-          bundle.sensei.lastActiveAt,
-          bundle.sensei.totalMessages,
+          thread.id,
+          JSON.stringify(thread.messages),
+          thread.summary,
+          thread.createdAt,
+          thread.lastActiveAt,
+          thread.totalMessages,
         ]
       );
     }

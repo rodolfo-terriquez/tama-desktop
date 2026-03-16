@@ -159,6 +159,8 @@ export interface AccountBundleV1 {
   customScenarios: Scenario[];
   preferences: AccountPreferences;
   sensei?: SenseiThread;
+  senseiThreads?: SenseiThread[];
+  activeSenseiThreadId?: string | null;
 }
 
 export interface SenseiScenarioSummary {

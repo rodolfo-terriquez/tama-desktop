@@ -11,7 +11,7 @@ import { emitConfigChanged, emitDataChanged } from "@/services/app-events";
 import {
   getCustomScenarios,
   getOngoingChats,
-  getSenseiThread,
+  getSenseiThreads,
   getSessions,
   getUserProfile,
   getVocabulary,
@@ -38,6 +38,7 @@ import type {
   UserProfile,
   VocabItem,
 } from "@/types";
+import { getActiveSenseiThreadId, setActiveSenseiThreadId } from "@/services/sensei";
 
 export const ACCOUNT_BUNDLE_SCHEMA_VERSION = 1;
 
@@ -215,7 +216,12 @@ export function validateAccountBundle(value: unknown): AccountBundleV1 {
     !Array.isArray(value.customScenarios) ||
     !value.customScenarios.every(isScenario) ||
     !isAccountPreferences(value.preferences) ||
-    (value.sensei !== undefined && !isSenseiThread(value.sensei))
+    (value.sensei !== undefined && !isSenseiThread(value.sensei)) ||
+    (value.senseiThreads !== undefined &&
+      (!Array.isArray(value.senseiThreads) || !value.senseiThreads.every(isSenseiThread))) ||
+    (value.activeSenseiThreadId !== undefined &&
+      value.activeSenseiThreadId !== null &&
+      !isString(value.activeSenseiThreadId))
   ) {
     throw new Error("Backup file is missing required Tama account fields.");
   }
@@ -262,14 +268,14 @@ export async function buildAccountBundle(): Promise<AccountBundleV1> {
     vocabulary,
     ongoingChats,
     customScenarios,
-    sensei,
+    senseiThreads,
   ] = await Promise.all([
     getUserProfile(),
     getSessions(),
     getVocabulary(),
     getOngoingChats(),
     getCustomScenarios(),
-    getSenseiThread(),
+    getSenseiThreads(),
   ]);
 
   let appVersion = "unknown";
@@ -289,7 +295,8 @@ export async function buildAccountBundle(): Promise<AccountBundleV1> {
     ongoingChats,
     customScenarios,
     preferences: getAccountPreferences(),
-    ...(sensei ? { sensei } : {}),
+    ...(senseiThreads.length > 0 ? { senseiThreads } : {}),
+    activeSenseiThreadId: getActiveSenseiThreadId(),
   };
 }
 
@@ -312,6 +319,7 @@ export async function restoreAccountBackupFromText(text: string): Promise<Accoun
 
   const bundle = validateAccountBundle(parsed);
   await replaceAccountBundle(bundle);
+  setActiveSenseiThreadId(bundle.activeSenseiThreadId ?? bundle.sensei?.id ?? bundle.senseiThreads?.[0]?.id ?? null);
   applyAccountPreferences(bundle.preferences);
   emitConfigChanged();
   emitDataChanged("account-restore");

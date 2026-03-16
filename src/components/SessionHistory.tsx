@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { useI18n } from "@/i18n";
 import { addVocabItem, getSessions, getVocabulary } from "@/services/storage";
 import { formatDateTime, formatRelativeTime, formatTime } from "@/services/locale-format";
-import type { Session } from "@/types";
+import type { Session, SessionFeedback } from "@/types";
 import { Copy } from "lucide-react";
 
 const RATING_CONFIG = {
@@ -27,6 +27,33 @@ function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+}
+
+function normalizeSessionFeedback(feedback: Session["feedback"]): SessionFeedback | null {
+  if (!feedback) return null;
+
+  const performanceRating =
+    feedback.summary?.performance_rating === "needs_work" ||
+    feedback.summary?.performance_rating === "good" ||
+    feedback.summary?.performance_rating === "excellent"
+      ? feedback.summary.performance_rating
+      : "good";
+
+  return {
+    grammar_points: Array.isArray(feedback.grammar_points) ? feedback.grammar_points : [],
+    vocabulary: Array.isArray(feedback.vocabulary) ? feedback.vocabulary : [],
+    fluency_notes: Array.isArray(feedback.fluency_notes) ? feedback.fluency_notes : [],
+    summary: {
+      topics_covered: Array.isArray(feedback.summary?.topics_covered)
+        ? feedback.summary.topics_covered
+        : [],
+      performance_rating: performanceRating,
+      next_session_hint:
+        typeof feedback.summary?.next_session_hint === "string"
+          ? feedback.summary.next_session_hint
+          : "",
+    },
+  };
 }
 
 export function SessionHistory() {
@@ -179,7 +206,8 @@ function SessionCard({
   onVocabularyAdded: () => void;
 }) {
   const { t } = useI18n();
-  const rating = session.feedback?.summary.performance_rating;
+  const feedback = normalizeSessionFeedback(session.feedback);
+  const rating = feedback?.summary.performance_rating;
   const ratingConfig = rating ? RATING_CONFIG[rating] : null;
   const userMessages = session.messages.filter((m) => m.role === "user").length;
 
@@ -223,8 +251,8 @@ function SessionCard({
           {/* Topics + action row */}
           <div className="flex items-center justify-between gap-2 mt-1.5">
             <div className="flex flex-wrap gap-1 min-w-0 flex-1">
-              {!isExpanded && session.feedback && session.feedback.summary.topics_covered.length > 0 &&
-                session.feedback.summary.topics_covered.map((topic, i) => (
+              {!isExpanded && feedback && feedback.summary.topics_covered.length > 0 &&
+                feedback.summary.topics_covered.map((topic, i) => (
                   <Badge key={i} variant="outline" className="text-[10px]">
                     {topic}
                   </Badge>
@@ -287,9 +315,9 @@ function SessionCard({
                 }`}
               >
                 {t("common.feedback")}
-                {session.feedback && session.feedback.grammar_points.length > 0 && (
+                {feedback && feedback.grammar_points.length > 0 && (
                   <span className="ml-1.5 text-xs text-muted-foreground">
-                    ({session.feedback.grammar_points.length})
+                    ({feedback.grammar_points.length})
                   </span>
                 )}
               </button>
@@ -364,7 +392,7 @@ function FeedbackView({
   onVocabularyAdded: () => void;
 }) {
   const { t } = useI18n();
-  const feedback = session.feedback;
+  const feedback = normalizeSessionFeedback(session.feedback);
   const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
 
   useEffect(() => {

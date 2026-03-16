@@ -278,7 +278,7 @@ function App() {
 
   return (
     <TooltipProvider>
-      <SidebarProvider defaultOpen={false}>
+      <SidebarProvider open={false}>
         <AppSidebar
           currentScreen={currentScreen}
           onNavigate={handleNavigate}
