@@ -1,5 +1,6 @@
 import { useCallback } from "react";
-import tamaIcon from "@/assets/tama.svg";
+import tamaDarkIcon from "@/assets/tama-white.svg";
+import tamaLightIcon from "@/assets/tama.svg";
 import { AppStatusDot } from "@/components/AppStatusDot";
 import {
   Sidebar,
@@ -94,7 +95,8 @@ export function AppSidebar({ currentScreen, onNavigate, senseiOpen, onToggleSens
                   tooltip={t("sensei.openChat")}
                   className={labelFadeClass}
                 >
-                  <img src={tamaIcon} alt="" className="h-4 w-4 shrink-0" />
+                  <img src={tamaLightIcon} alt="" className="h-4 w-4 shrink-0 dark:hidden" />
+                  <img src={tamaDarkIcon} alt="" className="hidden h-4 w-4 shrink-0 dark:block" />
                   <span>{t("sensei.openChat")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
