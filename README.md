@@ -201,4 +201,7 @@ For release and updater signing steps, see [`RELEASE_CHECKLIST.md`](./RELEASE_CH
 
 ## License
 
-MIT
+This project is licensed under the GNU General Public License v3.0. You can
+use and modify it for your own needs, but if you distribute the app or a
+modified version, you must also make the source available under the same
+license. See [LICENSE](./LICENSE).
