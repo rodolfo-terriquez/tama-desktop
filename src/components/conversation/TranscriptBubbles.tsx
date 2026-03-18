@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Volume2, Languages, Loader2 } from "lucide-react";
+import { BrailleLoader } from "@/components/ui/braille-loader";
+import { Volume2, Languages } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { speak } from "@/services/tts";
 import { translateJapaneseText } from "@/services/claude";
@@ -160,7 +161,7 @@ export function TranscriptBubbles({
                       title={t("message.replayAudio")}
                     >
                       {isPlaying ? (
-                        <Loader2 className="size-3 animate-spin" />
+                        <BrailleLoader className="text-[11px]" />
                       ) : (
                         <Volume2 className="size-3" />
                       )}
@@ -177,7 +178,7 @@ export function TranscriptBubbles({
                       }
                     >
                       {isLoadingTranslation ? (
-                        <Loader2 className="size-3 animate-spin" />
+                        <BrailleLoader className="text-[11px]" />
                       ) : (
                         <Languages className="size-3" />
                       )}

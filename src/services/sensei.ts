@@ -259,7 +259,11 @@ export async function removeSenseiThread(threadId: string): Promise<SenseiThread
   return remainingThreads[0];
 }
 
-export async function sendSenseiUserMessage(text: string, view: SenseiViewContext): Promise<SenseiThread> {
+export async function sendSenseiUserMessage(
+  text: string,
+  view: SenseiViewContext,
+  options?: { onUserMessageSaved?: (thread: SenseiThread) => void }
+): Promise<SenseiThread> {
   const trimmed = text.trim();
   if (!trimmed) {
     return ensureSenseiThread();
@@ -277,6 +281,17 @@ export async function sendSenseiUserMessage(text: string, view: SenseiViewContex
   };
 
   const nextMessages = [...thread.messages, userMessage];
+  const pendingThread: SenseiThread = {
+    ...thread,
+    messages: nextMessages,
+    lastActiveAt: userMessage.timestamp,
+    totalMessages: thread.totalMessages + 1,
+  };
+
+  await saveSenseiThread(pendingThread);
+  setActiveSenseiThreadId(pendingThread.id);
+  options?.onUserMessageSaved?.(pendingThread);
+
   const [profile, sessions, vocabulary, ongoingChats, customScenarios] = await Promise.all([
     getUserProfile(),
     getSessions(),
@@ -287,7 +302,7 @@ export async function sendSenseiUserMessage(text: string, view: SenseiViewContex
 
   const systemPrompt = buildSenseiPrompt(
     { locale, view },
-    thread,
+    pendingThread,
     buildAccountSummary({ profile, sessions, vocabulary, ongoingChats, customScenarios })
   );
 
@@ -303,10 +318,10 @@ export async function sendSenseiUserMessage(text: string, view: SenseiViewContex
   };
 
   const updatedThread: SenseiThread = {
-    ...thread,
+    ...pendingThread,
     messages: [...nextMessages, assistantMessage],
     lastActiveAt: new Date().toISOString(),
-    totalMessages: thread.totalMessages + 2,
+    totalMessages: pendingThread.totalMessages + 1,
   };
 
   await saveSenseiThread(updatedThread);

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { translateJapaneseText } from "@/services/claude";
 import { SimpleMarkdown } from "@/lib/simple-markdown";
 import { speak } from "@/services/tts";
-import { Volume2, Languages, Loader2 } from "lucide-react";
+import { BrailleLoader } from "@/components/ui/braille-loader";
+import { Volume2, Languages } from "lucide-react";
 import { useI18n } from "@/i18n";
 import type { AppLocale } from "@/types";
 import type { Message } from "@/types";
@@ -92,7 +93,7 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
                     data-1p-ignore
                   >
                     {isPlaying ? (
-                      <Loader2 className="size-3.5 animate-spin" />
+                      <BrailleLoader className="text-[13px]" />
                     ) : (
                       <Volume2 className="size-3.5" />
                     )}
@@ -110,7 +111,7 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
                     data-1p-ignore
                   >
                     {isTranslating ? (
-                      <Loader2 className="size-3.5 animate-spin" />
+                      <BrailleLoader className="text-[13px]" />
                     ) : (
                       <Languages className="size-3.5" />
                     )}

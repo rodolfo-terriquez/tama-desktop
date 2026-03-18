@@ -770,6 +770,9 @@ Focus on:
 - Natural phrasing alternatives
 - Overall performance
 - Write grammar explanations, vocabulary meanings, fluency notes, topics_covered, and next_session_hint in natural ${targetLanguage}
+- Return a single valid JSON object only. Do not use markdown fences.
+- Escape all double quotes inside JSON strings.
+- Do not leave any string, array, or object unterminated.
 
 Be encouraging but honest.`;
 

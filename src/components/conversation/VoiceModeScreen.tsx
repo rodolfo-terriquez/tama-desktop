@@ -378,7 +378,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   // ── Setup screen ──
   if (!started) {
     return (
-      <div className="h-full overflow-y-auto p-4">
+      <div className="h-[calc(100vh-3rem)] overflow-y-auto p-4">
         <div className="mx-auto flex min-h-full w-full max-w-lg items-start justify-center py-4">
           <Card className="w-full">
             <CardHeader>
@@ -491,7 +491,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     const hasTranscript = showCaptions && messages.length > 0;
 
     return (
-      <div className="flex flex-col h-full max-w-2xl mx-auto overflow-hidden">
+      <div className="flex h-[calc(100vh-3rem)] flex-col max-w-2xl mx-auto overflow-hidden">
         {error && (
           <Alert variant="destructive" className="mx-4 mt-2 mb-0">
             <AlertDescription>{error}</AlertDescription>
@@ -535,7 +535,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
 
   // ── Text mode ──
   return (
-    <div className="flex flex-col h-full max-w-2xl mx-auto p-4 overflow-hidden">
+    <div className="flex h-[calc(100vh-3rem)] flex-col max-w-2xl mx-auto p-4 overflow-hidden">
       {error && (
         <Alert variant="destructive" className="mb-4 shrink-0">
           <AlertDescription>{error}</AlertDescription>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { BrailleLoader } from "@/components/ui/braille-loader";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -22,7 +23,7 @@ import {
 } from "@/services/sensei";
 import { cn } from "@/lib/utils";
 import type { SenseiThread, SenseiViewContext } from "@/types";
-import { ArrowLeft, ArrowUp, History, Loader2, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUp, History, Plus, Trash2 } from "lucide-react";
 
 interface SenseiSidebarProps {
   open: boolean;
@@ -187,7 +188,7 @@ function SenseiConversation({
           {isLoading && (
             <div className="flex justify-start">
               <div className="flex items-center gap-2 rounded-xl border bg-card px-3 py-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
+                <BrailleLoader className="text-[13px]" />
                 <span>{t("sensei.thinking")}</span>
               </div>
             </div>
@@ -250,6 +251,14 @@ export function SenseiSidebar({
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  const upsertThread = useCallback((nextThread: SenseiThread) => {
+    setThread(nextThread);
+    setThreads((prev) => {
+      const remaining = prev.filter((item) => item.id !== nextThread.id);
+      return [nextThread, ...remaining].sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt));
+    });
+  }, []);
+
   const refreshThreads = useCallback(async () => {
     const [activeThread, availableThreads] = await Promise.all([
       loadSenseiThread(),
@@ -281,10 +290,13 @@ export function SenseiSidebar({
   const handleSend = async (text: string) => {
     setError(null);
     setIsLoading(true);
+    setHistoryOpen(false);
 
     try {
-      const updated = await sendSenseiUserMessage(text, currentViewContext);
-      setThread(updated);
+      const updated = await sendSenseiUserMessage(text, currentViewContext, {
+        onUserMessageSaved: upsertThread,
+      });
+      upsertThread(updated);
       setThreads(await listSenseiThreads());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");

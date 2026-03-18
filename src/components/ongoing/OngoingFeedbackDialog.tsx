@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useI18n } from "@/i18n";
 import { generateFeedback } from "@/services/claude";
+import { FeedbackParseError, parseFeedbackResponse } from "@/services/feedback-parser";
 import {
   addVocabItem,
   getUserProfile,
@@ -38,28 +39,6 @@ const RATING_CONFIG = {
   good: { label: "Good", variant: "default" as const },
   excellent: { label: "Excellent", variant: "secondary" as const },
 };
-
-function parseFeedback(raw: string): SessionFeedback {
-  const cleaned = raw.replace(/```json\s*/, "").replace(/```\s*$/, "").trim();
-  const parsed = JSON.parse(cleaned);
-
-  return {
-    grammar_points: Array.isArray(parsed.grammar_points) ? parsed.grammar_points : [],
-    vocabulary: Array.isArray(parsed.vocabulary) ? parsed.vocabulary : [],
-    fluency_notes: Array.isArray(parsed.fluency_notes) ? parsed.fluency_notes : [],
-    summary: {
-      topics_covered: Array.isArray(parsed.summary?.topics_covered)
-        ? parsed.summary.topics_covered
-        : [],
-      performance_rating: ["needs_work", "good", "excellent"].includes(
-        parsed.summary?.performance_rating
-      )
-        ? parsed.summary.performance_rating
-        : "good",
-      next_session_hint: parsed.summary?.next_session_hint || "",
-    },
-  };
-}
 
 export function OngoingFeedbackDialog({
   open,
@@ -143,7 +122,7 @@ export function OngoingFeedbackDialog({
           persona: chatPersona,
         }, locale);
         if (cancelled) return;
-        const parsed = parseFeedback(raw);
+        const parsed = parseFeedbackResponse(raw);
         setFeedback(parsed);
         setGenerated(true);
         setIsLoading(false);
@@ -164,7 +143,13 @@ export function OngoingFeedbackDialog({
       } catch (err) {
         if (cancelled) return;
         console.error("Feedback generation failed:", err);
-        setError(err instanceof Error ? err.message : "Failed to generate feedback");
+        setError(
+          err instanceof FeedbackParseError
+            ? "Failed to generate feedback"
+            : err instanceof Error
+              ? err.message
+              : "Failed to generate feedback"
+        );
       } finally {
         if (!cancelled) setIsLoading(false);
       }
