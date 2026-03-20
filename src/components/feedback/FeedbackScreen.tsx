@@ -195,7 +195,7 @@ export function FeedbackScreen({
 
   return (
     <ScrollArea className="h-full">
-      <div className="max-w-2xl mx-auto p-4 pb-12 space-y-6">
+      <div className="max-w-3xl mx-auto p-4 pb-12 space-y-6">
         {/* Summary Card */}
         <Card>
           <CardHeader className="pb-3">
@@ -359,7 +359,7 @@ function FeedbackSkeleton({
 }) {
   const { t } = useI18n();
   return (
-    <div className="max-w-2xl mx-auto p-4 pb-12 space-y-6">
+    <div className="max-w-3xl mx-auto p-4 pb-12 space-y-6">
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">

@@ -334,7 +334,7 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
     const hasTranscript = showCaptions && messages.length > 0;
 
     return (
-      <div className="flex flex-col h-screen max-w-2xl mx-auto overflow-hidden">
+      <div className="flex flex-col h-screen max-w-3xl mx-auto overflow-hidden">
         {error && (
           <Alert variant="destructive" className="mx-4 mt-2 mb-0">
             <AlertDescription>{error}</AlertDescription>
@@ -378,7 +378,7 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
 
   // ── Text mode layout ──
   return (
-    <div className="flex flex-col h-screen max-w-2xl mx-auto p-4 overflow-hidden">
+    <div className="flex flex-col h-screen max-w-3xl mx-auto p-4 overflow-hidden">
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>

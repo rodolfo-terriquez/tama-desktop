@@ -125,6 +125,27 @@ function asStringArray(value: unknown): string[] {
     .filter((item) => item.length > 0);
 }
 
+function sanitizeVocabularyExample(value: unknown): string {
+  const example = asString(value);
+  if (!example) return "";
+
+  // Remove parenthetical or quoted glosses when they contain Latin text.
+  const withoutInlineTranslations = example
+    .replace(/\([^)]*[A-Za-z][^)]*\)/g, "")
+    .replace(/（[^）]*[A-Za-z][^）]*）/g, "")
+    .replace(/"[^"]*[A-Za-z][^"]*"/g, "")
+    .replace(/“[^”]*[A-Za-z][^”]*”/g, "")
+    .replace(/'[^']*[A-Za-z][^']*'/g, "")
+    .trim();
+
+  // If any Latin letters remain, drop the example rather than store mixed-language text for TTS.
+  if (/[A-Za-z]/.test(withoutInlineTranslations)) {
+    return "";
+  }
+
+  return withoutInlineTranslations.replace(/\s{2,}/g, " ").trim();
+}
+
 export function parseFeedbackResponse(raw: string): SessionFeedback {
   const parsed = parsePossiblyTruncatedJson(raw);
   const summary =
@@ -158,7 +179,7 @@ export function parseFeedbackResponse(raw: string): SessionFeedback {
             word,
             reading: asString(record.reading),
             meaning,
-            example: asString(record.example),
+            example: sanitizeVocabularyExample(record.example),
             source_session: asString(record.source_session),
           };
         })

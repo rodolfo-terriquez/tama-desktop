@@ -304,7 +304,7 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
 
   // Conversation in progress
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)] max-w-2xl mx-auto p-4 overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-3rem)] max-w-3xl mx-auto p-4 overflow-hidden">
       {/* Error display */}
       {error && (
         <Alert variant="destructive" className="mb-4 shrink-0">

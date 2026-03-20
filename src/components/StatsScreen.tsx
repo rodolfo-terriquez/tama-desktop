@@ -85,7 +85,11 @@ export function StatsScreen() {
 
   return (
     <div className="flex flex-col h-full p-4 overflow-auto">
-      <div className="w-full max-w-2xl mx-auto space-y-4 py-4">
+      <div className="w-full max-w-3xl mx-auto space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-xl font-semibold">{t("common.stats")}</h1>
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2">
           <Card className="py-0 gap-0">
             <CardContent className="py-4">
@@ -141,6 +145,10 @@ export function StatsScreen() {
                   return <div key={`empty-${idx}`} className="h-12" />;
                 }
 
+                const isToday =
+                  year === currentMonthStart.getFullYear() &&
+                  month === currentMonthStart.getMonth() &&
+                  day === currentMonthStart.getDate();
                 const hasSession = (sessionCountsByDay.get(day) ?? 0) > 0;
                 const sessionCount = sessionCountsByDay.get(day) ?? 0;
                 return (
@@ -150,7 +158,7 @@ export function StatsScreen() {
                       hasSession
                         ? "bg-primary/12 border-primary/28"
                         : "bg-muted/35 border-border/40"
-                    }`}
+                    } ${isToday ? "ring-1 ring-primary/45" : ""}`}
                     title={t("stats.sessionsForDay", { count: sessionCount })}
                   >
                     <span className="absolute left-1.5 top-1 text-[10px] text-muted-foreground">

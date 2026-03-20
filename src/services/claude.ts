@@ -754,7 +754,7 @@ Return your analysis as JSON in exactly this format:
     { "issue": "what the student said wrong", "correction": "correct form", "explanation": "brief explanation in ${targetLanguage}" }
   ],
   "vocabulary": [
-    { "word": "Japanese word", "reading": "hiragana reading", "meaning": "${targetLanguage} meaning", "example": "example sentence using the word", "source_session": "${new Date().toISOString().split("T")[0]}" }
+    { "word": "Japanese word", "reading": "hiragana reading", "meaning": "${targetLanguage} meaning", "example": "short natural Japanese-only example sentence using the word", "source_session": "${new Date().toISOString().split("T")[0]}" }
   ],
   "fluency_notes": ["observations about natural phrasing, nuance, etc."],
   "summary": {
@@ -770,6 +770,7 @@ Focus on:
 - Natural phrasing alternatives
 - Overall performance
 - Write grammar explanations, vocabulary meanings, fluency notes, topics_covered, and next_session_hint in natural ${targetLanguage}
+- For every vocabulary item, the "example" must be written only in Japanese. Do not include English, romaji, translations, glosses, quotes, or parentheses in that field.
 - Return a single valid JSON object only. Do not use markdown fences.
 - Escape all double quotes inside JSON strings.
 - Do not leave any string, array, or object unterminated.

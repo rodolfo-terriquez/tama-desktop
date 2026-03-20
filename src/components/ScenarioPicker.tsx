@@ -81,15 +81,18 @@ export function ScenarioPicker({ onSelect, onContextChange }: ScenarioPickerProp
   };
 
   return (
-    <div className="flex flex-col h-full max-w-2xl mx-auto p-4">
-      <div className="flex items-center justify-end gap-2 mb-4">
-        <Button size="sm" variant="outline" onClick={handleOpenForm}>
-          <Plus className="size-4 mr-1" />
-          {t("scenario.customScenario")}
-        </Button>
-        <Button size="sm" onClick={handleSurpriseMe}>
-          {t("scenario.random")}
-        </Button>
+    <div className="flex flex-col h-full max-w-3xl mx-auto p-4">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h1 className="text-xl font-semibold">{t("common.scenarios")}</h1>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={handleOpenForm}>
+            <Plus className="size-4 mr-1" />
+            {t("scenario.customScenario")}
+          </Button>
+          <Button size="sm" onClick={handleSurpriseMe}>
+            {t("scenario.random")}
+          </Button>
+        </div>
       </div>
 
       <ScrollArea className="flex-1">

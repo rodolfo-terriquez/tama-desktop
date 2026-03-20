@@ -75,7 +75,9 @@ export function formatWeekdayMonthDay(date: Date | string, locale: AppLocale = g
 }
 
 export function getWeekdayLabels(locale: AppLocale = getAppLocale()): string[] {
-  const baseMonday = new Date(Date.UTC(2024, 0, 1));
+  // Use a local Monday anchor so weekday labels don't shift backward in
+  // negative UTC offsets (for example, rendering Sunday first in the Americas).
+  const baseMonday = new Date(2024, 0, 1);
   return Array.from({ length: 7 }, (_, index) =>
     new Intl.DateTimeFormat(getIntlLocale(locale), { weekday: "narrow" }).format(
       new Date(baseMonday.getTime() + index * 86_400_000)

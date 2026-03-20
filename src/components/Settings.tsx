@@ -775,6 +775,10 @@ export function Settings() {
           </div>
         )}
 
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-xl font-semibold">{t("common.settings")}</h1>
+        </div>
+
         <Card className={SETTINGS_CARD_CLASSNAME}>
           <CardContent className={SETTINGS_CARD_CONTENT_CLASSNAME}>
             <div className="divide-y divide-border">

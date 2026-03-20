@@ -109,8 +109,9 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
   );
 
   return (
-    <div className="flex flex-col h-full max-w-2xl mx-auto p-4">
-      <div className="flex items-center justify-end mb-4">
+    <div className="flex flex-col h-full max-w-3xl mx-auto p-4">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h1 className="text-xl font-semibold">{t("common.personas")}</h1>
         <Button size="sm" onClick={openCreateDialog}>
           <Plus className="size-4 mr-1" />
           {t("ongoing.newPersona")}

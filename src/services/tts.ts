@@ -30,6 +30,12 @@ export interface SpeakOptions {
   amplitudeSampleRate?: number;
 }
 
+interface PlayAudioOptions {
+  onAmplitude?: (amplitude: number) => void;
+  amplitudeSampleRate?: number;
+  interruptionToken?: number;
+}
+
 export interface VoiceOption {
   id: string;
   name: string;
@@ -165,6 +171,22 @@ let currentSource: AudioBufferSourceNode | null = null;
 let isCurrentlyPlaying = false;
 let cancelledToken = 0;
 
+function cancelActivePlayback(): number {
+  cancelledToken += 1;
+
+  if (currentSource && isCurrentlyPlaying) {
+    try {
+      currentSource.stop();
+    } catch {
+      // Source was already stopped.
+    }
+  }
+
+  currentSource = null;
+  isCurrentlyPlaying = false;
+  return cancelledToken;
+}
+
 function getAudioContext(): AudioContext {
   if (!sharedAudioContext || sharedAudioContext.state === "closed") {
     sharedAudioContext = new AudioContext();
@@ -174,12 +196,24 @@ function getAudioContext(): AudioContext {
 
 export async function playAudio(
   audioData: ArrayBuffer,
-  options?: { onAmplitude?: (amplitude: number) => void; amplitudeSampleRate?: number }
+  options?: PlayAudioOptions
 ): Promise<void> {
+  if (options?.interruptionToken !== undefined && cancelledToken !== options.interruptionToken) {
+    return;
+  }
+
   const ctx = getAudioContext();
   if (ctx.state === "suspended") await ctx.resume();
 
+  if (options?.interruptionToken !== undefined && cancelledToken !== options.interruptionToken) {
+    return;
+  }
+
   const audioBuffer = await ctx.decodeAudioData(audioData.slice(0));
+  if (options?.interruptionToken !== undefined && cancelledToken !== options.interruptionToken) {
+    return;
+  }
+
   const source = ctx.createBufferSource();
   source.buffer = audioBuffer;
 
@@ -217,21 +251,32 @@ export async function playAudio(
         clearInterval(amplitudeInterval);
         options?.onAmplitude?.(0);
       }
-      currentSource = null;
-      isCurrentlyPlaying = false;
+      if (currentSource === source) {
+        currentSource = null;
+        isCurrentlyPlaying = false;
+      }
       resolve();
     };
+
+    if (options?.interruptionToken !== undefined && cancelledToken !== options.interruptionToken) {
+      if (amplitudeInterval) {
+        clearInterval(amplitudeInterval);
+        options?.onAmplitude?.(0);
+      }
+      if (currentSource === source) {
+        currentSource = null;
+        isCurrentlyPlaying = false;
+      }
+      resolve();
+      return;
+    }
+
     source.start();
   });
 }
 
 export function stopCurrentAudio(): void {
-  cancelledToken++;
-  if (currentSource && isCurrentlyPlaying) {
-    try { currentSource.stop(); } catch { /* already stopped */ }
-    currentSource = null;
-    isCurrentlyPlaying = false;
-  }
+  cancelActivePlayback();
 }
 
 export function isPlaying(): boolean {
@@ -332,6 +377,7 @@ export async function speak(text: string, options?: SpeakOptions): Promise<void>
     onAmplitude: options?.onAmplitude,
     amplitudeSampleRate: options?.amplitudeSampleRate,
   };
+  const interruptionToken = cancelActivePlayback();
 
   text = stripSpacesBetweenJapanese(stripEmoji(text));
   if (!text) return;
@@ -339,20 +385,20 @@ export async function speak(text: string, options?: SpeakOptions): Promise<void>
   const sentences = splitIntoSentences(text);
   if (sentences.length <= 1) {
     const audioData = await engine.synthesize(text, voiceId);
-    await playAudio(audioData, playOpts);
+    if (cancelledToken !== interruptionToken) return;
+    await playAudio(audioData, { ...playOpts, interruptionToken });
     return;
   }
 
   // Kick off all synthesis requests in parallel
-  const token = cancelledToken;
   const synthPromises = sentences.map((s) => engine.synthesize(s, voiceId));
 
   // Play each segment in order as it becomes ready
   for (const promise of synthPromises) {
-    if (cancelledToken !== token) return;
+    if (cancelledToken !== interruptionToken) return;
     const audioData = await promise;
-    if (cancelledToken !== token) return;
-    await playAudio(audioData, playOpts);
+    if (cancelledToken !== interruptionToken) return;
+    await playAudio(audioData, { ...playOpts, interruptionToken });
   }
 }
 

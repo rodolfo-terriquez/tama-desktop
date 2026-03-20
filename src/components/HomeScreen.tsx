@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { localizeScenario } from "@/data/scenarios";
@@ -8,6 +9,7 @@ import { useI18n } from "@/i18n";
 import { formatRelativeTime, formatWeekdayMonthDay, getWeekdayLabels } from "@/services/locale-format";
 import type { OngoingChat, Scenario } from "@/types";
 import { addDays, format, getISOWeek, isSameDay, startOfWeek } from "date-fns";
+import { Mic, Sparkles } from "lucide-react";
 import hanamaruStamp from "@/assets/hanamaru.svg";
 
 interface HomeScreenProps {
@@ -86,7 +88,7 @@ function ActivityGrid() {
                   isCompleted
                     ? "bg-primary/12 border-primary/28 text-primary"
                     : "bg-muted/40 border-border/40 text-muted-foreground/30"
-                } ${isSameDay(day, today) ? "ring-1 ring-foreground/30" : ""}`}
+                } ${isSameDay(day, today) ? "ring-1 ring-primary/45" : ""}`}
                 title={`${formatWeekdayMonthDay(day, locale)}: ${isCompleted ? t("home.sessionCompleted") : t("home.noCompletedSession")}`}
               >
                 {isCompleted ? (
@@ -173,10 +175,36 @@ export function HomeScreen({
 
   return (
     <div className="flex flex-col items-center h-full p-4 overflow-auto">
-      <div className="max-w-xl w-full space-y-4 py-4">
+      <div className="max-w-3xl w-full space-y-6 py-5">
         {/* Header */}
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-2">{greeting}</h1>
+        <div className="space-y-7">
+          <div className="text-left">
+            <h1 className="text-3xl font-bold">{greeting}</h1>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button
+              className="sm:w-auto"
+              onClick={onBrowseScenarios}
+            >
+              <Mic className="size-4" />
+              {t("home.startNextScenario")}
+            </Button>
+            <Button
+              variant="outline"
+              className="sm:w-auto"
+              onClick={() => {
+                if (lastPersonaChat) {
+                  onContinueChat(lastPersonaChat.id);
+                } else {
+                  onOngoingChats();
+                }
+              }}
+              disabled={!lastPersonaChat}
+            >
+              <Sparkles className="size-4" />
+              {t("home.resumeConversation")}
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-3">

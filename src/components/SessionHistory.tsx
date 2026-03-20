@@ -133,7 +133,7 @@ export function SessionHistory() {
   };
 
   return (
-    <div className="flex flex-col h-full max-w-2xl mx-auto p-4">
+    <div className="flex flex-col h-full max-w-3xl mx-auto p-4">
       {message && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
           <Toast tone={message.type === "success" ? "success" : "destructive"}>
@@ -142,11 +142,13 @@ export function SessionHistory() {
         </div>
       )}
 
-      {/* Header */}
       <div className="flex items-center justify-between gap-2 mb-4">
-        <span className="text-sm text-muted-foreground">
-          {sessions.length} {t("common.sessions")} · {vocabCount} {t("common.words")}
-        </span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h1 className="text-xl font-semibold">{t("common.history")}</h1>
+          <span className="text-sm text-muted-foreground">
+            {sessions.length} {t("common.sessions")} · {vocabCount} {t("common.words")}
+          </span>
+        </div>
       </div>
 
       {sessions.length === 0 ? (

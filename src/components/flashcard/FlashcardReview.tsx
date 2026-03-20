@@ -141,7 +141,7 @@ export function FlashcardReview({ onContextChange }: { onContextChange?: (contex
   }
 
   return (
-    <div className="flex flex-col h-full max-w-2xl mx-auto">
+    <div className="flex h-full max-w-3xl mx-auto flex-col px-4 py-4">
       {message && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
           <Toast tone={message.type === "success" ? "success" : "destructive"}>
@@ -150,80 +150,77 @@ export function FlashcardReview({ onContextChange }: { onContextChange?: (contex
         </div>
       )}
 
-      {/* Stats strip */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b text-xs text-muted-foreground flex-wrap">
-        <span>
-          <strong className="text-foreground">{stats.total}</strong> {t("flashcards.cards")}
-        </span>
-        <Separator orientation="vertical" className="h-3.5" />
-        {stats.due > 0 ? (
-          <span className="text-review-due font-medium">{stats.due} {t("common.due")}</span>
+      <div className="flex flex-1 min-h-0 flex-col gap-4">
+        <Card className="gap-0 py-0">
+          <CardContent className="space-y-4 px-5 py-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <h1 className="text-xl font-semibold">{t("common.flashcards")}</h1>
+                  <Badge variant={stats.due > 0 ? "accent" : "success"}>
+                    {stats.due > 0 ? `${stats.due} ${t("common.due")}` : t("flashcards.allCaughtUp")}
+                  </Badge>
+                  <p className="text-sm text-muted-foreground">
+                    {t("flashcards.deckSummary", {
+                      newCount: stats.new,
+                      learningCount: stats.learning,
+                      matureCount: stats.mature,
+                    })}
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="sm:self-start"
+                onClick={() => void handleExportAnki()}
+              >
+                {t("common.exportAnki")}
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+              <button
+                type="button"
+                onClick={() => setTab("review")}
+                className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                  tab === "review" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>{t("common.review")}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTab("all-cards")}
+                className={`flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                  tab === "all-cards" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t("common.allCards")}
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {tab === "review" ? (
+          <ReviewTab
+            onReviewComplete={refreshVocab}
+            onContextChange={onContextChange}
+            dueCount={stats.due}
+            totalCards={stats.total}
+          />
         ) : (
-          <span className="text-success">{t("flashcards.allCaughtUp")}</span>
+          <AllCardsTab
+            vocab={allVocab}
+            onVocabChange={refreshVocab}
+            onContextChange={onContextChange}
+            dueCount={stats.due}
+            totalCards={stats.total}
+          />
         )}
-        <Separator orientation="vertical" className="h-3.5" />
-        <span>{stats.new} {t("common.new")}</span>
-        <span>·</span>
-        <span>{stats.learning} {t("common.learning")}</span>
-        <span>·</span>
-        <span>{stats.mature} {t("common.mature")}</span>
-        <Separator orientation="vertical" className="h-3.5 ml-auto" />
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-6 text-[11px] px-2.5"
-          onClick={() => void handleExportAnki()}
-        >
-          {t("common.exportAnki")}
-        </Button>
       </div>
-
-      {/* Tabs */}
-      <div className="flex border-b">
-        <button
-          onClick={() => setTab("review")}
-          className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-            tab === "review"
-              ? "text-foreground border-b-2 border-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {t("common.review")}
-          {stats.due > 0 && (
-            <Badge variant="secondary" className="ml-1.5 h-4 border border-review-due/20 bg-review-due-soft px-1.5 text-[10px] text-review-due-soft-foreground">
-              {stats.due}
-            </Badge>
-          )}
-        </button>
-        <button
-          onClick={() => setTab("all-cards")}
-          className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-            tab === "all-cards"
-              ? "text-foreground border-b-2 border-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {t("common.allCards")}
-        </button>
-      </div>
-
-      {/* Tab content */}
-      {tab === "review" ? (
-        <ReviewTab
-          onReviewComplete={refreshVocab}
-          onContextChange={onContextChange}
-          dueCount={stats.due}
-          totalCards={stats.total}
-        />
-      ) : (
-        <AllCardsTab
-          vocab={allVocab}
-          onVocabChange={refreshVocab}
-          onContextChange={onContextChange}
-          dueCount={stats.due}
-          totalCards={stats.total}
-        />
-      )}
     </div>
   );
 }
@@ -279,16 +276,6 @@ function ReviewTab({
     },
     [currentCard, currentIndex, cards.length, onReviewComplete]
   );
-
-  const handleRestart = useCallback(async () => {
-    const due = await getDueVocabulary();
-    setCards(due);
-    setCurrentIndex(0);
-    setResults([]);
-    setIsAnswerVisible(false);
-    setHasRevealedCurrentCard(false);
-    setState(due.length === 0 ? "complete" : "reviewing");
-  }, []);
 
   useEffect(() => {
     setIsAnswerVisible(false);
@@ -352,13 +339,10 @@ function ReviewTab({
   }, [handleRate, isAnswerVisible]);
 
   if (state === "complete") {
-    const againCount = results.filter((r) => r.rating === "again").length;
-    const goodCount = results.filter((r) => r.rating === "good" || r.rating === "easy").length;
-
     return (
       <div className="flex flex-col items-center justify-center flex-1 p-4">
         <Card className="w-full max-w-sm !py-0 !gap-0">
-          <CardContent className="py-8 space-y-5 text-center">
+          <CardContent className="py-8 space-y-4 text-center">
             {results.length === 0 ? (
               <>
                 <div className="flex justify-center text-success">
@@ -381,23 +365,8 @@ function ReviewTab({
                     cardLabel: results.length === 1 ? t("flashcards.cardSingular") : t("flashcards.cards"),
                   })}
                 </p>
-                <div className="flex justify-center gap-3 text-sm">
-                  {goodCount > 0 && (
-                    <Badge variant="success">
-                      {goodCount} {t("flashcards.correct")}
-                    </Badge>
-                  )}
-                  {againCount > 0 && (
-                    <Badge variant="destructive-soft">
-                      {againCount} {t("flashcards.toRedo")}
-                    </Badge>
-                  )}
-                </div>
               </>
             )}
-            <Button onClick={handleRestart} variant="outline" className="w-full">
-              {t("flashcards.checkAgain")}
-            </Button>
           </CardContent>
         </Card>
       </div>

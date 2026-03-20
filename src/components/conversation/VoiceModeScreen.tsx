@@ -480,14 +480,20 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     const hasTranscript = showCaptions && messages.length > 0;
 
     return (
-      <div className="flex h-[calc(100vh-3rem)] flex-col max-w-2xl mx-auto overflow-hidden">
+      <div className="flex h-[calc(100vh-3rem)] flex-col max-w-3xl mx-auto overflow-hidden">
         {error && (
           <Alert variant="destructive" className="mx-4 mt-2 mb-0">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        <div className={`flex flex-col items-center justify-center ${hasTranscript ? "py-6 flex-shrink-0" : "flex-1 min-h-0"}`}>
+        <div
+          className={`flex flex-col items-center justify-center ${
+            hasTranscript
+              ? "flex-shrink-0 pt-10 pb-6 sm:pt-12"
+              : "flex-1 min-h-0"
+          }`}
+        >
           <VoiceVisualizer
             amplitude={amplitude}
             isSpeaking={conversationState === "speaking"}
@@ -524,7 +530,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
 
   // ── Text mode ──
   return (
-    <div className="flex h-[calc(100vh-3rem)] flex-col max-w-2xl mx-auto p-4 overflow-hidden">
+    <div className="flex h-[calc(100vh-3rem)] flex-col max-w-3xl mx-auto p-4 overflow-hidden">
       {error && (
         <Alert variant="destructive" className="mb-4 shrink-0">
           <AlertDescription>{error}</AlertDescription>
