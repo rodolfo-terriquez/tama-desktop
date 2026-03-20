@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Toast } from "@/components/ui/toast";
 import { Flashcard } from "@/components/flashcard/Flashcard";
 import { useI18n } from "@/i18n";
 import { buildFlashcardSenseiViewContext } from "@/services/sensei-context";
@@ -18,7 +17,6 @@ import {
 } from "@/services/storage";
 import { reviewVocabItem } from "@/services/srs";
 import type { SenseiFlashcardResult, SenseiViewContext, VocabItem, SRSRating } from "@/types";
-import { format } from "date-fns";
 import { BookOpenText, ChevronDown, CircleCheckBig, PartyPopper } from "lucide-react";
 
 // ── Shared constants ─────────────────────────────────────
@@ -56,24 +54,6 @@ function formatReviewDate(dateStr: string, t: ReturnType<typeof useI18n>["t"]): 
   return t("flashcards.inDays", { count: diff });
 }
 
-async function exportAnki(vocab: VocabItem[]) {
-  if (vocab.length === 0) return false;
-
-  const header = "#separator:tab\n#html:false\n#columns:Front\tBack\tReading\tExample\n";
-  const rows = vocab
-    .map((v) => `${v.word}\t${v.meaning}\t${v.reading}\t${v.example}`)
-    .join("\n");
-
-  const blob = new Blob([header + rows], { type: "text/tab-separated-values" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `tama-vocabulary-${format(new Date(), "yyyy-MM-dd")}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
-  return true;
-}
-
 // ── Main component ───────────────────────────────────────
 
 export function FlashcardReview({ onContextChange }: { onContextChange?: (context: SenseiViewContext) => void }) {
@@ -81,10 +61,6 @@ export function FlashcardReview({ onContextChange }: { onContextChange?: (contex
   const [tab, setTab] = useState<FlashcardTab>("review");
   const [vocabVersion, setVocabVersion] = useState(0);
   const [allVocab, setAllVocab] = useState<VocabItem[]>([]);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
 
   useEffect(() => {
     getVocabulary().then(setAllVocab);
@@ -108,21 +84,6 @@ export function FlashcardReview({ onContextChange }: { onContextChange?: (contex
   }, [allVocab, dueCount]);
 
   const refreshVocab = useCallback(() => setVocabVersion((v) => v + 1), []);
-  const showMessage = useCallback((type: "success" | "error", text: string, duration = 3000) => {
-    setMessage({ type, text });
-    setTimeout(() => setMessage(null), duration);
-  }, []);
-  const handleExportAnki = useCallback(async () => {
-    try {
-      const exported = await exportAnki(allVocab);
-      if (exported) {
-        showMessage("success", t("flashcards.ankiDownloaded"));
-      }
-    } catch (error) {
-      console.error("Failed to export Anki file:", error);
-      showMessage("error", t("flashcards.ankiDownloadFailed"), 5000);
-    }
-  }, [allVocab, showMessage, t]);
 
   if (stats.total === 0) {
     return (
@@ -142,64 +103,45 @@ export function FlashcardReview({ onContextChange }: { onContextChange?: (contex
 
   return (
     <div className="flex h-full max-w-3xl mx-auto flex-col px-4 py-4">
-      {message && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <Toast tone={message.type === "success" ? "success" : "destructive"}>
-            {message.text}
-          </Toast>
-        </div>
-      )}
-
       <div className="flex flex-1 min-h-0 flex-col gap-4">
-        <Card className="gap-0 py-0">
-          <CardContent className="space-y-4 px-5 py-5">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                  <h1 className="text-xl font-semibold">{t("common.flashcards")}</h1>
-                  <Badge variant={stats.due > 0 ? "accent" : "success"}>
-                    {stats.due > 0 ? `${stats.due} ${t("common.due")}` : t("flashcards.allCaughtUp")}
-                  </Badge>
-                  <p className="text-sm text-muted-foreground">
-                    {t("flashcards.deckSummary", {
-                      newCount: stats.new,
-                      learningCount: stats.learning,
-                      matureCount: stats.mature,
-                    })}
-                  </p>
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="sm:self-start"
-                onClick={() => void handleExportAnki()}
-              >
-                {t("common.exportAnki")}
-              </Button>
+        <Card className="w-full gap-0 py-0">
+          <CardContent className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="text-lg font-semibold">{t("common.flashcards")}</h1>
+              <Badge variant={stats.due > 0 ? "accent" : "success"}>
+                {stats.due > 0 ? `${stats.due} ${t("common.due")}` : t("flashcards.allCaughtUp")}
+              </Badge>
+              <p className="text-xs text-muted-foreground">
+                {t("flashcards.deckSummary", {
+                  newCount: stats.new,
+                  learningCount: stats.learning,
+                  matureCount: stats.mature,
+                })}
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
-              <button
+            <div className="ml-auto inline-flex overflow-hidden rounded-md border bg-background shadow-xs">
+              <Button
                 type="button"
+                size="sm"
+                variant={tab === "review" ? "default" : "ghost"}
+                className="rounded-none border-0 shadow-none"
+                aria-pressed={tab === "review"}
                 onClick={() => setTab("review")}
-                className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all ${
-                  tab === "review" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
               >
-                <span>{t("common.review")}</span>
-              </button>
+                {t("common.review")}
+              </Button>
 
-              <button
+              <Button
                 type="button"
+                size="sm"
+                variant={tab === "all-cards" ? "default" : "ghost"}
+                className="rounded-none border-0 border-l shadow-none"
+                aria-pressed={tab === "all-cards"}
                 onClick={() => setTab("all-cards")}
-                className={`flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-all ${
-                  tab === "all-cards" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
               >
                 {t("common.allCards")}
-              </button>
+              </Button>
             </div>
           </CardContent>
         </Card>
