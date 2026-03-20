@@ -12,6 +12,8 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@fontsource/noto-sans": "^5.2.10",
+    "@fontsource/noto-sans-jp": "^5.2.9",
     "@ricky0123/vad-web": "^0.0.30",
     "@tailwindcss/vite": "^4.2.0",
     "@tauri-apps/api": "^2.10.1",

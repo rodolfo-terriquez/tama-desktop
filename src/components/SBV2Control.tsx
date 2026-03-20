@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -95,14 +96,10 @@ export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProp
     return (
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <span
-            className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
-              status?.running ? "bg-success-soft text-success-soft-foreground" : "bg-red-100 text-red-800"
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${status?.running ? "bg-success" : "bg-red-500"}`} />
+          <Badge variant={status?.running ? "success" : "destructive-soft"} className="gap-1.5 rounded px-2 py-1 text-xs">
+            <span className={`w-2 h-2 rounded-full ${status?.running ? "bg-success" : "bg-destructive"}`} />
             {status?.running ? t("sbv2.running") : t("sbv2.stopped")}
-          </span>
+          </Badge>
           {status?.running ? (
             <Button variant="outline" size="sm" onClick={stopSbv2} disabled={loading} className="h-7 text-xs">
               {actionInProgress === "stopping" ? "..." : t("sbv2.stop")}
@@ -112,12 +109,12 @@ export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProp
               {actionInProgress === "starting" ? "..." : t("sbv2.start")}
             </Button>
           ) : (
-            <a href="https://github.com/litagin02/Style-Bert-VITS2" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+            <a href="https://github.com/litagin02/Style-Bert-VITS2" target="_blank" rel="noopener noreferrer" className="text-primary text-xs hover:underline">
               {t("sbv2.install")}
             </a>
           )}
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-destructive text-xs">{error}</p>}
       </div>
     );
   }
@@ -131,7 +128,7 @@ export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProp
             {status?.running ? (
               <span className="text-success">{t("sbv2.runningOnPort", { port: status.port })}</span>
             ) : (
-              <span className="text-red-600">{t("sbv2.notRunning")}</span>
+              <span className="text-destructive">{t("sbv2.notRunning")}</span>
             )}
           </p>
           {status?.python && (
@@ -153,7 +150,7 @@ export function SBV2Control({ onStatusChange, compact = false }: SBV2ControlProp
               {t("sbv2.notInstalled")}{" "}
               <code className="bg-muted px-1.5 py-0.5 rounded text-xs">pip install style-bert-vits2</code>
               <br />
-              <a href="https://github.com/litagin02/Style-Bert-VITS2" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium text-xs mt-1 inline-block">
+              <a href="https://github.com/litagin02/Style-Bert-VITS2" target="_blank" rel="noopener noreferrer" className="text-primary mt-1 inline-block text-xs font-medium hover:underline">
                 {t("sbv2.installGuide")}
               </a>
             </AlertDescription>

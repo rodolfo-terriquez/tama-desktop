@@ -131,10 +131,10 @@ function useStatusInfo() {
 
   const DOT_CLASSES: Record<DotColor, string> = {
     green: "bg-success",
-    yellow: "bg-yellow-400",
-    red: "bg-red-500",
-    gray: "bg-gray-400",
-    pulse: "bg-yellow-400 animate-pulse",
+    yellow: "bg-warning",
+    red: "bg-destructive",
+    gray: "bg-neutral",
+    pulse: "bg-warning animate-pulse",
   };
 
   return { dotClass: DOT_CLASSES[dotColor], dotColor, tooltipLines };

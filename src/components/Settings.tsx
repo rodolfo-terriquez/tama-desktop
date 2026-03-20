@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type ChangeEvent, type ReactNode } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { Toast } from "@/components/ui/toast";
 import { useI18n } from "@/i18n";
 import { ChevronDown, RefreshCw } from "lucide-react";
 import {
@@ -766,15 +769,9 @@ export function Settings() {
         {/* Toast message — fixed position so it doesn't shift layout */}
         {message && (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-            <div
-              className={`px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium ${
-                message.type === "success"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-red-600 text-white"
-              }`}
-            >
+            <Toast tone={message.type === "success" ? "success" : "destructive"}>
               {message.text}
-            </div>
+            </Toast>
           </div>
         )}
 
@@ -1023,7 +1020,7 @@ export function Settings() {
                       id="includeFlashcardVocab"
                       checked={includeFlashcardVocab}
                       onChange={(e) => handleIncludeFlashcardVocabChange(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300"
+                      className="border-input h-4 w-4 rounded"
                     />
                   </div>
                 }
@@ -1344,15 +1341,18 @@ export function Settings() {
                           })}
                         </span>
                       )}
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        whisperStatus.loaded
-                          ? "bg-success-soft text-success-soft-foreground"
-                          : whisperStatus.model_exists
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-gray-100 text-gray-600"
-                      }`}>
+                      <Badge
+                        variant={
+                          whisperStatus.loaded
+                            ? "success"
+                            : whisperStatus.model_exists
+                              ? "warning"
+                              : "neutral"
+                        }
+                        className="text-xs"
+                      >
                         {whisperStatus.loaded ? t("settings.loaded") : whisperStatus.model_exists ? t("settings.downloaded") : t("settings.notDownloaded")}
-                      </span>
+                      </Badge>
                       <div className="ml-auto flex flex-wrap gap-2">
                         {!whisperStatus.model_exists ? (
                           <Button
@@ -1386,12 +1386,7 @@ export function Settings() {
 
                     {whisperDownloading && whisperProgress && (
                       <div className="space-y-1">
-                        <div className="h-2 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full bg-primary rounded-full transition-all duration-300"
-                            style={{ width: `${whisperProgress.percent}%` }}
-                          />
-                        </div>
+                        <Progress value={whisperProgress.percent} />
                         <p className="text-xs text-muted-foreground text-right">
                           {whisperProgress.percent.toFixed(0)}% — {(whisperProgress.downloaded / (1024 * 1024)).toFixed(0)} / {(whisperProgress.total / (1024 * 1024)).toFixed(0)} MB
                         </p>

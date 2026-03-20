@@ -15,11 +15,26 @@ interface StateStyle {
 }
 
 const STYLES: Record<string, StateStyle> = {
-  processing: { color: "rgb(251, 191, 36)", glow: "rgba(251, 191, 36, 0.45)" },
-  userSpeaking: { color: "rgb(74, 222, 128)", glow: "rgba(74, 222, 128, 0.45)" },
-  aiSpeaking: { color: "rgb(129, 140, 248)", glow: "rgba(129, 140, 248, 0.4)" },
-  listening: { color: "rgb(45, 212, 191)", glow: "rgba(45, 212, 191, 0.35)" },
-  idle: { color: "rgb(209, 213, 219)", glow: "rgba(209, 213, 219, 0.2)" },
+  processing: {
+    color: "var(--warning)",
+    glow: "color-mix(in srgb, var(--warning) 45%, transparent)",
+  },
+  userSpeaking: {
+    color: "var(--success)",
+    glow: "color-mix(in srgb, var(--success) 45%, transparent)",
+  },
+  aiSpeaking: {
+    color: "var(--info)",
+    glow: "color-mix(in srgb, var(--info) 40%, transparent)",
+  },
+  listening: {
+    color: "var(--primary)",
+    glow: "color-mix(in srgb, var(--primary) 35%, transparent)",
+  },
+  idle: {
+    color: "var(--neutral)",
+    glow: "color-mix(in srgb, var(--neutral) 20%, transparent)",
+  },
 };
 
 export function VoiceVisualizer({

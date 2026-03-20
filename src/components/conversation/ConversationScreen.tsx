@@ -256,16 +256,12 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
                 {userProfile && (
                   <>
                     <Badge
-                      variant="secondary"
-                      className="border border-primary/20 bg-primary/12 text-[#604480] dark:bg-primary/20 dark:text-[#eadcf7]"
+                      variant="accent"
                     >
                       {t("scenario.levelLabel", { level: userProfile.jlpt_level })}
                     </Badge>
                     {userProfile.include_flashcard_vocab_in_conversations && (
-                      <Badge
-                        variant="secondary"
-                        className="border border-review-due/18 bg-review-due-soft text-review-due-soft-foreground"
-                      >
+                      <Badge variant="review">
                         {t("scenario.vocabReviewOn")}
                       </Badge>
                     )}

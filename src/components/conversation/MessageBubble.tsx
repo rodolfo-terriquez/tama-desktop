@@ -64,7 +64,8 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
           <div
             className="absolute -inset-[2px] rounded-xl opacity-75 blur-[3px] animate-gradient-rotate"
             style={{
-              background: "conic-gradient(from var(--gradient-angle, 0deg), #6366f1, #a855f7, #ec4899, #6366f1)",
+              background:
+                "conic-gradient(from var(--gradient-angle, 0deg), var(--info), var(--primary), var(--review-again), var(--info))",
             }}
           />
         )}
@@ -86,7 +87,7 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
                 <div className="flex gap-1">
                   <button
                     type="button"
-                    className="inline-flex items-center justify-center size-7 opacity-60 hover:opacity-100 hover:bg-black/5 rounded transition-opacity"
+                    className="hover:bg-foreground/5 inline-flex size-7 items-center justify-center rounded opacity-60 transition-opacity hover:opacity-100"
                     onClick={handleReplay}
                     disabled={isPlaying}
                     title={t("message.replayAudio")}

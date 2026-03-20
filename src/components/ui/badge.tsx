@@ -12,8 +12,22 @@ export const badgeVariants = cva(
         default: "bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
         secondary:
           "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+        accent:
+          "border-primary/20 bg-accent text-accent-foreground [a&]:hover:bg-accent/80",
+        success:
+          "border-success/25 bg-success-soft text-success-soft-foreground [a&]:hover:bg-success-soft/90",
+        warning:
+          "border-warning/25 bg-warning-soft text-warning-soft-foreground [a&]:hover:bg-warning-soft/90",
+        info:
+          "border-info/25 bg-info-soft text-info-soft-foreground [a&]:hover:bg-info-soft/90",
+        neutral:
+          "border-neutral/25 bg-neutral-soft text-neutral-soft-foreground [a&]:hover:bg-neutral-soft/90",
+        review:
+          "border-review-due/18 bg-review-due-soft text-review-due-soft-foreground [a&]:hover:bg-review-due-soft/90",
         destructive:
-          "bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-destructive text-destructive-foreground [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+        "destructive-soft":
+          "border-destructive/25 bg-destructive-soft text-destructive-soft-foreground [a&]:hover:bg-destructive-soft/90",
         outline:
           "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",

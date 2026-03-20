@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Toast } from "@/components/ui/toast";
 import { Flashcard } from "@/components/flashcard/Flashcard";
 import { useI18n } from "@/i18n";
 import { buildFlashcardSenseiViewContext } from "@/services/sensei-context";
@@ -142,15 +144,9 @@ export function FlashcardReview({ onContextChange }: { onContextChange?: (contex
     <div className="flex flex-col h-full max-w-2xl mx-auto">
       {message && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <div
-            className={`px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium ${
-              message.type === "success"
-                ? "bg-primary text-primary-foreground"
-                : "bg-red-600 text-white"
-            }`}
-          >
+          <Toast tone={message.type === "success" ? "success" : "destructive"}>
             {message.text}
-          </div>
+          </Toast>
         </div>
       )}
 
@@ -387,12 +383,12 @@ function ReviewTab({
                 </p>
                 <div className="flex justify-center gap-3 text-sm">
                   {goodCount > 0 && (
-                    <Badge variant="secondary" className="bg-success-soft text-success-soft-foreground">
+                    <Badge variant="success">
                       {goodCount} {t("flashcards.correct")}
                     </Badge>
                   )}
                   {againCount > 0 && (
-                    <Badge variant="secondary" className="bg-red-100 text-red-800">
+                    <Badge variant="destructive-soft">
                       {againCount} {t("flashcards.toRedo")}
                     </Badge>
                   )}
@@ -418,12 +414,7 @@ function ReviewTab({
           </span>
           <span>{Math.round(progress * 100)}%</span>
         </div>
-        <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-          <div
-            className="h-full rounded-full bg-primary transition-all duration-300"
-            style={{ width: `${(currentIndex / cards.length) * 100}%` }}
-          />
-        </div>
+        <Progress value={(currentIndex / cards.length) * 100} />
       </div>
 
       {/* Flashcard */}
@@ -668,9 +659,9 @@ function VocabCard({
   const due = isDue(item);
 
   const maturityConfig = {
-    new: { label: t("common.new"), class: "border border-primary/25 bg-primary/14 text-[#62457d] dark:bg-primary/22 dark:text-[#eadcf7]" },
-    learning: { label: t("common.learning"), class: "border border-[#c49a5c]/25 bg-[#c49a5c]/14 text-[#8a5d20] dark:bg-[#c49a5c]/20 dark:text-[#f0d5af]" },
-    mature: { label: t("common.mature"), class: "border border-success/25 bg-success/12 text-[#4f6b5a] dark:bg-success/20 dark:text-[#d3e1d7]" },
+    new: { label: t("common.new"), variant: "accent" as const },
+    learning: { label: t("common.learning"), variant: "warning" as const },
+    mature: { label: t("common.mature"), variant: "success" as const },
   }[maturity];
 
   return (
@@ -693,7 +684,7 @@ function VocabCard({
           {due && (
             <span className="h-2 w-2 rounded-full bg-review-due" title={t("flashcards.dueNow")} />
           )}
-          <Badge variant="secondary" className={`text-[10px] ${maturityConfig.class}`}>
+          <Badge variant={maturityConfig.variant} className="text-[10px]">
             {maturityConfig.label}
           </Badge>
           <svg

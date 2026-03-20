@@ -243,7 +243,7 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
             </p>
           </div>
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-destructive text-sm">{error}</p>}
         </div>
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">

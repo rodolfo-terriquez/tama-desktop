@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Toast } from "@/components/ui/toast";
 import { useI18n } from "@/i18n";
 import { addVocabItem, getSessions, getVocabulary } from "@/services/storage";
 import { formatDateTime, formatRelativeTime, formatTime } from "@/services/locale-format";
@@ -11,9 +12,9 @@ import type { Session, SessionFeedback } from "@/types";
 import { Copy } from "lucide-react";
 
 const RATING_CONFIG = {
-  needs_work: { key: "history.needsWork", class: "border border-destructive/25 bg-destructive/12 text-[#9b3754] dark:bg-destructive/18 dark:text-[#f4d2db]" },
-  good: { key: "history.good", class: "border border-success/25 bg-success/12 text-[#4f6b5a] dark:bg-success/20 dark:text-[#d3e1d7]" },
-  excellent: { key: "history.excellent", class: "border border-primary/28 bg-primary/14 text-[#62457d] dark:bg-primary/22 dark:text-[#eadcf7]" },
+  needs_work: { key: "history.needsWork", variant: "destructive-soft" as const },
+  good: { key: "history.good", variant: "success" as const },
+  excellent: { key: "history.excellent", variant: "accent" as const },
 } as const;
 
 type DetailTab = "conversation" | "feedback";
@@ -135,15 +136,9 @@ export function SessionHistory() {
     <div className="flex flex-col h-full max-w-2xl mx-auto p-4">
       {message && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <div
-            className={`px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium ${
-              message.type === "success"
-                ? "bg-primary text-primary-foreground"
-                : "bg-red-600 text-white"
-            }`}
-          >
+          <Toast tone={message.type === "success" ? "success" : "destructive"}>
             {message.text}
-          </div>
+          </Toast>
         </div>
       )}
 
@@ -238,7 +233,7 @@ function SessionCard({
 
             <div className="flex items-center gap-2 shrink-0">
               {ratingConfig && (
-                <Badge variant="secondary" className={`text-[10px] ${ratingConfig.class}`}>
+                <Badge variant={ratingConfig.variant} className="text-[10px]">
                   {t(ratingConfig.key)}
                 </Badge>
               )}
@@ -512,7 +507,7 @@ function FeedbackView({
             {feedback.grammar_points.map((point, i) => (
               <div key={i} className="rounded-lg bg-muted/50 p-3 space-y-1.5">
                 <div className="flex items-start gap-2">
-                  <span className="text-red-500 text-sm mt-0.5 shrink-0">✗</span>
+                  <span className="text-destructive text-sm mt-0.5 shrink-0">✗</span>
                   <p className="text-sm">{point.issue}</p>
                 </div>
                 <div className="flex items-start gap-2">

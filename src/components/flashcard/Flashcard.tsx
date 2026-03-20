@@ -79,12 +79,12 @@ export function Flashcard({ item, flipped, onFlipChange }: FlashcardProps) {
         }`}
       >
         {/* Front — Japanese word + reading */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border bg-card p-6 shadow-[0_1px_2px_rgba(77,53,101,0.05),0_10px_28px_rgba(77,53,101,0.04)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.18),0_10px_24px_rgba(0,0,0,0.12)] [backface-visibility:hidden]">
+        <div className="shadow-card-surface absolute inset-0 flex flex-col items-center justify-center rounded-xl border bg-card p-6 [backface-visibility:hidden]">
           <span className="text-4xl font-bold tracking-wide">{item.word}</span>
         </div>
 
         {/* Back — meaning + example */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border bg-card p-6 shadow-[0_1px_2px_rgba(77,53,101,0.05),0_10px_28px_rgba(77,53,101,0.04)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.18),0_10px_24px_rgba(0,0,0,0.12)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
+        <div className="shadow-card-surface absolute inset-0 flex flex-col items-center justify-center rounded-xl border bg-card p-6 [backface-visibility:hidden] [transform:rotateY(180deg)]">
           <span className="text-2xl font-semibold text-center">{item.meaning}</span>
           {item.example && (
             <p className="mt-4 text-sm text-muted-foreground text-center italic leading-relaxed">

@@ -5,6 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+    --font-sans: "Noto Sans", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif;
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
     --radius-lg: var(--radius);
@@ -27,10 +28,25 @@
     --color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
     --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-destructive-soft: var(--destructive-soft);
+    --color-destructive-soft-foreground: var(--destructive-soft-foreground);
     --color-success: var(--success);
     --color-success-foreground: var(--success-foreground);
     --color-success-soft: var(--success-soft);
     --color-success-soft-foreground: var(--success-soft-foreground);
+    --color-warning: var(--warning);
+    --color-warning-foreground: var(--warning-foreground);
+    --color-warning-soft: var(--warning-soft);
+    --color-warning-soft-foreground: var(--warning-soft-foreground);
+    --color-info: var(--info);
+    --color-info-foreground: var(--info-foreground);
+    --color-info-soft: var(--info-soft);
+    --color-info-soft-foreground: var(--info-soft-foreground);
+    --color-neutral: var(--neutral);
+    --color-neutral-foreground: var(--neutral-foreground);
+    --color-neutral-soft: var(--neutral-soft);
+    --color-neutral-soft-foreground: var(--neutral-soft-foreground);
     --color-review-again: var(--review-again);
     --color-review-again-foreground: var(--review-again-foreground);
     --color-review-hard: var(--review-hard);
@@ -76,10 +92,25 @@
     --accent: color-mix(in srgb, #9974B8 14%, white);
     --accent-foreground: #4d3565;
     --destructive: #b85c76;
+    --destructive-foreground: #ffffff;
+    --destructive-soft: color-mix(in srgb, #b85c76 14%, white);
+    --destructive-soft-foreground: #8d4258;
     --success: #5f806d;
     --success-foreground: #ffffff;
     --success-soft: #dce8e0;
     --success-soft-foreground: #4f6b5a;
+    --warning: #c27a4f;
+    --warning-foreground: #ffffff;
+    --warning-soft: color-mix(in srgb, #c27a4f 16%, white);
+    --warning-soft-foreground: #8a5d20;
+    --info: #4f7ad9;
+    --info-foreground: #ffffff;
+    --info-soft: color-mix(in srgb, #4f7ad9 16%, white);
+    --info-soft-foreground: #46679f;
+    --neutral: #8b8395;
+    --neutral-foreground: #ffffff;
+    --neutral-soft: color-mix(in srgb, #9974B8 12%, #f5f2f8);
+    --neutral-soft-foreground: #6d6578;
     --review-again: color-mix(in srgb, #b85c76 68%, #9974B8);
     --review-again-foreground: #ffffff;
     --review-hard: color-mix(in srgb, #c27a4f 62%, #9974B8);
@@ -106,6 +137,7 @@
     --sidebar-accent-foreground: #4d3565;
     --sidebar-border: color-mix(in srgb, #9974B8 18%, #ddd7e6);
     --sidebar-ring: #9974B8;
+    --shadow-card: 0 1px 2px rgba(77, 53, 101, 0.05), 0 10px 28px rgba(77, 53, 101, 0.04);
 }
 
 .dark {
@@ -124,10 +156,25 @@
     --accent: color-mix(in srgb, #9974B8 18%, black);
     --accent-foreground: #f4ecfb;
     --destructive: #c97089;
+    --destructive-foreground: #ffffff;
+    --destructive-soft: color-mix(in srgb, #c97089 22%, #1b1721);
+    --destructive-soft-foreground: #f2c0cf;
     --success: #8fb09c;
     --success-foreground: #ffffff;
     --success-soft: color-mix(in srgb, #8fb09c 22%, #1b1721);
     --success-soft-foreground: #bed4c5;
+    --warning: #c18a62;
+    --warning-foreground: #ffffff;
+    --warning-soft: color-mix(in srgb, #c18a62 22%, #1b1721);
+    --warning-soft-foreground: #e7c9ad;
+    --info: #6f92df;
+    --info-foreground: #ffffff;
+    --info-soft: color-mix(in srgb, #6f92df 22%, #1b1721);
+    --info-soft-foreground: #d4dff9;
+    --neutral: #a59dae;
+    --neutral-foreground: #ffffff;
+    --neutral-soft: color-mix(in srgb, #a59dae 18%, #1b1721);
+    --neutral-soft-foreground: #ded9e5;
     --review-again: color-mix(in srgb, #c97089 52%, #9974B8);
     --review-again-foreground: #ffffff;
     --review-hard: color-mix(in srgb, #c18a62 48%, #9974B8);
@@ -154,6 +201,7 @@
     --sidebar-accent-foreground: #ffffff;
     --sidebar-border: color-mix(in srgb, #9974B8 18%, rgba(255, 255, 255, 0.08));
     --sidebar-ring: #9974B8;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.18), 0 10px 24px rgba(0, 0, 0, 0.12);
 }
 
 @layer base {
@@ -169,6 +217,7 @@
     }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
     overscroll-behavior: none;
     }
   body::before {
@@ -205,4 +254,10 @@
 
 .animate-gradient-rotate {
   animation: gradient-rotate 2.5s linear infinite;
+}
+
+@layer utilities {
+  .shadow-card-surface {
+    box-shadow: var(--shadow-card);
+  }
 }

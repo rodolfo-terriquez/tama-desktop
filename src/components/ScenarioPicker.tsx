@@ -187,8 +187,8 @@ export function ScenarioPicker({ onSelect, onContextChange }: ScenarioPickerProp
                   </div>
                   {i === 0 && (
                     <Badge
-                      variant="secondary"
-                      className="shrink-0 border border-primary/22 bg-primary/18 text-xs text-[#6f5290] dark:bg-primary/24 dark:text-[#eadcf7]"
+                      variant="accent"
+                      className="shrink-0 text-xs"
                     >
                       {t("common.recommended")}
                     </Badge>

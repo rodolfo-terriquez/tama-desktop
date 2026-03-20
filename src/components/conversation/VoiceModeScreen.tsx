@@ -434,30 +434,19 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
                 {userProfile && (
                   <>
                     <Badge
-                      variant="secondary"
-                      className="border border-primary/20 bg-primary/12 text-[#604480] dark:bg-primary/20 dark:text-[#eadcf7]"
+                      variant="accent"
                     >
                       {t("scenario.levelLabel", { level: userProfile.jlpt_level })}
                     </Badge>
                     {userProfile.include_flashcard_vocab_in_conversations && (
-                      <Badge
-                        variant="secondary"
-                        className="border border-review-due/18 bg-review-due-soft text-review-due-soft-foreground"
-                      >
+                      <Badge variant="review">
                         {t("scenario.vocabReviewOn")}
                       </Badge>
                     )}
                   </>
                 )}
                 {ttsStatus.checked && (
-                  <Badge
-                    variant="secondary"
-                    className={
-                      ttsStatus.available
-                        ? "border border-success/18 bg-success-soft text-success-soft-foreground"
-                        : "border border-destructive/20 bg-destructive/12 text-destructive dark:bg-destructive/20 dark:text-[#f2c0cf]"
-                    }
-                  >
+                  <Badge variant={ttsStatus.available ? "success" : "destructive-soft"}>
                     {ttsStatus.available
                       ? t("scenario.ttsVoice", { voice: getEnglishVoiceDisplayName(ttsStatus.speakerName) })
                       : t("scenario.ttsOffline", { engine: getStoredEngineType() === "voicevox" ? "VOICEVOX" : "SBV2" })}

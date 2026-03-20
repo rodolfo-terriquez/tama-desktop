@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { useI18n } from "@/i18n";
 
 interface DownloadState {
@@ -147,22 +149,19 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
     return (
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <span
-            className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
-              status?.running
-                ? "bg-success-soft text-success-soft-foreground"
-                : isDownloading
-                ? "bg-blue-100 text-blue-800"
-                : "bg-red-100 text-red-800"
-            }`}
+          <Badge
+            variant={
+              status?.running ? "success" : isDownloading ? "info" : "destructive-soft"
+            }
+            className="gap-1.5 rounded px-2 py-1 text-xs"
           >
             <span
               className={`w-2 h-2 rounded-full ${
                 status?.running
                   ? "bg-success"
                   : isDownloading
-                  ? "bg-blue-500 animate-pulse"
-                  : "bg-red-500"
+                  ? "bg-info animate-pulse"
+                  : "bg-destructive"
               }`}
             />
             {isDownloading
@@ -170,7 +169,7 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
               : status?.running
               ? t("voicevox.running")
               : t("voicevox.stopped")}
-          </span>
+          </Badge>
           {status?.running ? (
             <Button variant="outline" size="sm" onClick={stopVoicevox} disabled={loading} className="h-7 text-xs">
               {actionInProgress === "stopping" ? "..." : t("voicevox.stop")}
@@ -184,23 +183,21 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
               {t("voicevox.download")}
             </Button>
           ) : (
-            <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+            <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noopener noreferrer" className="text-primary text-xs hover:underline">
               {t("voicevox.install")}
             </a>
           )}
         </div>
         {isDownloading && (
           <div className="space-y-1">
-            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${dlProgress}%` }} />
-            </div>
+            <Progress size="sm" tone="info" value={dlProgress} />
             <p className="text-xs text-muted-foreground">
               {dlStatus === "downloading" && `${dlProgress}% - ${formatBytes(downloadProgress?.downloaded_size || 0)}`}
               {dlStatus === "extracting" && t("voicevox.extracting")}
             </p>
           </div>
         )}
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-destructive text-xs">{error}</p>}
       </div>
     );
   }
@@ -214,9 +211,9 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
             {status?.running ? (
               <span className="text-success">{t("voicevox.runningOnHost")}</span>
             ) : isDownloading ? (
-              <span className="text-blue-600">{t("voicevox.downloadingEngine")}</span>
+              <span className="text-info">{t("voicevox.downloadingEngine")}</span>
             ) : (
-              <span className="text-red-600">{t("voicevox.notRunning")}</span>
+              <span className="text-destructive">{t("voicevox.notRunning")}</span>
             )}
           </p>
           {status?.installed && status.path && (
@@ -228,9 +225,7 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
 
         {isDownloading && (
           <div className="space-y-2">
-            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${dlProgress}%` }} />
-            </div>
+            <Progress tone="info" value={dlProgress} />
             <p className="text-sm text-muted-foreground text-center">
               {dlStatus === "downloading" && <>Downloading: {dlProgress}% ({formatBytes(downloadProgress?.downloaded_size || 0)} / {formatBytes(downloadProgress?.total_size || 0)})</>}
               {dlStatus === "extracting" && t("voicevox.extractingArchive")}
@@ -253,7 +248,7 @@ export function VoicevoxControl({ onStatusChange, compact = false }: VoicevoxCon
               ) : (
                 <>
                   {t("voicevox.notInstalledManual", { platform: status.platform })}{" "}
-                  <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
+                  <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:underline">
                     {t("voicevox.downloadManual")}
                   </a>
                 </>

@@ -267,7 +267,7 @@ export function OngoingFeedbackDialog({
                         {i > 0 && <Separator className="mb-3" />}
                         <div className="space-y-1">
                           <div className="flex items-start gap-2">
-                            <span className="text-red-500 line-through text-sm shrink-0">✗</span>
+                            <span className="text-destructive line-through text-sm shrink-0">✗</span>
                             <p className="text-sm">{point.issue}</p>
                           </div>
                           <div className="flex items-start gap-2">
