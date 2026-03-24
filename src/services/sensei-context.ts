@@ -5,6 +5,8 @@ import type {
   JLPTLevel,
   Message,
   Scenario,
+  ShadowAttempt,
+  ShadowScript,
   SenseiFlashcardResult,
   SenseiScenarioSummary,
   SenseiViewContext,
@@ -55,6 +57,7 @@ export function buildScenarioPreviewSenseiViewContext(args: {
   return {
     kind: "scenario-preview",
     screen: "conversation",
+    runMode: "conversation",
     scenario: {
       id: args.scenario.id,
       title: localized.title,
@@ -71,6 +74,37 @@ export function buildScenarioPreviewSenseiViewContext(args: {
   };
 }
 
+export function buildShadowPreviewSenseiViewContext(args: {
+  scenario: Scenario;
+  locale: AppLocale;
+  level?: JLPTLevel;
+  ttsStatus: "available" | "unavailable" | "checking";
+  shadowScript?: ShadowScript | null;
+}): SenseiViewContext {
+  const localized = localizeScenario(args.scenario, args.locale);
+  return {
+    kind: "shadow-preview",
+    screen: "conversation",
+    runMode: "shadow",
+    scenario: {
+      id: args.scenario.id,
+      title: localized.title,
+      title_ja: localized.title_ja,
+      description: localized.description,
+      setting: localized.setting,
+      characterRole: localized.character_role,
+      objectives: localized.objectives,
+      customPrompt: args.scenario.custom_prompt,
+    },
+    level: args.level,
+    ttsStatus: args.ttsStatus,
+    shadowScriptAvailable: Boolean(args.shadowScript),
+    shadowScriptGeneratedAt: args.shadowScript?.generatedAt,
+    scriptTurnCount: args.shadowScript?.turns.length,
+    focusPhrases: args.shadowScript?.focusPhrases,
+  };
+}
+
 export function buildScenarioConversationSenseiViewContext(args: {
   scenario: Scenario;
   locale: AppLocale;
@@ -83,6 +117,7 @@ export function buildScenarioConversationSenseiViewContext(args: {
   return {
     kind: "scenario-conversation",
     screen: "conversation",
+    runMode: "conversation",
     scenario: {
       id: args.scenario.id,
       title: localized.title,
@@ -95,6 +130,48 @@ export function buildScenarioConversationSenseiViewContext(args: {
     conversationState: args.conversationState,
     started: args.started,
     recentMessages: recentMessages(args.messages),
+  };
+}
+
+export function buildShadowSessionSenseiViewContext(args: {
+  scenario: Scenario;
+  locale: AppLocale;
+  script: ShadowScript;
+  currentTurnNumber: number;
+  totalTurns: number;
+  phase: "playing" | "waiting" | "transcribing" | "result" | "complete";
+  currentAssistantLine?: string;
+  currentUserLine?: string;
+  lastAttempt?: ShadowAttempt | null;
+}): SenseiViewContext {
+  const localized = localizeScenario(args.scenario, args.locale);
+  return {
+    kind: "shadow-session",
+    screen: "conversation",
+    runMode: "shadow",
+    scenario: {
+      id: args.scenario.id,
+      title: localized.title,
+      title_ja: localized.title_ja,
+      description: localized.description,
+      setting: localized.setting,
+      characterRole: localized.character_role,
+    },
+    started: true,
+    currentTurnNumber: args.currentTurnNumber,
+    totalTurns: args.totalTurns,
+    phase: args.phase,
+    currentAssistantLine: args.currentAssistantLine,
+    currentUserLine: args.currentUserLine,
+    lastAttempt: args.lastAttempt
+      ? {
+          transcript: args.lastAttempt.transcript,
+          result: args.lastAttempt.result,
+          similarity: args.lastAttempt.similarity,
+          manualAdvance: args.lastAttempt.manualAdvance,
+        }
+      : undefined,
+    focusPhrases: args.script.focusPhrases,
   };
 }
 
@@ -163,8 +240,12 @@ export function getSenseiContextLabel(context: SenseiViewContext): string {
       return "Scenario picker";
     case "scenario-preview":
       return context.scenario.title || context.scenario.title_ja;
+    case "shadow-preview":
+      return `Shadow: ${context.scenario.title || context.scenario.title_ja}`;
     case "scenario-conversation":
       return context.scenario.title || context.scenario.title_ja;
+    case "shadow-session":
+      return `Shadow: ${context.scenario.title || context.scenario.title_ja}`;
     case "ongoing-chat":
       return context.name;
     case "flashcard-review":

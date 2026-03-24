@@ -341,24 +341,39 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
           </Alert>
         )}
 
-        <div className={`flex flex-col items-center justify-center ${hasTranscript ? "py-6 flex-shrink-0" : "flex-1 min-h-0"}`}>
-          <VoiceVisualizer
-            amplitude={amplitude}
-            isSpeaking={voiceConvState === "speaking"}
-            isListening={voiceConvState === "listening" && isListening}
-            isUserSpeaking={userIsSpeaking}
-            isProcessing={voiceConvState === "transcribing" || voiceConvState === "thinking"}
-            size={120}
-          />
-        </div>
+        <div className="relative flex-1 min-h-0 overflow-hidden">
+          <div
+            className={`pointer-events-none absolute inset-x-0 z-0 flex justify-center transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              hasTranscript ? "top-0" : "top-1/2 -translate-y-1/2"
+            }`}
+          >
+            <div
+              className={`transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                hasTranscript ? "-translate-y-[58%] scale-[1.78]" : "translate-y-0 scale-100"
+              }`}
+            >
+              <VoiceVisualizer
+                amplitude={amplitude}
+                isSpeaking={voiceConvState === "speaking"}
+                isListening={voiceConvState === "listening" && isListening}
+                isUserSpeaking={userIsSpeaking}
+                isProcessing={voiceConvState === "transcribing" || voiceConvState === "thinking"}
+                size={hasTranscript ? 168 : 120}
+                blur={hasTranscript ? 16 : 3}
+              />
+            </div>
+          </div>
 
-        {hasTranscript && (
-          <div className="flex-1 min-h-0 flex flex-col px-4">
+          <div
+            className={`relative z-10 flex h-full min-h-0 flex-col px-4 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              hasTranscript ? "pt-3 opacity-100" : "pt-10 opacity-0 pointer-events-none"
+            }`}
+          >
             <div className="flex-1 min-h-0">
               <TranscriptBubbles messages={messages} visibleCount={4} />
             </div>
           </div>
-        )}
+        </div>
 
         <div className="flex-shrink-0 flex justify-center gap-3 py-3 px-4">
           <Button variant="ghost" size="sm" onClick={() => setShowCaptions(!showCaptions)}>

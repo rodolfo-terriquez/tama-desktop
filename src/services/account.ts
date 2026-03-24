@@ -118,7 +118,10 @@ function isSession(value: unknown): value is Session {
     Array.isArray(value.messages) &&
     value.messages.every(isMessage) &&
     isNumber(value.duration_seconds) &&
-    (value.feedback === null || value.feedback === undefined || isRecord(value.feedback))
+    (value.feedback === null || value.feedback === undefined || isRecord(value.feedback)) &&
+    (value.run_mode === undefined ||
+      value.run_mode === "conversation" ||
+      value.run_mode === "shadow")
   );
 }
 

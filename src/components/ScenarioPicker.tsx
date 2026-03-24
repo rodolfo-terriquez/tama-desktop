@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,14 @@ export function ScenarioPicker({ onSelect, onContextChange }: ScenarioPickerProp
   const [customScenarios, setCustomScenarios] = useState<Scenario[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editingScenario, setEditingScenario] = useState<Scenario | null>(null);
+  const customScenarioIds = useMemo(
+    () => new Set(customScenarios.map((scenario) => scenario.id)),
+    [customScenarios]
+  );
+  const builtInRanked = useMemo(
+    () => ranked.filter(({ scenario }) => !customScenarioIds.has(scenario.id)),
+    [customScenarioIds, ranked]
+  );
 
   useEffect(() => {
     getRecommendedScenarios().then(setRanked);
@@ -47,12 +55,12 @@ export function ScenarioPicker({ onSelect, onContextChange }: ScenarioPickerProp
   useEffect(() => {
     onContextChange?.(
       buildScenarioSelectSenseiViewContext(
-        ranked.map((entry) => entry.scenario),
+        builtInRanked.map((entry) => entry.scenario),
         customScenarios.length,
         locale
       )
     );
-  }, [customScenarios.length, locale, onContextChange, ranked]);
+  }, [builtInRanked, customScenarios.length, locale, onContextChange]);
 
   const handleSurpriseMe = async () => {
     const scenario = await pickBestScenario();
@@ -170,7 +178,7 @@ export function ScenarioPicker({ onSelect, onContextChange }: ScenarioPickerProp
               {t("scenario.builtInScenarios")}
             </h2>
           )}
-          {ranked.map(({ scenario, reasonKey }, i) => {
+          {builtInRanked.map(({ scenario, reasonKey }, i) => {
             const localizedScenario = localizeScenario(scenario, locale);
             return (
             <Card

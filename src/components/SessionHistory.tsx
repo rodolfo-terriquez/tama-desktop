@@ -6,9 +6,21 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Toast } from "@/components/ui/toast";
 import { useI18n } from "@/i18n";
-import { addVocabItem, getSessions, getVocabulary } from "@/services/storage";
+import {
+  addVocabItem,
+  getFlashcardReviewSessions,
+  getOngoingChats,
+  getSessions,
+  getVocabulary,
+} from "@/services/storage";
 import { formatDateTime, formatRelativeTime, formatTime } from "@/services/locale-format";
-import type { Session, SessionFeedback } from "@/types";
+import type {
+  FlashcardReviewSession,
+  Message,
+  OngoingChat,
+  Session,
+  SessionFeedback,
+} from "@/types";
 import { Copy } from "lucide-react";
 
 const RATING_CONFIG = {
@@ -17,7 +29,35 @@ const RATING_CONFIG = {
   excellent: { key: "history.excellent", variant: "accent" as const },
 } as const;
 
+const FLASHCARD_RATING_KEYS = {
+  again: "flashcards.again",
+  hard: "flashcards.hard",
+  good: "flashcards.good",
+  easy: "flashcards.easy",
+} as const;
+
 type DetailTab = "conversation" | "feedback";
+
+type HistoryEntry =
+  | {
+      kind: "session";
+      id: string;
+      sortDate: string;
+      session: Session;
+    }
+  | {
+      kind: "ongoing-chat";
+      id: string;
+      sortDate: string;
+      chat: OngoingChat;
+      messages: Message[];
+    }
+  | {
+      kind: "flashcard-review";
+      id: string;
+      sortDate: string;
+      review: FlashcardReviewSession;
+    };
 
 function getFeedbackVocabKey(word: string, meaning: string): string {
   return `${word}:::${meaning}`;
@@ -57,9 +97,62 @@ function normalizeSessionFeedback(feedback: Session["feedback"]): SessionFeedbac
   };
 }
 
+function buildHistoryEntries(
+  sessions: Session[],
+  chats: OngoingChat[],
+  flashcardReviewSessions: FlashcardReviewSession[]
+): HistoryEntry[] {
+  const sessionEntries: HistoryEntry[] = sessions.map((session) => ({
+    kind: "session",
+    id: session.id,
+    sortDate: session.date,
+    session,
+  }));
+
+  const ongoingEntries: HistoryEntry[] = chats
+    .map((chat) => {
+      const pendingStart = Math.max(0, chat.lastFeedbackAtTotal ?? 0);
+      const pendingMessages = chat.messages.slice(pendingStart);
+
+      if (pendingMessages.length === 0) {
+        return null;
+      }
+
+      return {
+        kind: "ongoing-chat" as const,
+        id: `ongoing-chat-live:${chat.id}`,
+        sortDate: chat.lastActiveAt,
+        chat,
+        messages: pendingMessages,
+      };
+    })
+    .filter((entry): entry is Extract<HistoryEntry, { kind: "ongoing-chat" }> => Boolean(entry));
+
+  const flashcardEntries: HistoryEntry[] = flashcardReviewSessions.map((review) => ({
+    kind: "flashcard-review",
+    id: review.id,
+    sortDate: review.date,
+    review,
+  }));
+
+  return [...sessionEntries, ...ongoingEntries, ...flashcardEntries].sort((a, b) =>
+    b.sortDate.localeCompare(a.sortDate)
+  );
+}
+
+function getConversationMessages(entry: HistoryEntry): Message[] {
+  if (entry.kind === "session") {
+    return entry.session.messages;
+  }
+  if (entry.kind === "ongoing-chat") {
+    return entry.messages;
+  }
+  return [];
+}
+
 export function SessionHistory() {
   const { t } = useI18n();
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [vocabCount, setVocabCount] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTab>("conversation");
@@ -68,9 +161,20 @@ export function SessionHistory() {
     text: string;
   } | null>(null);
 
-  useEffect(() => {
-    getSessions().then((s) => setSessions(s.sort((a, b) => b.date.localeCompare(a.date))));
+  const loadHistory = useCallback(() => {
+    void Promise.all([
+      getSessions(),
+      getOngoingChats(),
+      getFlashcardReviewSessions(),
+    ]).then(([sessions, chats, reviewSessions]) => {
+      setEntries(buildHistoryEntries(sessions, chats, reviewSessions));
+    });
   }, []);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
   useEffect(() => {
     getVocabulary().then((v) => setVocabCount(v.length));
   }, []);
@@ -106,8 +210,8 @@ export function SessionHistory() {
     return copied;
   };
 
-  const handleCopySession = async (session: Session) => {
-    const transcript = session.messages
+  const handleCopyEntry = async (entry: HistoryEntry) => {
+    const transcript = getConversationMessages(entry)
       .map((msg) => `${msg.role === "user" ? "You" : "AI"}: ${msg.content}`)
       .join("\n\n");
 
@@ -146,12 +250,12 @@ export function SessionHistory() {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <h1 className="text-xl font-semibold">{t("common.history")}</h1>
           <span className="text-sm text-muted-foreground">
-            {sessions.length} {t("common.sessions")} · {vocabCount} {t("common.words")}
+            {entries.length} {t("history.activities")} · {vocabCount} {t("common.words")}
           </span>
         </div>
       </div>
 
-      {sessions.length === 0 ? (
+      {entries.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center space-y-2">
             <p className="text-lg font-medium">{t("history.noSessions")}</p>
@@ -163,15 +267,15 @@ export function SessionHistory() {
       ) : (
         <ScrollArea className="flex-1 [&>[data-slot=scroll-area-viewport]]:!overflow-x-hidden">
           <div className="space-y-3 pb-4 min-w-0">
-            {sessions.map((session) => (
-              <SessionCard
-                key={session.id}
-                session={session}
-                isExpanded={expandedId === session.id}
+            {entries.map((entry) => (
+              <HistoryCard
+                key={entry.id}
+                entry={entry}
+                isExpanded={expandedId === entry.id}
                 activeTab={activeTab}
-                onToggle={() => handleToggle(session.id)}
+                onToggle={() => handleToggle(entry.id)}
                 onTabChange={setActiveTab}
-                onCopy={() => void handleCopySession(session)}
+                onCopy={() => void handleCopyEntry(entry)}
                 onShowMessage={showMessage}
                 onVocabularyAdded={refreshVocabCount}
               />
@@ -183,8 +287,8 @@ export function SessionHistory() {
   );
 }
 
-function SessionCard({
-  session,
+function HistoryCard({
+  entry,
   isExpanded,
   activeTab,
   onToggle,
@@ -193,7 +297,7 @@ function SessionCard({
   onShowMessage,
   onVocabularyAdded,
 }: {
-  session: Session;
+  entry: HistoryEntry;
   isExpanded: boolean;
   activeTab: DetailTab;
   onToggle: () => void;
@@ -203,71 +307,100 @@ function SessionCard({
   onVocabularyAdded: () => void;
 }) {
   const { t } = useI18n();
-  const feedback = normalizeSessionFeedback(session.feedback);
+  const feedback = entry.kind === "session" ? normalizeSessionFeedback(entry.session.feedback) : null;
   const rating = feedback?.summary.performance_rating;
   const ratingConfig = rating ? RATING_CONFIG[rating] : null;
-  const userMessages = session.messages.filter((m) => m.role === "user").length;
+  const messages = getConversationMessages(entry);
+  const canCopy = messages.length > 0;
+  const hasFeedbackTab = Boolean(feedback);
+  const isPracticeSession =
+    entry.kind === "session" &&
+    (entry.session.run_mode === "shadow" ||
+      (!entry.session.run_mode &&
+        entry.session.feedback === null &&
+        !entry.session.scenario.id.startsWith("ongoing-chat:")));
+
+  const title =
+    entry.kind === "session"
+      ? entry.session.scenario.title
+      : entry.kind === "ongoing-chat"
+        ? entry.chat.name
+        : t("history.flashcardReviewTitle");
+  const titleJa = entry.kind === "session" ? entry.session.scenario.title_ja : "";
+  const subtitle =
+    entry.kind === "ongoing-chat"
+      ? entry.chat.persona
+      : entry.kind === "session" && entry.session.scenario.id.startsWith("ongoing-chat:")
+        ? entry.session.scenario.description
+        : "";
+  const userMessages = entry.kind === "session"
+    ? entry.session.messages.filter((m) => m.role === "user").length
+    : 0;
+
+  const metaParts = [
+    formatDateTime(new Date(entry.sortDate)),
+    entry.kind === "session"
+      ? formatDuration(entry.session.duration_seconds)
+      : entry.kind === "flashcard-review"
+        ? formatDuration(entry.review.duration_seconds)
+        : null,
+    entry.kind === "session"
+      ? t("feedback.exchanges", { count: userMessages })
+      : entry.kind === "ongoing-chat"
+        ? t("history.messageCount", { count: entry.messages.length })
+        : t("history.cardsReviewed", { count: entry.review.results.length }),
+  ].filter((value): value is string => Boolean(value));
 
   return (
     <Card className="overflow-hidden min-w-0 !py-0 !gap-0">
       <CardContent className="p-0 min-w-0">
-        {/* Summary row */}
-        <div className="px-4 pt-3 pb-2.5">
+        <div className="px-4 pt-3 pb-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-2 flex-wrap">
-                <h3 className="font-medium text-sm">{session.scenario.title}</h3>
-                {session.scenario.title_ja && (
-                  <span className="text-xs text-muted-foreground">
-                    {session.scenario.title_ja}
-                  </span>
+                <h3 className="font-medium text-sm">{title}</h3>
+                {titleJa && (
+                  <span className="text-xs text-muted-foreground">{titleJa}</span>
                 )}
               </div>
 
-              <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
-                <span>{formatDateTime(new Date(session.date))}</span>
-                <span>·</span>
-                <span>{formatDuration(session.duration_seconds)}</span>
-                <span>·</span>
-                <span>{t("feedback.exchanges", { count: userMessages })}</span>
+              {subtitle && (
+                <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
+                  {subtitle}
+                </p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                {metaParts.map((part, index) => (
+                  <span key={`${entry.id}-meta-${index}`} className="contents">
+                    {index > 0 && <span>·</span>}
+                    <span>{part}</span>
+                  </span>
+                ))}
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              {ratingConfig && (
+            <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+              {isPracticeSession ? (
+                <Badge variant="accent" className="text-[10px]">
+                  {t("shadow.modeLabel")}
+                </Badge>
+              ) : ratingConfig ? (
                 <Badge variant={ratingConfig.variant} className="text-[10px]">
                   {t(ratingConfig.key)}
                 </Badge>
-              )}
-              <span className="text-[10px] text-muted-foreground hidden sm:inline">
-                {formatRelativeTime(new Date(session.date))}
+              ) : entry.kind === "ongoing-chat" ? (
+                <Badge variant="outline" className="text-[10px]">
+                  {t("history.noFeedbackYet")}
+                </Badge>
+              ) : entry.kind === "flashcard-review" ? (
+                <Badge variant="accent" className="text-[10px]">
+                  {t("common.review")}
+                </Badge>
+              ) : null}
+              <span className="text-[10px] text-muted-foreground">
+                {formatRelativeTime(new Date(entry.sortDate))}
               </span>
-            </div>
-          </div>
-
-          {/* Topics + action row */}
-          <div className="flex items-center justify-between gap-2 mt-1.5">
-            <div className="flex flex-wrap gap-1 min-w-0 flex-1">
-              {!isExpanded && feedback && feedback.summary.topics_covered.length > 0 &&
-                feedback.summary.topics_covered.map((topic, i) => (
-                  <Badge key={i} variant="outline" className="text-[10px]">
-                    {topic}
-                  </Badge>
-                ))
-              }
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {isExpanded && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onCopy}
-                  className="h-7 text-xs shrink-0"
-                >
-                  <Copy className="size-3.5" />
-                  {t("common.copy")}
-                </Button>
-              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -288,50 +421,58 @@ function SessionCard({
           </div>
         </div>
 
-        {/* Expanded detail area */}
         {isExpanded && (
           <div className="border-t overflow-hidden">
-            {/* Tab switcher */}
-            <div className="flex border-b">
-              <button
-                onClick={() => onTabChange("conversation")}
-                className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                  activeTab === "conversation"
-                    ? "text-foreground border-b-2 border-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {t("common.conversation")}
-              </button>
-              <button
-                onClick={() => onTabChange("feedback")}
-                className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                  activeTab === "feedback"
-                    ? "text-foreground border-b-2 border-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {t("common.feedback")}
-                {feedback && feedback.grammar_points.length > 0 && (
-                  <span className="ml-1.5 text-xs text-muted-foreground">
-                    ({feedback.grammar_points.length})
-                  </span>
+            {hasFeedbackTab ? (
+              <>
+                <div className="flex border-b">
+                  <button
+                    onClick={() => onTabChange("conversation")}
+                    className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                      activeTab === "conversation"
+                        ? "text-foreground border-b-2 border-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t("common.conversation")}
+                  </button>
+                  <button
+                    onClick={() => onTabChange("feedback")}
+                    className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                      activeTab === "feedback"
+                        ? "text-foreground border-b-2 border-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t("common.feedback")}
+                    {feedback && feedback.grammar_points.length > 0 && (
+                      <span className="ml-1.5 text-xs text-muted-foreground">
+                        ({feedback.grammar_points.length})
+                      </span>
+                    )}
+                  </button>
+                </div>
+                <div className="px-5 py-4 max-h-[28rem] overflow-y-auto overflow-x-hidden min-w-0">
+                  {activeTab === "conversation" ? (
+                    <ConversationPanel messages={messages} onCopy={canCopy ? onCopy : undefined} />
+                  ) : (
+                    <FeedbackView
+                      session={entry.kind === "session" ? entry.session : null}
+                      onShowMessage={onShowMessage}
+                      onVocabularyAdded={onVocabularyAdded}
+                    />
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="px-5 py-4 max-h-[28rem] overflow-y-auto overflow-x-hidden min-w-0">
+                {entry.kind === "flashcard-review" ? (
+                  <FlashcardReviewView review={entry.review} />
+                ) : (
+                  <ConversationPanel messages={messages} onCopy={canCopy ? onCopy : undefined} />
                 )}
-              </button>
-            </div>
-
-            {/* Tab content */}
-            <div className="px-5 py-4 max-h-[28rem] overflow-y-auto overflow-x-hidden min-w-0">
-              {activeTab === "conversation" ? (
-                <ConversationView messages={session.messages} />
-              ) : (
-                <FeedbackView
-                  session={session}
-                  onShowMessage={onShowMessage}
-                  onVocabularyAdded={onVocabularyAdded}
-                />
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
@@ -339,7 +480,31 @@ function SessionCard({
   );
 }
 
-function ConversationView({ messages }: { messages: Session["messages"] }) {
+function ConversationPanel({
+  messages,
+  onCopy,
+}: {
+  messages: Message[];
+  onCopy?: () => void;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <div className="space-y-3">
+      {onCopy && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={onCopy} className="h-7 text-xs shrink-0">
+            <Copy className="size-3.5" />
+            {t("common.copy")}
+          </Button>
+        </div>
+      )}
+      <ConversationView messages={messages} />
+    </div>
+  );
+}
+
+function ConversationView({ messages }: { messages: Message[] }) {
   const { t } = useI18n();
   if (messages.length === 0) {
     return (
@@ -379,17 +544,41 @@ function ConversationView({ messages }: { messages: Session["messages"] }) {
   );
 }
 
+function FlashcardReviewView({ review }: { review: FlashcardReviewSession }) {
+  const { t } = useI18n();
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        {t("history.cardsReviewed", { count: review.results.length })}
+      </p>
+      <div className="space-y-2">
+        {review.results.map((result, index) => (
+          <div key={`${review.id}-${index}`} className="rounded-lg bg-muted/40 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium">{result.word}</span>
+              <Badge variant="outline">
+                {t(FLASHCARD_RATING_KEYS[result.rating])}
+              </Badge>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FeedbackView({
   session,
   onShowMessage,
   onVocabularyAdded,
 }: {
-  session: Session;
+  session: Session | null;
   onShowMessage: (type: "success" | "error", text: string, duration?: number) => void;
   onVocabularyAdded: () => void;
 }) {
   const { t } = useI18n();
-  const feedback = normalizeSessionFeedback(session.feedback);
+  const feedback = normalizeSessionFeedback(session?.feedback ?? null);
   const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -460,7 +649,7 @@ function FeedbackView({
       onVocabularyAdded();
       onShowMessage("success", `${vocab.word} ${t("feedback.added").replace(" ✓", "")}`);
     },
-    [addedWords, feedback.vocabulary, onShowMessage, onVocabularyAdded]
+    [addedWords, feedback.vocabulary, onShowMessage, onVocabularyAdded, t]
   );
 
   const handleAddAllToSRS = useCallback(async () => {
@@ -474,7 +663,6 @@ function FeedbackView({
 
   return (
     <div className="space-y-5">
-      {/* Summary */}
       {feedback.summary.topics_covered.length > 0 && (
         <div>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
@@ -499,7 +687,6 @@ function FeedbackView({
         </div>
       )}
 
-      {/* Grammar Points */}
       {hasGrammar && (
         <div>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
@@ -525,7 +712,6 @@ function FeedbackView({
         </div>
       )}
 
-      {/* Vocabulary */}
       {hasVocab && (
         <>
           {hasGrammar && <Separator />}
@@ -593,7 +779,6 @@ function FeedbackView({
         </>
       )}
 
-      {/* Fluency Notes */}
       {hasFluency && (
         <>
           {(hasGrammar || hasVocab) && <Separator />}

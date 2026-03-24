@@ -7,6 +7,7 @@ interface VoiceVisualizerProps {
   isUserSpeaking?: boolean;
   isProcessing: boolean;
   size?: number;
+  blur?: number;
 }
 
 interface StateStyle {
@@ -44,6 +45,7 @@ export function VoiceVisualizer({
   isUserSpeaking = false,
   isProcessing,
   size = 120,
+  blur = 0,
 }: VoiceVisualizerProps) {
   const style = useMemo(() => {
     if (isProcessing) return STYLES.processing;
@@ -65,11 +67,13 @@ export function VoiceVisualizer({
         width: size,
         height: size,
         borderRadius: "50%",
-        backgroundColor: style.color,
+        background: `radial-gradient(circle at center, ${style.color} 0%, ${style.color} 54%, color-mix(in srgb, ${style.color} 72%, transparent) 72%, transparent 100%)`,
         transform: `scale(${scale})`,
         boxShadow: `0 0 ${glowSpread}px ${glowSpread / 2}px ${style.glow}`,
-        transition: "transform 150ms ease-out, background-color 300ms ease, box-shadow 300ms ease",
+        filter: blur > 0 ? `blur(${blur}px)` : "none",
+        transition: "transform 150ms ease-out, background 350ms ease, box-shadow 350ms ease, width 700ms cubic-bezier(0.22, 1, 0.36, 1), height 700ms cubic-bezier(0.22, 1, 0.36, 1), filter 700ms cubic-bezier(0.22, 1, 0.36, 1)",
         animation: isProcessing ? "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite" : "none",
+        willChange: "transform, width, height, filter, box-shadow",
       }}
     />
   );

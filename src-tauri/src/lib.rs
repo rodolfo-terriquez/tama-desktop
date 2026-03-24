@@ -115,6 +115,41 @@ CREATE TABLE IF NOT EXISTS sensei_threads (
         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "Add persistent shadow script storage",
+            sql: r#"
+CREATE TABLE IF NOT EXISTS shadow_scripts (
+  id TEXT PRIMARY KEY,
+  scenario_id TEXT NOT NULL UNIQUE,
+  generated_at TEXT NOT NULL,
+  turns TEXT NOT NULL DEFAULT '[]',
+  focus_phrases TEXT NOT NULL DEFAULT '[]'
+);
+        "#,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 6,
+            description: "Add persistent flashcard review history",
+            sql: r#"
+CREATE TABLE IF NOT EXISTS flashcard_review_sessions (
+  id TEXT PRIMARY KEY,
+  date TEXT NOT NULL,
+  duration_seconds INTEGER NOT NULL DEFAULT 0,
+  results TEXT NOT NULL DEFAULT '[]'
+);
+        "#,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 7,
+            description: "Add session run mode",
+            sql: r#"
+ALTER TABLE sessions ADD COLUMN run_mode TEXT NOT NULL DEFAULT 'conversation';
+        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

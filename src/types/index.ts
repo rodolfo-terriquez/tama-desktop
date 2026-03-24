@@ -31,6 +31,7 @@ export type JLPTLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
 // Response length preference
 export type ResponseLength = "short" | "natural" | "long";
+export type ScenarioRunMode = "conversation" | "shadow";
 
 // User profile for adaptive scenarios
 export interface UserProfile {
@@ -73,6 +74,34 @@ export interface Scenario {
   custom_prompt?: string;
 }
 
+export interface ShadowTurn {
+  speaker: "assistant" | "user";
+  text: string;
+  reading?: string;
+  speakerLabel?: string;
+  cue?: string;
+}
+
+export interface ShadowScript {
+  id: string;
+  scenarioId: string;
+  generatedAt: string;
+  turns: ShadowTurn[];
+  focusPhrases: string[];
+}
+
+export type ShadowAttemptResult = "close" | "partial" | "off" | "skipped";
+
+export interface ShadowAttempt {
+  turnIndex: number;
+  expectedText: string;
+  transcript: string;
+  result: ShadowAttemptResult;
+  similarity: number;
+  manualAdvance: boolean;
+  timestamp: string;
+}
+
 // Session feedback
 export interface GrammarPoint {
   issue: string;
@@ -99,6 +128,14 @@ export interface Session {
   messages: Message[];
   feedback: SessionFeedback | null;
   duration_seconds: number;
+  run_mode?: ScenarioRunMode;
+}
+
+export interface FlashcardReviewSession {
+  id: string;
+  date: string;
+  duration_seconds: number;
+  results: SenseiFlashcardResult[];
 }
 
 // VOICEVOX speaker/style
@@ -189,6 +226,7 @@ export type SenseiViewContext =
   | {
       kind: "scenario-preview";
       screen: "conversation";
+      runMode: "conversation";
       scenario: SenseiScenarioSummary & {
         setting: string;
         characterRole: string;
@@ -200,8 +238,26 @@ export type SenseiViewContext =
       ttsStatus: "available" | "unavailable" | "checking";
     }
   | {
+      kind: "shadow-preview";
+      screen: "conversation";
+      runMode: "shadow";
+      scenario: SenseiScenarioSummary & {
+        setting: string;
+        characterRole: string;
+        objectives: string[];
+        customPrompt?: string;
+      };
+      level?: JLPTLevel;
+      ttsStatus: "available" | "unavailable" | "checking";
+      shadowScriptAvailable: boolean;
+      shadowScriptGeneratedAt?: string;
+      scriptTurnCount?: number;
+      focusPhrases?: string[];
+    }
+  | {
       kind: "scenario-conversation";
       screen: "conversation";
+      runMode: "conversation";
       scenario: SenseiScenarioSummary & {
         setting: string;
         characterRole: string;
@@ -210,6 +266,28 @@ export type SenseiViewContext =
       conversationState: "idle" | "listening" | "transcribing" | "thinking" | "speaking";
       started: boolean;
       recentMessages: Message[];
+    }
+  | {
+      kind: "shadow-session";
+      screen: "conversation";
+      runMode: "shadow";
+      scenario: SenseiScenarioSummary & {
+        setting: string;
+        characterRole: string;
+      };
+      started: boolean;
+      currentTurnNumber: number;
+      totalTurns: number;
+      phase: "playing" | "waiting" | "transcribing" | "result" | "complete";
+      currentAssistantLine?: string;
+      currentUserLine?: string;
+      lastAttempt?: {
+        transcript: string;
+        result: ShadowAttemptResult;
+        similarity: number;
+        manualAdvance: boolean;
+      };
+      focusPhrases?: string[];
     }
   | {
       kind: "ongoing-chat";

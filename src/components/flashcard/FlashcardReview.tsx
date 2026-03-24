@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { Flashcard } from "@/components/flashcard/Flashcard";
 import { useI18n } from "@/i18n";
 import { buildFlashcardSenseiViewContext } from "@/services/sensei-context";
 import {
+  saveFlashcardReviewSession,
   getDueVocabulary,
   getVocabulary,
   updateVocabItem,
@@ -194,6 +195,8 @@ function ReviewTab({
   const [results, setResults] = useState<SenseiFlashcardResult[]>([]);
   const [isAnswerVisible, setIsAnswerVisible] = useState(false);
   const [hasRevealedCurrentCard, setHasRevealedCurrentCard] = useState(false);
+  const reviewStartedAtRef = useRef(Date.now());
+  const sessionSavedRef = useRef(false);
 
   useEffect(() => {
     getDueVocabulary().then((due) => {
@@ -248,6 +251,25 @@ function ReviewTab({
       })
     );
   }, [currentCard, dueCount, isAnswerVisible, onContextChange, results, state, totalCards]);
+
+  useEffect(() => {
+    if (state !== "complete" || results.length === 0 || sessionSavedRef.current) {
+      return;
+    }
+
+    sessionSavedRef.current = true;
+    const durationSeconds = Math.max(1, Math.round((Date.now() - reviewStartedAtRef.current) / 1000));
+
+    void saveFlashcardReviewSession({
+      id: crypto.randomUUID(),
+      date: new Date().toISOString(),
+      duration_seconds: durationSeconds,
+      results,
+    }).catch((error) => {
+      console.error("Failed to save flashcard review session:", error);
+      sessionSavedRef.current = false;
+    });
+  }, [results, state]);
 
   useEffect(() => {
     function isEditableTarget(target: EventTarget | null) {

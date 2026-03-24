@@ -1,8 +1,10 @@
 import Database from "@tauri-apps/plugin-sql";
 import type {
   AccountBundleV1,
+  FlashcardReviewSession,
   OngoingChat,
   Scenario,
+  ShadowScript,
   SenseiThread,
   Session,
   UserProfile,
@@ -231,9 +233,12 @@ interface SessionRow {
   messages: string;
   feedback: string | null;
   duration_seconds: number;
+  run_mode: string | null;
 }
 
 function rowToSession(row: SessionRow): Session {
+  const runMode =
+    row.run_mode === "shadow" || row.run_mode === "conversation" ? row.run_mode : undefined;
   return {
     id: row.id,
     date: row.date,
@@ -241,6 +246,7 @@ function rowToSession(row: SessionRow): Session {
     messages: JSON.parse(row.messages),
     feedback: row.feedback ? JSON.parse(row.feedback) : null,
     duration_seconds: row.duration_seconds,
+    run_mode: runMode,
   };
 }
 
@@ -257,8 +263,8 @@ export async function getSessions(): Promise<Session[]> {
 export async function saveSession(session: Session): Promise<void> {
   const d = await getDb();
   await d.execute(
-    `INSERT OR REPLACE INTO sessions (id, date, scenario, messages, feedback, duration_seconds)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+    `INSERT OR REPLACE INTO sessions (id, date, scenario, messages, feedback, duration_seconds, run_mode)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [
       session.id,
       session.date,
@@ -266,6 +272,7 @@ export async function saveSession(session: Session): Promise<void> {
       JSON.stringify(session.messages),
       session.feedback ? JSON.stringify(session.feedback) : null,
       session.duration_seconds,
+      session.run_mode ?? "conversation",
     ]
   );
 }
@@ -275,6 +282,41 @@ export async function getLastSession(): Promise<Session | null> {
   const rows = await d.select<SessionRow[]>("SELECT * FROM sessions ORDER BY date DESC");
   const sessions = rows.map(rowToSession);
   return sessions.find((session) => !isOngoingChatSession(session)) ?? null;
+}
+
+// ── Flashcard Review Sessions ───────────────────────────────────────
+
+interface FlashcardReviewSessionRow {
+  id: string;
+  date: string;
+  duration_seconds: number;
+  results: string;
+}
+
+function rowToFlashcardReviewSession(row: FlashcardReviewSessionRow): FlashcardReviewSession {
+  return {
+    id: row.id,
+    date: row.date,
+    duration_seconds: row.duration_seconds,
+    results: JSON.parse(row.results || "[]"),
+  };
+}
+
+export async function getFlashcardReviewSessions(): Promise<FlashcardReviewSession[]> {
+  const d = await getDb();
+  const rows = await d.select<FlashcardReviewSessionRow[]>(
+    "SELECT * FROM flashcard_review_sessions ORDER BY date DESC"
+  );
+  return rows.map(rowToFlashcardReviewSession);
+}
+
+export async function saveFlashcardReviewSession(session: FlashcardReviewSession): Promise<void> {
+  const d = await getDb();
+  await d.execute(
+    `INSERT OR REPLACE INTO flashcard_review_sessions (id, date, duration_seconds, results)
+     VALUES ($1, $2, $3, $4)`,
+    [session.id, session.date, session.duration_seconds, JSON.stringify(session.results)]
+  );
 }
 
 // ── Custom Scenarios ────────────────────────────────────────────────
@@ -355,6 +397,56 @@ export async function updateCustomScenario(
 export async function deleteCustomScenario(id: string): Promise<boolean> {
   const d = await getDb();
   const result = await d.execute("DELETE FROM custom_scenarios WHERE id = $1", [id]);
+  return result.rowsAffected > 0;
+}
+
+// ── Shadow Scripts ──────────────────────────────────────────────────
+
+interface ShadowScriptRow {
+  id: string;
+  scenario_id: string;
+  generated_at: string;
+  turns: string;
+  focus_phrases: string;
+}
+
+function rowToShadowScript(row: ShadowScriptRow): ShadowScript {
+  return {
+    id: row.id,
+    scenarioId: row.scenario_id,
+    generatedAt: row.generated_at,
+    turns: JSON.parse(row.turns || "[]"),
+    focusPhrases: JSON.parse(row.focus_phrases || "[]"),
+  };
+}
+
+export async function getShadowScript(scenarioId: string): Promise<ShadowScript | null> {
+  const d = await getDb();
+  const rows = await d.select<ShadowScriptRow[]>(
+    "SELECT * FROM shadow_scripts WHERE scenario_id = $1 ORDER BY datetime(generated_at) DESC LIMIT 1",
+    [scenarioId]
+  );
+  return rows.length > 0 ? rowToShadowScript(rows[0]) : null;
+}
+
+export async function saveShadowScript(script: ShadowScript): Promise<void> {
+  const d = await getDb();
+  await d.execute(
+    `INSERT OR REPLACE INTO shadow_scripts (id, scenario_id, generated_at, turns, focus_phrases)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [
+      script.id,
+      script.scenarioId,
+      script.generatedAt,
+      JSON.stringify(script.turns),
+      JSON.stringify(script.focusPhrases),
+    ]
+  );
+}
+
+export async function deleteShadowScript(scenarioId: string): Promise<boolean> {
+  const d = await getDb();
+  const result = await d.execute("DELETE FROM shadow_scripts WHERE scenario_id = $1", [scenarioId]);
   return result.rowsAffected > 0;
 }
 
@@ -508,7 +600,9 @@ export async function clearAllData(): Promise<void> {
   const d = await getDb();
   await d.execute("DELETE FROM vocab_items");
   await d.execute("DELETE FROM sessions");
+  await d.execute("DELETE FROM flashcard_review_sessions");
   await d.execute("DELETE FROM custom_scenarios");
+  await d.execute("DELETE FROM shadow_scripts");
   await d.execute("DELETE FROM ongoing_chats");
   await d.execute("DELETE FROM sensei_threads");
   await d.execute("UPDATE user_profile SET jlpt_level='N5', auto_adjust_level=0, estimated_level='beginner', response_length='natural', include_flashcard_vocab_in_conversations=1, user_name=NULL, age=NULL, about_you=NULL, interests='[]', topics_covered='[]', recent_struggles='[]', total_sessions=0, voicevox_speaker_id=NULL, voicevox_speaker_name=NULL WHERE id=1");
@@ -523,7 +617,9 @@ export async function replaceAccountBundle(bundle: AccountBundleV1): Promise<voi
 
     await d.execute("DELETE FROM vocab_items");
     await d.execute("DELETE FROM sessions");
+    await d.execute("DELETE FROM flashcard_review_sessions");
     await d.execute("DELETE FROM custom_scenarios");
+    await d.execute("DELETE FROM shadow_scripts");
     await d.execute("DELETE FROM ongoing_chats");
     await d.execute("DELETE FROM sensei_threads");
 
@@ -575,8 +671,8 @@ export async function replaceAccountBundle(bundle: AccountBundleV1): Promise<voi
 
     for (const session of bundle.sessions) {
       await d.execute(
-        `INSERT INTO sessions (id, date, scenario, messages, feedback, duration_seconds)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+        `INSERT INTO sessions (id, date, scenario, messages, feedback, duration_seconds, run_mode)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
           session.id,
           session.date,
@@ -584,6 +680,7 @@ export async function replaceAccountBundle(bundle: AccountBundleV1): Promise<voi
           JSON.stringify(session.messages),
           session.feedback ? JSON.stringify(session.feedback) : null,
           session.duration_seconds,
+          session.run_mode ?? "conversation",
         ]
       );
     }

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { ShadowModeScreen } from "@/components/conversation/ShadowModeScreen";
 import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
 import { TranscriptBubbles } from "@/components/conversation/TranscriptBubbles";
 import { MessageBubble } from "@/components/conversation/MessageBubble";
@@ -11,9 +12,11 @@ import { localizeScenario } from "@/data/scenarios";
 import { useVADRecorder } from "@/hooks/useVADRecorder";
 import { useI18n } from "@/i18n";
 import {
+  buildShadowPreviewSenseiViewContext,
   buildScenarioConversationSenseiViewContext,
   buildScenarioPreviewSenseiViewContext,
 } from "@/services/sensei-context";
+import { shadowScriptHasRequiredMetadata } from "@/services/shadow";
 import {
   getEnglishVoiceDisplayName,
   initializeTTS,
@@ -22,11 +25,11 @@ import {
   getStoredEngineType,
 } from "@/services/tts";
 import { getTranscriptionEngine } from "@/services/transcription";
-import { sendMessage, sendMessageWithTools, buildScenarioPrompt } from "@/services/claude";
-import { getUserProfile } from "@/services/storage";
-import type { Message, Scenario, SenseiViewContext, UserProfile } from "@/types";
+import { buildScenarioPrompt, generateShadowScript, sendMessage, sendMessageWithTools } from "@/services/claude";
+import { getShadowScript, getUserProfile, saveShadowScript } from "@/services/storage";
+import type { Message, Scenario, ScenarioRunMode, SenseiViewContext, ShadowScript, UserProfile } from "@/types";
 import { v4 as uuidv4 } from "uuid";
-import { Send, Mic, Keyboard, LogOut } from "lucide-react";
+import { Loader2, Send, Mic, Keyboard, LogOut, RefreshCcw } from "lucide-react";
 
 type InputMode = "voice" | "text";
 
@@ -48,6 +51,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   const localizedScenario = localizeScenario(scenario, locale);
   const [messages, setMessages] = useState<Message[]>([]);
   const [started, setStarted] = useState(false);
+  const [runMode, setRunMode] = useState<ScenarioRunMode>("conversation");
   const [inputMode, setInputMode] = useState<InputMode>("voice");
   const [conversationState, setConversationState] = useState<ConversationState>("idle");
   const [amplitude, setAmplitude] = useState(0);
@@ -61,7 +65,9 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [detailsExpanded, setDetailsExpanded] = useState(!scenario.isCustom);
   const [isLoading, setIsLoading] = useState(false);
+  const [isShadowLoading, setIsShadowLoading] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [shadowScript, setShadowScript] = useState<ShadowScript | null>(null);
 
   const messagesRef = useRef<Message[]>([]);
   const sessionEndedRef = useRef(false);
@@ -85,19 +91,60 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
 
   useEffect(() => {
     setDetailsExpanded(!scenario.isCustom);
+    setRunMode("conversation");
+    setStarted(false);
+    setMessages([]);
+    setConversationState("idle");
+    setInputMode("voice");
+    setError(null);
+    setShowCaptions(false);
+    setSpeakingMessageId(null);
+    setShadowScript(null);
+    sessionEndedRef.current = false;
   }, [scenario.id, scenario.isCustom]);
 
   useEffect(() => {
+    getShadowScript(scenario.id)
+      .then((loadedScript) => {
+        setShadowScript(
+          loadedScript && shadowScriptHasRequiredMetadata(loadedScript)
+            ? loadedScript
+            : null
+        );
+      })
+      .catch((err) => {
+        console.error("Failed to load shadow script:", err);
+        setShadowScript(null);
+      });
+  }, [scenario.id]);
+
+  useEffect(() => {
     if (!started) {
-      onContextChange?.(
-        buildScenarioPreviewSenseiViewContext({
-          scenario,
-          locale,
-          level: userProfile?.jlpt_level,
-          vocabReviewEnabled: userProfile?.include_flashcard_vocab_in_conversations,
-          ttsStatus: !ttsStatus.checked ? "checking" : ttsStatus.available ? "available" : "unavailable",
-        })
-      );
+      if (runMode === "shadow") {
+        onContextChange?.(
+          buildShadowPreviewSenseiViewContext({
+            scenario,
+            locale,
+            level: userProfile?.jlpt_level,
+            ttsStatus: !ttsStatus.checked ? "checking" : ttsStatus.available ? "available" : "unavailable",
+            shadowScript,
+          })
+        );
+      } else {
+        onContextChange?.(
+          buildScenarioPreviewSenseiViewContext({
+            scenario,
+            locale,
+            level: userProfile?.jlpt_level,
+            vocabReviewEnabled: userProfile?.include_flashcard_vocab_in_conversations,
+            ttsStatus: !ttsStatus.checked ? "checking" : ttsStatus.available ? "available" : "unavailable",
+          })
+        );
+      }
+      return;
+    }
+
+    if (runMode === "shadow") {
       return;
     }
 
@@ -111,7 +158,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
         messages,
       })
     );
-  }, [conversationState, inputMode, locale, messages, onContextChange, scenario, started, ttsStatus.available, ttsStatus.checked, userProfile]);
+  }, [conversationState, inputMode, locale, messages, onContextChange, runMode, scenario, shadowScript, started, ttsStatus.available, ttsStatus.checked, userProfile]);
 
   useEffect(() => {
     async function checkTTS() {
@@ -124,6 +171,54 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     }
     checkTTS();
   }, []);
+
+  const generateAndPersistShadowScript = useCallback(
+    async (forceRegenerate: boolean): Promise<ShadowScript> => {
+      if (!forceRegenerate && shadowScript && shadowScriptHasRequiredMetadata(shadowScript)) {
+        return shadowScript;
+      }
+
+      const profile = userProfile || (await getUserProfile());
+      const generated = await generateShadowScript(
+        scenario,
+        profile.jlpt_level,
+        profile.response_length,
+        { name: profile.name, age: profile.age, aboutYou: profile.aboutYou }
+      );
+
+      const nextScript: ShadowScript = {
+        id: crypto.randomUUID(),
+        scenarioId: scenario.id,
+        generatedAt: new Date().toISOString(),
+        turns: generated.turns,
+        focusPhrases: generated.focusPhrases,
+      };
+
+      await saveShadowScript(nextScript);
+      setShadowScript(nextScript);
+      return nextScript;
+    },
+    [scenario, shadowScript, userProfile]
+  );
+
+  const handleStartShadow = useCallback(
+    async (forceRegenerate: boolean = false) => {
+      setError(null);
+      setIsShadowLoading(true);
+
+      try {
+        await generateAndPersistShadowScript(forceRegenerate);
+        setRunMode("shadow");
+        setStarted(true);
+      } catch (err) {
+        console.error("Error preparing shadow session:", err);
+        setError(err instanceof Error ? err.message : t("shadow.generateFailed"));
+      } finally {
+        setIsShadowLoading(false);
+      }
+    },
+    [generateAndPersistShadowScript, t]
+  );
 
   useEffect(() => {
     if (inputMode === "text") {
@@ -293,6 +388,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
 
   // --- Start session (always starts in voice mode) ---
   const handleStartConversation = useCallback(async () => {
+    setRunMode("conversation");
     setStarted(true);
     setError(null);
     setConversationState("thinking");
@@ -460,18 +556,102 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
                 </Alert>
               )}
 
-              <Button
-                onClick={handleStartConversation}
-                className="w-full"
-                size="lg"
-                disabled={!ttsStatus.available || vadLoading}
-              >
-                {t("scenario.startSession")}
-              </Button>
+              <div className="flex overflow-hidden rounded-lg border">
+                <button
+                  type="button"
+                  className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                    runMode === "conversation"
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted"
+                  }`}
+                  onClick={() => setRunMode("conversation")}
+                >
+                  {t("common.conversation")}
+                </button>
+                <button
+                  type="button"
+                  className={`flex-1 border-l py-2 text-sm font-medium transition-colors ${
+                    runMode === "shadow"
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted"
+                  }`}
+                  onClick={() => setRunMode("shadow")}
+                >
+                  {t("shadow.modeLabel")}
+                </button>
+              </div>
+
+              {runMode === "conversation" ? (
+                <Button
+                  onClick={handleStartConversation}
+                  className="w-full"
+                  size="lg"
+                  disabled={!ttsStatus.available || vadLoading}
+                >
+                  {t("scenario.startSession")}
+                </Button>
+              ) : (
+                <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">{t("shadow.previewTitle")}</p>
+                    <p className="text-sm text-muted-foreground">{t("shadow.previewDescription")}</p>
+                  </div>
+
+                  {shadowScript && (
+                    <div className="rounded-lg border bg-background px-3 py-2 text-sm">
+                      <p className="font-medium">{t("shadow.cachedScriptReady")}</p>
+                      <p className="mt-1 text-muted-foreground">
+                        {t("shadow.cachedScriptMeta", {
+                          turns: Math.max(1, Math.floor(shadowScript.turns.length / 2)),
+                        })}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() => void handleStartShadow(false)}
+                      disabled={isShadowLoading}
+                    >
+                      {isShadowLoading
+                        ? <Loader2 className="mr-1 size-4 animate-spin" />
+                        : shadowScript
+                          ? <RefreshCcw className="mr-1 size-4" />
+                          : null}
+                      {shadowScript ? t("shadow.replayScript") : t("shadow.startSession")}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleStartShadow(true)}
+                      disabled={isShadowLoading}
+                    >
+                      {isShadowLoading ? <Loader2 className="mr-1 size-4 animate-spin" /> : <RefreshCcw className="mr-1 size-4" />}
+                      {shadowScript ? t("shadow.regenerateScript") : t("shadow.generateScript")}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
+    );
+  }
+
+  if (runMode === "shadow" && shadowScript) {
+    return (
+      <ShadowModeScreen
+        scenario={scenario}
+        script={shadowScript}
+        onRegenerateScript={() => generateAndPersistShadowScript(true)}
+        onBackToPreview={() => {
+          stopCurrentAudio();
+          setStarted(false);
+          setError(null);
+          setRunMode("shadow");
+        }}
+        onContextChange={onContextChange}
+      />
     );
   }
 
@@ -487,30 +667,39 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
           </Alert>
         )}
 
-        <div
-          className={`flex flex-col items-center justify-center ${
-            hasTranscript
-              ? "flex-shrink-0 pt-10 pb-6 sm:pt-12"
-              : "flex-1 min-h-0"
-          }`}
-        >
-          <VoiceVisualizer
-            amplitude={amplitude}
-            isSpeaking={conversationState === "speaking"}
-            isListening={conversationState === "listening" && isListening}
-            isUserSpeaking={userIsSpeaking}
-            isProcessing={conversationState === "transcribing" || conversationState === "thinking"}
-            size={120}
-          />
-        </div>
+        <div className="relative flex-1 min-h-0 overflow-hidden">
+          <div
+            className={`pointer-events-none absolute inset-x-0 z-0 flex justify-center transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              hasTranscript ? "top-0" : "top-1/2 -translate-y-1/2"
+            }`}
+          >
+            <div
+              className={`transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                hasTranscript ? "-translate-y-[58%] scale-[1.78]" : "translate-y-0 scale-100"
+              }`}
+            >
+              <VoiceVisualizer
+                amplitude={amplitude}
+                isSpeaking={conversationState === "speaking"}
+                isListening={conversationState === "listening" && isListening}
+                isUserSpeaking={userIsSpeaking}
+                isProcessing={conversationState === "transcribing" || conversationState === "thinking"}
+                size={hasTranscript ? 168 : 120}
+                blur={hasTranscript ? 16 : 3}
+              />
+            </div>
+          </div>
 
-        {hasTranscript && (
-          <div className="flex-1 min-h-0 flex flex-col px-4">
+          <div
+            className={`relative z-10 flex h-full min-h-0 flex-col px-4 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              hasTranscript ? "pt-3 opacity-100" : "pt-10 opacity-0 pointer-events-none"
+            }`}
+          >
             <div className="flex-1 min-h-0">
               <TranscriptBubbles messages={messages} visibleCount={4} />
             </div>
           </div>
-        )}
+        </div>
 
         <div className="flex-shrink-0 flex justify-center gap-3 py-3 px-4">
           <Button variant="ghost" size="sm" onClick={() => setShowCaptions(!showCaptions)}>

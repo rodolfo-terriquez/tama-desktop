@@ -85,6 +85,7 @@ export function OngoingFeedbackDialog({
         messages,
         feedback: fb,
         duration_seconds: durationSeconds,
+        run_mode: "conversation",
       };
 
       await saveSession(session);

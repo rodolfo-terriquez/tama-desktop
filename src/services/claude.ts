@@ -1,4 +1,4 @@
-import type { AppLocale, Message, Scenario, OngoingChat, ResponseLength, UserProfile } from "@/types";
+import type { AppLocale, Message, OngoingChat, ResponseLength, Scenario, ShadowTurn, UserProfile } from "@/types";
 import {
   CONVERSATION_TOOLS,
   type ToolDefinition,
@@ -18,6 +18,11 @@ export interface GeneratedCustomScenarioDetails {
   character_role: string;
   objectives: string[];
   custom_prompt?: string;
+}
+
+export interface GeneratedShadowScript {
+  turns: ShadowTurn[];
+  focusPhrases: string[];
 }
 
 const STORAGE_KEYS = {
@@ -622,6 +627,188 @@ Your role: ${scenario.character_role}
 Objectives for the student: ${scenario.objectives.join(", ")}${customBlock}${personalContextBlock}
 
 ${suffix}`;
+}
+
+function getShadowTurnCountInstruction(responseLength: ResponseLength): string {
+  switch (responseLength) {
+    case "short":
+      return "Write exactly 6 turns total (3 assistant lines and 3 user lines).";
+    case "long":
+      return "Write exactly 10 turns total (5 assistant lines and 5 user lines).";
+    case "natural":
+    default:
+      return "Write exactly 8 turns total (4 assistant lines and 4 user lines).";
+  }
+}
+
+function inferAssistantSpeakerLabel(scenario: Scenario, turns: ShadowTurn[]): string {
+  const fromTitle = scenario.title.match(/\bwith\s+(.+)$/i)?.[1]?.trim();
+  if (fromTitle) {
+    return fromTitle;
+  }
+
+  for (const turn of turns) {
+    if (turn.speaker !== "user") {
+      continue;
+    }
+
+    const directAddress = turn.text.match(/[、,\s]([^、。！？!?]+?さん)[、。！？!?]/u)?.[1]?.trim();
+    if (directAddress) {
+      return directAddress;
+    }
+  }
+
+  return "Partner";
+}
+
+export async function generateShadowScript(
+  scenario: Scenario,
+  jlptLevel: string = "N5",
+  responseLength: ResponseLength = "natural",
+  personalContext?: PersonalContext
+): Promise<GeneratedShadowScript> {
+  const levelGuidelines = JLPT_GUIDELINES[jlptLevel] || JLPT_GUIDELINES.N5;
+  const personalContextBlock = buildPersonalContextBlock(personalContext);
+  const customBlock = scenario.custom_prompt
+    ? `\n\nCONVERSATION STRUCTURE / SPECIAL INSTRUCTIONS:\n${scenario.custom_prompt}`
+    : "";
+
+  const systemPrompt = `You write fixed Japanese shadowing scripts for a language-learning app. Return ONLY valid JSON with no markdown fences and no extra commentary.
+
+Output schema:
+{
+  "turns": [
+    { "speaker": "assistant", "speaker_label": "short speaker label", "text": "Japanese line", "reading": "hiragana reading of the full line" },
+    { "speaker": "user", "speaker_label": "short speaker label", "text": "Japanese line the learner should say", "reading": "hiragana reading of the full line" }
+  ],
+  "focus_phrases": ["useful Japanese phrase 1", "useful Japanese phrase 2"]
+}
+
+Rules:
+- The script must alternate strictly between assistant and user.
+- The first turn must always be the assistant.
+- ${getShadowTurnCountInstruction(responseLength)}
+- Every "text" value must be natural Japanese only. No romaji, no translations, no explanations.
+- Every turn must include a "reading" value written entirely in hiragana for the full line.
+- The "reading" must match the Japanese text exactly in meaning and order, but with kanji converted to hiragana.
+- Every turn must include a concise "speaker_label" value for the current speaker.
+- Keep speaker_label short and consistent across the script, for example "ユキさん", "店員さん", "医者", or "あなた".
+- Keep the dialogue practical, repeatable, and suitable for speaking drills.
+- The user's lines should be correct model answers worth practicing verbatim.
+- Match the learner's JLPT level and keep the wording comprehensible for that level.
+- Use concise, natural spoken Japanese with no spaces between Japanese words.
+- Include 3 to 6 focus_phrases taken from the script. Keep them short and useful.`;
+
+  const userMessage = `Create a fixed shadowing script for this scenario.
+
+STUDENT LEVEL:
+${levelGuidelines}
+
+SCENARIO:
+Title: ${scenario.title} (${scenario.title_ja})
+Setting: ${scenario.setting}
+Assistant role: ${scenario.character_role}
+Objectives: ${scenario.objectives.join(", ")}${customBlock}${personalContextBlock}`;
+
+  const provider = getLLMProvider();
+  const responseText =
+    provider === "openrouter"
+      ? (await callOpenRouter(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 2400 })).text
+      : (await callAnthropic(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 2400 })).text;
+
+  if (!responseText) {
+    throw new ClaudeError("No text content in shadow script response");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(extractJsonObject(responseText));
+  } catch {
+    throw new ClaudeError("The AI returned an invalid shadow script");
+  }
+
+  const data = parsed as Record<string, unknown>;
+  const rawTurns: Array<{
+    speaker: ShadowTurn["speaker"] | null;
+    text: string;
+    reading?: string;
+    speakerLabel?: string;
+    cue?: string;
+  }> = [];
+
+  if (Array.isArray(data.turns)) {
+    for (const item of data.turns) {
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+
+      const record = item as Record<string, unknown>;
+      const rawSpeaker = typeof record.speaker === "string" ? record.speaker.trim().toLowerCase() : "";
+      const speaker =
+        rawSpeaker === "assistant" || rawSpeaker === "ai" || rawSpeaker === "partner" || rawSpeaker === "teacher"
+          ? "assistant"
+          : rawSpeaker === "user" || rawSpeaker === "learner" || rawSpeaker === "student" || rawSpeaker === "you"
+            ? "user"
+            : null;
+      const text = typeof record.text === "string" ? record.text.trim() : "";
+      const speakerLabel =
+        typeof record.speaker_label === "string" && record.speaker_label.trim()
+          ? record.speaker_label.trim()
+          : undefined;
+      const reading =
+        typeof record.reading === "string" && record.reading.trim()
+          ? record.reading.trim()
+          : undefined;
+      const cue =
+        typeof record.cue === "string" && record.cue.trim()
+          ? record.cue.trim()
+          : undefined;
+
+      if (!text) {
+        continue;
+      }
+
+      rawTurns.push({ speaker, text, reading, speakerLabel, cue });
+    }
+  }
+
+  if (rawTurns.length < 2) {
+    throw new ClaudeError("The AI shadow script did not contain valid alternating turns");
+  }
+
+  const trimmedTurns = rawTurns.length % 2 === 0 ? rawTurns : rawTurns.slice(0, -1);
+  if (trimmedTurns.length < 2) {
+    throw new ClaudeError("The AI shadow script did not contain valid alternating turns");
+  }
+
+  const normalizedTurns: ShadowTurn[] = trimmedTurns.map((turn, index) => ({
+    speaker: index % 2 === 0 ? "assistant" : "user",
+    text: turn.text,
+    reading: turn.reading,
+    speakerLabel: turn.speakerLabel,
+    cue: turn.cue,
+  }));
+
+  const assistantSpeakerLabel = inferAssistantSpeakerLabel(scenario, normalizedTurns);
+  const hydratedTurns = normalizedTurns.map((turn) => ({
+    ...turn,
+    reading: turn.reading?.trim() || turn.text,
+    speakerLabel:
+      turn.speakerLabel?.trim() ||
+      (turn.speaker === "assistant" ? assistantSpeakerLabel : "You"),
+  }));
+
+  const focusPhrases = Array.isArray(data.focus_phrases)
+    ? data.focus_phrases
+        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .map((item) => item.trim())
+        .slice(0, 6)
+    : [];
+
+  return {
+    turns: hydratedTurns,
+    focusPhrases,
+  };
 }
 
 export async function generateCustomScenarioDetails(
