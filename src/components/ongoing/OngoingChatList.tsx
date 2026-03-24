@@ -45,6 +45,15 @@ export function OngoingChatList({ onSelectChat }: OngoingChatListProps) {
     getOngoingChats().then(setChats);
   }, []);
 
+  useEffect(() => {
+    const handleDataChanged = () => {
+      getOngoingChats().then(setChats);
+    };
+
+    window.addEventListener("tama-data-changed", handleDataChanged);
+    return () => window.removeEventListener("tama-data-changed", handleDataChanged);
+  }, []);
+
   const refreshChats = async () => {
     const list = await getOngoingChats();
     setChats(list);

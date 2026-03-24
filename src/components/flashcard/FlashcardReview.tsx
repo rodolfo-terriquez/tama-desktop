@@ -85,6 +85,11 @@ export function FlashcardReview({ onContextChange }: { onContextChange?: (contex
 
   const refreshVocab = useCallback(() => setVocabVersion((v) => v + 1), []);
 
+  useEffect(() => {
+    window.addEventListener("tama-data-changed", refreshVocab);
+    return () => window.removeEventListener("tama-data-changed", refreshVocab);
+  }, [refreshVocab]);
+
   if (stats.total === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4">

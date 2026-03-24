@@ -139,6 +139,28 @@ export function HomeScreen({
   const greeting = getGreeting(now, profileName);
 
   useEffect(() => {
+    const loadHomeData = () => {
+      Promise.all([getDueVocabulary(), getLastSession(), getOngoingChats(), getUserProfile()]).then(
+        ([due, recentSession, chats, profile]) => {
+          setDueCount(due.length);
+          setLastScenario(
+            recentSession
+              ? { scenario: recentSession.scenario, date: recentSession.date }
+              : null
+          );
+          const latestChat = [...chats].sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt))[0] ?? null;
+          setLastPersonaChat(latestChat);
+          setProfileName(profile.name?.trim() ?? "");
+        }
+      );
+    };
+
+    loadHomeData();
+    window.addEventListener("tama-data-changed", loadHomeData);
+    return () => window.removeEventListener("tama-data-changed", loadHomeData);
+  }, []);
+
+  useEffect(() => {
     const tick = () => setNow(new Date());
     const intervalId = window.setInterval(tick, 60_000);
     const onVisibilityChange = () => {
@@ -149,22 +171,6 @@ export function HomeScreen({
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, []);
-
-  useEffect(() => {
-    Promise.all([getDueVocabulary(), getLastSession(), getOngoingChats(), getUserProfile()]).then(
-      ([due, recentSession, chats, profile]) => {
-        setDueCount(due.length);
-        setLastScenario(
-          recentSession
-            ? { scenario: recentSession.scenario, date: recentSession.date }
-            : null
-        );
-        const latestChat = [...chats].sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt))[0] ?? null;
-        setLastPersonaChat(latestChat);
-        setProfileName(profile.name?.trim() ?? "");
-      }
-    );
   }, []);
 
   useEffect(() => {

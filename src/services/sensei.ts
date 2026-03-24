@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAppLocale } from "@/services/app-config";
-import { getContextMessages, sendMessage, summarizeSenseiConversation } from "@/services/claude";
+import { getContextMessages, sendMessageWithTools, summarizeSenseiConversation } from "@/services/claude";
+import { SENSEI_TOOLS } from "@/services/tools";
 import {
   deleteSenseiThread,
   getCustomScenarios,
@@ -25,8 +26,56 @@ const SENSEI_ACTIVE_THREAD_KEY = "tama_sensei_active_thread_id";
 const SENSEI_SUMMARIZE_THRESHOLD = 32;
 const SENSEI_KEEP_AFTER_SUMMARIZE = 12;
 
-function getTargetLanguage(locale: AppLocale): "English" | "Spanish" {
+type SenseiResponseLanguage = "English" | "Spanish" | "Japanese";
+
+const JAPANESE_CHAR_REGEX = /[\u3040-\u30ff\u3400-\u9fff]/gu;
+const LATIN_LETTER_REGEX = /[A-Za-z\u00c0-\u024f]/gu;
+const SPANISH_SIGNAL_REGEX =
+  /[¿¡áéíóúñü]|\b(?:hola|gracias|por favor|puedo|puedes|quiero|quieres|necesito|explica|explicar|ayuda|como|cómo|que|qué|estoy|estás|tengo|para|porque|por qué|donde|dónde|esto|esta|este|responde|idioma|habla|dime|tambien|también)\b/giu;
+
+function getLocaleFallbackLanguage(locale: AppLocale): "English" | "Spanish" {
   return locale === "es" ? "Spanish" : "English";
+}
+
+function detectMessageLanguage(text: string): SenseiResponseLanguage | null {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const japaneseChars = trimmed.match(JAPANESE_CHAR_REGEX)?.length ?? 0;
+  const latinLetters = trimmed.match(LATIN_LETTER_REGEX)?.length ?? 0;
+  const spanishSignals = trimmed.match(SPANISH_SIGNAL_REGEX)?.length ?? 0;
+
+  if (japaneseChars > 0 && (latinLetters === 0 || japaneseChars >= latinLetters)) {
+    return "Japanese";
+  }
+
+  if (spanishSignals > 0) {
+    return "Spanish";
+  }
+
+  if (latinLetters > 0) {
+    return "English";
+  }
+
+  return null;
+}
+
+function detectPreferredSenseiLanguage(messages: Message[], locale: AppLocale): SenseiResponseLanguage {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== "user") {
+      continue;
+    }
+
+    const detected = detectMessageLanguage(message.content);
+    if (detected) {
+      return detected;
+    }
+  }
+
+  return getLocaleFallbackLanguage(locale);
 }
 
 function formatViewContext(view: SenseiViewContext): string {
@@ -118,7 +167,8 @@ function buildAccountSummary(bundle: Pick<AccountBundleV1, "profile" | "sessions
 }
 
 function buildSenseiPrompt(context: SenseiRequestContext, thread: SenseiThread, accountSummary: string): string {
-  const targetLanguage = getTargetLanguage(context.locale);
+  const preferredLanguage = detectPreferredSenseiLanguage(thread.messages, context.locale);
+  const fallbackLanguage = getLocaleFallbackLanguage(context.locale);
   const summaryBlock = thread.summary
     ? `\n\nSENSEI MEMORY SUMMARY:\n${thread.summary}`
     : "";
@@ -132,13 +182,24 @@ Your job:
 - stay grounded in the provided app context instead of inventing UI state
 
 Rules:
-1. Default to natural ${targetLanguage} unless the student clearly asks to switch.
-2. Be concise and practical. Prefer short explanations with examples over long lectures.
-3. You may reference the student's saved learning history and the current app view.
-4. Do not claim to have performed actions or changed data in the app.
-5. In v1, you are ask-only. You can suggest what the student could do next, but you cannot create or edit scenarios, personas, flashcards, or settings.
-6. If the current view context is limited, say that plainly and answer from the account summary plus the student's question.
-7. When useful, include Japanese examples and short breakdowns, but avoid unnecessary verbosity.
+1. Reply in the same language as the student's latest message unless the student clearly asks you to switch languages.
+2. For the current turn, the best detected reply language is ${preferredLanguage}. If the latest message is ambiguous, fall back to ${fallbackLanguage}.
+3. If the student mixes languages, answer in the language used for the actual question or request. Do not switch languages just because they mention a Japanese word or quote an example.
+4. Be concise and practical. Prefer short explanations with examples over long lectures.
+5. You may reference the student's saved learning history and the current app view.
+6. Do not claim to have performed actions or changed data in the app unless a tool result confirms it.
+7. You can create app content only by using the provided tools. Never pretend you created something unless the tool result confirms it.
+8. Create scenarios, personas, or flashcards only when the student clearly asks you to save or create them.
+9. If required details are missing, ask a short follow-up question before using a tool.
+10. If the current view context is limited, say that plainly and answer from the account summary plus the student's question.
+11. When useful, include Japanese examples and short breakdowns, but keep the surrounding explanation in the student's chosen language unless they ask otherwise.
+
+TOOLS:
+- create_custom_scenario: save a new custom practice scenario
+- create_ongoing_chat_persona: save a new persistent chat persona
+- create_flashcard: save a flashcard in the student's SRS deck
+
+After a successful tool call, briefly tell the student what you created. If the tool reports an existing matching item, tell the student instead of claiming a new one was created.
 ${summaryBlock}
 
 CURRENT DATE/TIME:
@@ -306,9 +367,10 @@ export async function sendSenseiUserMessage(
     buildAccountSummary({ profile, sessions, vocabulary, ongoingChats, customScenarios })
   );
 
-  const response = await sendMessage(
+  const response = await sendMessageWithTools(
     getContextMessages(nextMessages.map(formatSenseiMessageForModel)),
-    systemPrompt
+    systemPrompt,
+    { tools: SENSEI_TOOLS, trackVocabularyUsage: false }
   );
   const assistantMessage: Message = {
     id: uuidv4(),

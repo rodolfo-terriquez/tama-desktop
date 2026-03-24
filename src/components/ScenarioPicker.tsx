@@ -35,6 +35,14 @@ export function ScenarioPicker({ onSelect, onContextChange }: ScenarioPickerProp
   useEffect(() => {
     getCustomScenarios().then(setCustomScenarios);
   }, []);
+  useEffect(() => {
+    const handleDataChanged = () => {
+      getCustomScenarios().then(setCustomScenarios);
+    };
+
+    window.addEventListener("tama-data-changed", handleDataChanged);
+    return () => window.removeEventListener("tama-data-changed", handleDataChanged);
+  }, []);
 
   useEffect(() => {
     onContextChange?.(

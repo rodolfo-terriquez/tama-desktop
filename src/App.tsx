@@ -105,8 +105,8 @@ function App() {
         setSelectedOngoingChatId(null);
         setLastSession(null);
         setCurrentScreen("home");
+        setDataVersion((value) => value + 1);
       }
-      setDataVersion((value) => value + 1);
     };
 
     window.addEventListener("tama-data-changed", handleDataChanged);

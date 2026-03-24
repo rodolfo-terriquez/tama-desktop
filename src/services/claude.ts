@@ -1,6 +1,7 @@
 import type { AppLocale, Message, Scenario, OngoingChat, ResponseLength, UserProfile } from "@/types";
 import {
   CONVERSATION_TOOLS,
+  type ToolDefinition,
   executeTool,
   trackVocabularyUsage,
   type ToolCall,
@@ -221,7 +222,7 @@ interface OpenRouterResponse {
   }];
 }
 
-function anthropicToolsToOpenRouter(tools: typeof CONVERSATION_TOOLS) {
+function anthropicToolsToOpenRouter(tools: ToolDefinition[]) {
   return tools.map((t) => ({
     type: "function" as const,
     function: {
@@ -237,7 +238,7 @@ function anthropicToolsToOpenRouter(tools: typeof CONVERSATION_TOOLS) {
 async function callAnthropic(
   systemPrompt: string,
   messages: AnthropicApiMessage[],
-  options?: { tools?: typeof CONVERSATION_TOOLS; maxTokens?: number }
+  options?: { tools?: ToolDefinition[]; maxTokens?: number }
 ): Promise<{ text: string; toolCalls: ToolCall[]; isToolUse: boolean; rawContent: ContentBlock[] }> {
   const apiKey = getApiKey();
   if (!apiKey) throw new ClaudeError("Anthropic API key not set");
@@ -284,7 +285,7 @@ async function callAnthropic(
 async function callOpenRouter(
   systemPrompt: string,
   messages: OpenRouterMessage[],
-  options?: { tools?: typeof CONVERSATION_TOOLS; maxTokens?: number }
+  options?: { tools?: ToolDefinition[]; maxTokens?: number }
 ): Promise<{ text: string; toolCalls: ToolCall[]; isToolUse: boolean; rawMessage: OpenRouterMessage }> {
   const apiKey = getOpenRouterApiKey();
   if (!apiKey) throw new ClaudeError("OpenRouter API key not set");
@@ -387,18 +388,23 @@ export async function sendMessage(
  */
 export async function sendMessageWithTools(
   messages: Message[],
-  systemPrompt: string
+  systemPrompt: string,
+  options?: { tools?: ToolDefinition[]; trackVocabularyUsage?: boolean }
 ): Promise<string> {
+  const tools = options?.tools ?? CONVERSATION_TOOLS;
+  const shouldTrackVocabulary = options?.trackVocabularyUsage ?? true;
   const provider = getLLMProvider();
   if (provider === "openrouter") {
-    return sendMessageWithToolsOR(messages, systemPrompt);
+    return sendMessageWithToolsOR(messages, systemPrompt, tools, shouldTrackVocabulary);
   }
-  return sendMessageWithToolsAnthropic(messages, systemPrompt);
+  return sendMessageWithToolsAnthropic(messages, systemPrompt, tools, shouldTrackVocabulary);
 }
 
 async function sendMessageWithToolsAnthropic(
   messages: Message[],
-  systemPrompt: string
+  systemPrompt: string,
+  tools: ToolDefinition[],
+  shouldTrackVocabulary: boolean
 ): Promise<string> {
   let apiMessages: AnthropicApiMessage[] = toAnthropicMessages(messages);
   if (apiMessages.length === 0) {
@@ -407,12 +413,14 @@ async function sendMessageWithToolsAnthropic(
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     const result = await callAnthropic(systemPrompt, apiMessages, {
-      tools: CONVERSATION_TOOLS,
+      tools,
     });
 
     if (!result.isToolUse) {
       if (!result.text) throw new ClaudeError("No text content in response");
-      await trackVocabularyUsage(result.text);
+      if (shouldTrackVocabulary) {
+        await trackVocabularyUsage(result.text);
+      }
       return result.text;
     }
 
@@ -429,7 +437,9 @@ async function sendMessageWithToolsAnthropic(
 
 async function sendMessageWithToolsOR(
   messages: Message[],
-  systemPrompt: string
+  systemPrompt: string,
+  tools: ToolDefinition[],
+  shouldTrackVocabulary: boolean
 ): Promise<string> {
   let orMessages: OpenRouterMessage[] = toOpenRouterMessages(messages);
   if (orMessages.length === 0) {
@@ -438,12 +448,14 @@ async function sendMessageWithToolsOR(
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     const result = await callOpenRouter(systemPrompt, orMessages, {
-      tools: CONVERSATION_TOOLS,
+      tools,
     });
 
     if (!result.isToolUse) {
       if (!result.text) throw new ClaudeError("No text content in response");
-      await trackVocabularyUsage(result.text);
+      if (shouldTrackVocabulary) {
+        await trackVocabularyUsage(result.text);
+      }
       return result.text;
     }
 
