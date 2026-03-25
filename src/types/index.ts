@@ -3,6 +3,8 @@ export type AppScreen =
   | "home"
   | "scenario-select"
   | "conversation"
+  | "quizzes"
+  | "quiz"
   | "flashcards"
   | "history"
   | "stats"
@@ -54,12 +56,63 @@ export interface UserProfile {
   voicevox_speaker_name?: string;
 }
 
-// Conversation message
+// Quiz
+export type QuizQuestionType = "multiple_choice" | "fill_blank" | "dropdown";
+
+export interface QuizQuestion {
+  id: string;
+  prompt: string;
+  type: QuizQuestionType;
+  options?: string[];
+  correctAnswer: string;
+  explanation: string;
+}
+
+export interface QuizAttemptQuestionResult {
+  questionId: string;
+  prompt: string;
+  userAnswer: string;
+  correctAnswer: string;
+  isCorrect: boolean;
+  explanation: string;
+}
+
+export interface QuizAttempt {
+  id: string;
+  quizId: string;
+  completedAt: string;
+  answers: Record<string, string>;
+  correctCount: number;
+  totalCount: number;
+  results: QuizAttemptQuestionResult[];
+}
+
+export interface Quiz {
+  id: string;
+  title: string;
+  instructions: string;
+  createdAt: string;
+  updatedAt: string;
+  source: "sensei";
+  sourcePrompt: string;
+  introMessage?: string;
+  questions: QuizQuestion[];
+  latestAttempt?: QuizAttempt;
+}
+
+export interface MessageAction {
+  type: "open_quiz";
+  quizId: string;
+  label: string;
+  title?: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  action?: MessageAction;
 }
 
 // Scenario for conversation practice
@@ -161,6 +214,7 @@ export interface StudyPlanTask {
   description: string;
   ctaLabel: string;
   target: StudyPlanTaskTarget;
+  completedAt?: string;
   metadata?: {
     dueCount?: number;
     scenarioId?: string;
@@ -251,6 +305,7 @@ export interface AccountBundleV1 {
   vocabulary: VocabItem[];
   ongoingChats: OngoingChat[];
   customScenarios: Scenario[];
+  quizzes?: Quiz[];
   preferences: AccountPreferences;
   sensei?: SenseiThread;
   senseiThreads?: SenseiThread[];
@@ -278,7 +333,7 @@ export type SenseiViewContext =
       kind: "home";
       screen: "home";
       studyPlan?: Pick<StudyPlan, "date" | "focusSummary" | "reasoningSummary"> & {
-        tasks: Array<Pick<StudyPlanTask, "id" | "kind" | "title" | "description" | "ctaLabel">>;
+        tasks: Array<Pick<StudyPlanTask, "id" | "kind" | "title" | "description" | "ctaLabel" | "completedAt">>;
       };
     }
   | {
@@ -362,6 +417,20 @@ export type SenseiViewContext =
       summary: string;
       inputMode: "text" | "voice";
       recentMessages: Message[];
+    }
+  | {
+      kind: "quiz-review";
+      screen: "quiz";
+      quizId: string;
+      title: string;
+      instructions: string;
+      questionCount: number;
+      completed: boolean;
+      latestScore?: {
+        correctCount: number;
+        totalCount: number;
+        completedAt: string;
+      };
     }
   | {
       kind: "flashcard-review";

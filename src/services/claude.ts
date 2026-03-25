@@ -72,6 +72,7 @@ const STORAGE_KEYS = {
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
 const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-4-6";
 const MAX_TOOL_ROUNDS = 3;
+const MAX_INVALID_JSON_RETRIES = 1;
 
 function emitConfigChanged(): void {
   window.dispatchEvent(new Event("tama-config-changed"));
@@ -183,6 +184,11 @@ function buildNetworkFailureMessage(provider: "Anthropic" | "OpenRouter", err: u
   return `${provider} API network request failed: ${detail}`;
 }
 
+function buildInvalidJsonMessage(provider: "Anthropic" | "OpenRouter", err: unknown): string {
+  const detail = err instanceof Error ? err.message : String(err);
+  return `${provider} returned an invalid JSON response: ${detail}`;
+}
+
 function extractJsonObject(text: string): string {
   const trimmed = text.trim();
   if (!trimmed) throw new ClaudeError("No JSON returned by the AI");
@@ -199,6 +205,26 @@ function extractJsonObject(text: string): string {
   }
 
   return trimmed;
+}
+
+function parseOpenRouterToolArguments(
+  argumentsText: string | undefined,
+  toolName: string
+): Record<string, unknown> {
+  const raw = argumentsText?.trim();
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(extractJsonObject(raw)) as Record<string, unknown>;
+  } catch (err) {
+    throw new ClaudeError(
+      `OpenRouter returned an invalid tool call for "${toolName}": ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+  }
 }
 
 // ── Anthropic Types & Helpers ────────────────────────────────────
@@ -285,43 +311,58 @@ async function callAnthropic(
   const apiKey = getApiKey();
   if (!apiKey) throw new ClaudeError("Anthropic API key not set");
 
-  const body: Record<string, unknown> = {
-    model: DEFAULT_ANTHROPIC_MODEL,
-    max_tokens: options?.maxTokens ?? 1024,
-    system: systemPrompt,
-    messages,
-  };
-  if (options?.tools) body.tools = options.tools;
+  for (let attempt = 0; attempt <= MAX_INVALID_JSON_RETRIES; attempt += 1) {
+    const body: Record<string, unknown> = {
+      model: DEFAULT_ANTHROPIC_MODEL,
+      max_tokens: options?.maxTokens ?? 1024,
+      system: systemPrompt,
+      messages,
+    };
+    if (options?.tools) body.tools = options.tools;
 
-  let response: Response;
-  try {
-    response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    throw new ClaudeError(buildNetworkFailureMessage("Anthropic", err));
+    let response: Response;
+    try {
+      response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      throw new ClaudeError(buildNetworkFailureMessage("Anthropic", err));
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Anthropic API error:", errorText);
+      throw new ClaudeError(buildApiFailureMessage("Anthropic", response, errorText), response.status);
+    }
+
+    const responseText = await response.text();
+    let data: AnthropicResponse;
+    try {
+      data = JSON.parse(responseText) as AnthropicResponse;
+    } catch (err) {
+      console.error("Anthropic API invalid JSON:", responseText);
+      if (attempt < MAX_INVALID_JSON_RETRIES) {
+        continue;
+      }
+      throw new ClaudeError(buildInvalidJsonMessage("Anthropic", err));
+    }
+
+    return {
+      text: extractText(data.content),
+      toolCalls: extractToolCalls(data.content),
+      isToolUse: data.stop_reason === "tool_use",
+      rawContent: data.content,
+    };
   }
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Anthropic API error:", errorText);
-    throw new ClaudeError(buildApiFailureMessage("Anthropic", response, errorText), response.status);
-  }
-
-  const data: AnthropicResponse = await response.json();
-  return {
-    text: extractText(data.content),
-    toolCalls: extractToolCalls(data.content),
-    isToolUse: data.stop_reason === "tool_use",
-    rawContent: data.content,
-  };
+  throw new ClaudeError("Anthropic returned an invalid JSON response");
 }
 
 async function callOpenRouter(
@@ -332,57 +373,72 @@ async function callOpenRouter(
   const apiKey = getOpenRouterApiKey();
   if (!apiKey) throw new ClaudeError("OpenRouter API key not set");
 
-  const model = getOpenRouterModel();
-  const allMessages: OpenRouterMessage[] = [
-    { role: "system", content: systemPrompt },
-    ...messages,
-  ];
+  for (let attempt = 0; attempt <= MAX_INVALID_JSON_RETRIES; attempt += 1) {
+    const model = getOpenRouterModel();
+    const allMessages: OpenRouterMessage[] = [
+      { role: "system", content: systemPrompt },
+      ...messages,
+    ];
 
-  const body: Record<string, unknown> = {
-    model,
-    max_tokens: options?.maxTokens ?? 1024,
-    messages: allMessages,
-  };
-  if (options?.tools) body.tools = anthropicToolsToOpenRouter(options.tools);
+    const body: Record<string, unknown> = {
+      model,
+      max_tokens: options?.maxTokens ?? 1024,
+      messages: allMessages,
+    };
+    if (options?.tools) body.tools = anthropicToolsToOpenRouter(options.tools);
 
-  let response: Response;
-  try {
-    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+    let response: Response;
+    try {
+      response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      throw new ClaudeError(buildNetworkFailureMessage("OpenRouter", err));
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("OpenRouter API error:", errorText);
+      throw new ClaudeError(buildApiFailureMessage("OpenRouter", response, errorText), response.status);
+    }
+
+    const responseText = await response.text();
+    let data: OpenRouterResponse;
+    try {
+      data = JSON.parse(responseText) as OpenRouterResponse;
+    } catch (err) {
+      console.error("OpenRouter API invalid JSON:", responseText);
+      if (attempt < MAX_INVALID_JSON_RETRIES) {
+        continue;
+      }
+      throw new ClaudeError(buildInvalidJsonMessage("OpenRouter", err));
+    }
+
+    const choice = data.choices[0];
+    const toolCalls = (choice.message.tool_calls ?? []).map((tc) => ({
+      id: tc.id,
+      name: tc.function.name,
+      input: parseOpenRouterToolArguments(tc.function.arguments, tc.function.name),
+    }));
+
+    return {
+      text: choice.message.content ?? "",
+      toolCalls,
+      isToolUse: choice.finish_reason === "tool_calls",
+      rawMessage: {
+        role: "assistant",
+        content: choice.message.content,
+        tool_calls: choice.message.tool_calls,
       },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    throw new ClaudeError(buildNetworkFailureMessage("OpenRouter", err));
+    };
   }
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("OpenRouter API error:", errorText);
-    throw new ClaudeError(buildApiFailureMessage("OpenRouter", response, errorText), response.status);
-  }
-
-  const data: OpenRouterResponse = await response.json();
-  const choice = data.choices[0];
-  const toolCalls = (choice.message.tool_calls ?? []).map((tc) => ({
-    id: tc.id,
-    name: tc.function.name,
-    input: JSON.parse(tc.function.arguments || "{}") as Record<string, unknown>,
-  }));
-
-  return {
-    text: choice.message.content ?? "",
-    toolCalls,
-    isToolUse: choice.finish_reason === "tool_calls",
-    rawMessage: {
-      role: "assistant",
-      content: choice.message.content,
-      tool_calls: choice.message.tool_calls,
-    },
-  };
+  throw new ClaudeError("OpenRouter returned an invalid JSON response");
 }
 
 // ── Public API ───────────────────────────────────────────────────

@@ -163,6 +163,19 @@ CREATE TABLE IF NOT EXISTS study_plans (
         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 9,
+            description: "Add persistent Sensei quizzes",
+            sql: r#"
+CREATE TABLE IF NOT EXISTS quizzes (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  quiz_json TEXT NOT NULL
+);
+        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

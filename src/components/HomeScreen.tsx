@@ -6,13 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { SCENARIOS, localizeScenario } from "@/data/scenarios";
 import { buildHomeSenseiViewContext } from "@/services/sensei-context";
-import { ensureDailyStudyPlan } from "@/services/study-plan";
+import { ensureDailyStudyPlan, setStudyPlanTaskCompleted } from "@/services/study-plan";
 import { getCustomScenarios, getDueVocabulary, getLastSession, getOngoingChats, getSessions, getUserProfile } from "@/services/storage";
 import { useI18n } from "@/i18n";
 import { formatRelativeTime, formatWeekdayMonthDay, getWeekdayLabels } from "@/services/locale-format";
 import type { OngoingChat, Scenario, SenseiViewContext, StudyPlan, StudyPlanTask } from "@/types";
 import { addDays, format, getISOWeek, isSameDay, startOfWeek } from "date-fns";
-import { BookOpenText, Mic, Sparkles } from "lucide-react";
+import { BookOpenText, Check, Mic, RotateCcw, Sparkles } from "lucide-react";
 import hanamaruStamp from "@/assets/hanamaru.svg";
 
 interface HomeScreenProps {
@@ -128,10 +128,12 @@ function TodayPlanCard({
   studyPlan,
   isLoading,
   onTaskAction,
+  onTaskCompletionChange,
 }: {
   studyPlan: StudyPlan | null;
   isLoading: boolean;
   onTaskAction: (task: StudyPlanTask) => void;
+  onTaskCompletionChange: (task: StudyPlanTask, completed: boolean) => void;
 }) {
   const { t } = useI18n();
 
@@ -153,23 +155,39 @@ function TodayPlanCard({
                       <span className="mr-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         {t("home.planStep", { number: index + 1 })}
                       </span>
-                      <span className="font-medium">{task.title}</span>
+                      <span className={task.completedAt ? "font-medium text-muted-foreground line-through" : "font-medium"}>
+                        {task.title}
+                      </span>
                       <span className="mx-2 text-muted-foreground">-</span>
-                      <span className="text-muted-foreground">{task.description}</span>
+                      <span className={task.completedAt ? "text-muted-foreground/70 line-through" : "text-muted-foreground"}>
+                        {task.description}
+                      </span>
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={task.kind === "flashcards" ? "outline" : "default"}
-                    className="h-8 shrink-0 px-3"
-                    onClick={() => onTaskAction(task)}
-                  >
-                    {task.kind === "flashcards" ? <BookOpenText className="size-4" /> : null}
-                    {task.kind === "scenario" ? <Mic className="size-4" /> : null}
-                    {task.kind === "sensei" ? <Sparkles className="size-4" /> : null}
-                    {task.ctaLabel}
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant={task.completedAt ? "secondary" : "outline"}
+                      className="h-8 w-8"
+                      title={task.completedAt ? t("home.markTaskPending") : t("home.markTaskDone")}
+                      onClick={() => onTaskCompletionChange(task, !task.completedAt)}
+                    >
+                      {task.completedAt ? <RotateCcw className="size-4" /> : <Check className="size-4" />}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={task.kind === "flashcards" ? "outline" : "default"}
+                      className="h-8 px-3"
+                      onClick={() => onTaskAction(task)}
+                    >
+                      {task.kind === "flashcards" ? <BookOpenText className="size-4" /> : null}
+                      {task.kind === "scenario" ? <Mic className="size-4" /> : null}
+                      {task.kind === "sensei" ? <Sparkles className="size-4" /> : null}
+                      {task.completedAt ? t("home.reopenTask") : task.ctaLabel}
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -287,6 +305,28 @@ export function HomeScreen({
     }
   };
 
+  const handlePlanTaskCompletionChange = (task: StudyPlanTask, completed: boolean) => {
+    setStudyPlan((current) =>
+      current
+        ? {
+            ...current,
+            tasks: current.tasks.map((item) =>
+              item.id === task.id
+                ? {
+                    ...item,
+                    completedAt: completed ? new Date().toISOString() : undefined,
+                  }
+                : item
+            ),
+          }
+        : current
+    );
+
+    void setStudyPlanTaskCompleted(task.id, completed).catch((error) => {
+      console.error("Failed to update study plan task completion:", error);
+    });
+  };
+
   return (
     <div className="flex flex-col items-center h-full p-4 overflow-auto">
       <div className="max-w-3xl w-full space-y-6 py-5">
@@ -325,6 +365,7 @@ export function HomeScreen({
           studyPlan={studyPlan}
           isLoading={studyPlanLoading}
           onTaskAction={handlePlanTaskAction}
+          onTaskCompletionChange={handlePlanTaskCompletionChange}
         />
 
         <div className="grid gap-3 md:grid-cols-3">

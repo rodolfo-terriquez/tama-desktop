@@ -270,6 +270,40 @@ export async function getActiveStudyPlan(): Promise<StudyPlan | null> {
 
 export async function saveStudyPlan(plan: StudyPlan): Promise<void> {
   await persistStudyPlan(plan);
+  emitDataChanged("study-plan-write");
+}
+
+export async function setStudyPlanTaskCompleted(taskId: string, completed: boolean): Promise<StudyPlan | null> {
+  const activePlan = await getActiveStudyPlan();
+  if (!activePlan) {
+    return null;
+  }
+
+  const nextCompletedAt = completed ? new Date().toISOString() : undefined;
+  let changed = false;
+  const nextTasks = activePlan.tasks.map((task) => {
+    if (task.id !== taskId) {
+      return task;
+    }
+
+    changed = true;
+    return {
+      ...task,
+      completedAt: nextCompletedAt,
+    };
+  });
+
+  if (!changed) {
+    return activePlan;
+  }
+
+  const updatedPlan: StudyPlan = {
+    ...activePlan,
+    tasks: nextTasks,
+  };
+
+  await saveStudyPlan(updatedPlan);
+  return updatedPlan;
 }
 
 export async function generateDailyStudyPlan(): Promise<StudyPlan> {
@@ -327,7 +361,6 @@ export async function generateDailyStudyPlan(): Promise<StudyPlan> {
   }
 
   await saveStudyPlan(plan);
-  emitDataChanged("study-plan-write");
   return plan;
 }
 

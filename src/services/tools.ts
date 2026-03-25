@@ -1,4 +1,5 @@
 import { emitDataChanged } from "@/services/app-events";
+import { getActiveStudyPlan, saveStudyPlan } from "@/services/study-plan";
 import {
   addCustomScenario,
   addVocabItem,
@@ -51,6 +52,29 @@ export const CONVERSATION_TOOLS: ToolDefinition[] = [
 ];
 
 export const SENSEI_TOOLS: ToolDefinition[] = [
+  {
+    name: "update_study_plan_task_status",
+    description:
+      "Mark a task in today's study plan as done or not done when the student explicitly asks to check it off, mark it complete, or undo it.",
+    input_schema: {
+      type: "object",
+      properties: {
+        task_id: {
+          type: "string",
+          description: "Task id from the current study plan context, such as flashcards, scenario, or sensei.",
+        },
+        task_title: {
+          type: "string",
+          description: "Task title to match if task_id is unavailable.",
+        },
+        completed: {
+          type: "boolean",
+          description: "Whether the task should be marked completed. Defaults to true.",
+        },
+      },
+      required: [],
+    },
+  },
   {
     name: "create_custom_scenario",
     description:
@@ -162,6 +186,75 @@ export async function executeTool(tool: ToolCall): Promise<ToolResult> {
   let content: string;
 
   switch (tool.name) {
+    case "update_study_plan_task_status": {
+      const taskId = String(tool.input.task_id ?? "").trim();
+      const taskTitle = String(tool.input.task_title ?? "").trim().toLowerCase();
+      const completed = tool.input.completed === false ? false : true;
+      const activePlan = await getActiveStudyPlan();
+
+      if (!activePlan) {
+        content = JSON.stringify({
+          success: false,
+          error: "There is no active study plan for today.",
+        });
+        break;
+      }
+
+      const matchedTask = activePlan.tasks.find((task) => {
+        if (taskId && task.id === taskId) {
+          return true;
+        }
+
+        if (!taskTitle) {
+          return false;
+        }
+
+        return (
+          task.title.trim().toLowerCase() === taskTitle ||
+          task.id.trim().toLowerCase() === taskTitle
+        );
+      });
+
+      if (!matchedTask) {
+        content = JSON.stringify({
+          success: false,
+          error: "Could not find that study plan task.",
+          availableTasks: activePlan.tasks.map((task) => ({
+            id: task.id,
+            title: task.title,
+            completed: Boolean(task.completedAt),
+          })),
+        });
+        break;
+      }
+
+      const updatedPlan = {
+        ...activePlan,
+        tasks: activePlan.tasks.map((task) =>
+          task.id === matchedTask.id
+            ? {
+                ...task,
+                completedAt: completed ? new Date().toISOString() : undefined,
+              }
+            : task
+        ),
+      };
+
+      await saveStudyPlan(updatedPlan);
+      content = JSON.stringify({
+        success: true,
+        task: {
+          id: matchedTask.id,
+          title: matchedTask.title,
+          completed,
+        },
+        message: completed
+          ? "Marked the study plan task as completed."
+          : "Marked the study plan task as not completed.",
+      });
+      break;
+    }
+
     case "get_due_vocabulary": {
       const limit = (tool.input.limit as number) || 5;
       const due = await getDueVocabulary(limit);

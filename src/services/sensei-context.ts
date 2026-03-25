@@ -4,6 +4,7 @@ import type {
   AppScreen,
   JLPTLevel,
   Message,
+  Quiz,
   Scenario,
   ShadowAttempt,
   ShadowScript,
@@ -49,6 +50,7 @@ export function buildHomeSenseiViewContext(studyPlan?: StudyPlan | null): Sensei
             title: task.title,
             description: task.description,
             ctaLabel: task.ctaLabel,
+            completedAt: task.completedAt,
           })),
         }
       : undefined,
@@ -256,6 +258,25 @@ export function buildFlashcardSenseiViewContext(args: {
   };
 }
 
+export function buildQuizSenseiViewContext(quiz: Quiz): SenseiViewContext {
+  return {
+    kind: "quiz-review",
+    screen: "quiz",
+    quizId: quiz.id,
+    title: quiz.title,
+    instructions: quiz.instructions,
+    questionCount: quiz.questions.length,
+    completed: Boolean(quiz.latestAttempt),
+    latestScore: quiz.latestAttempt
+      ? {
+          correctCount: quiz.latestAttempt.correctCount,
+          totalCount: quiz.latestAttempt.totalCount,
+          completedAt: quiz.latestAttempt.completedAt,
+        }
+      : undefined,
+  };
+}
+
 export function getSenseiContextLabel(context: SenseiViewContext): string {
   switch (context.kind) {
     case "home":
@@ -274,6 +295,8 @@ export function getSenseiContextLabel(context: SenseiViewContext): string {
       return context.name;
     case "flashcard-review":
       return context.tab === "review" ? "Flashcard review" : "All cards";
+    case "quiz-review":
+      return context.completed ? `Quiz results: ${context.title}` : `Quiz: ${context.title}`;
     case "screen":
     default:
       return context.screen;

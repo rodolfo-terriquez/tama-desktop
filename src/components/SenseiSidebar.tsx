@@ -22,7 +22,7 @@ import {
   sendSenseiUserMessage,
 } from "@/services/sensei";
 import { cn } from "@/lib/utils";
-import type { SenseiThread, SenseiViewContext } from "@/types";
+import type { Message, SenseiThread, SenseiViewContext } from "@/types";
 import { ArrowUp, History, Maximize2, Minimize2, Plus, Trash2 } from "lucide-react";
 
 interface SenseiSidebarProps {
@@ -33,6 +33,7 @@ interface SenseiSidebarProps {
   mode?: "sidebar" | "full";
   onExpand?: () => void;
   onMinimize?: () => void;
+  onOpenQuiz?: (quizId: string) => void;
   pendingPromptRequest?: {
     id: string;
     prompt: string;
@@ -42,6 +43,52 @@ interface SenseiSidebarProps {
 
 const frostedButtonClass =
   "border-border/80 bg-background/95 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/85";
+
+function SenseiMessageBubble({
+  message,
+  mode,
+  onOpenQuiz,
+}: {
+  message: Message;
+  mode: "sidebar" | "full";
+  onOpenQuiz?: (quizId: string) => void;
+}) {
+  const hasContent = message.content.trim().length > 0;
+  const hasQuizAction = message.role === "assistant" && message.action?.type === "open_quiz";
+  const quizAction = hasQuizAction ? message.action : null;
+
+  return (
+    <div className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
+      <div
+        className={cn(
+          "rounded-xl px-3 py-2 text-sm leading-relaxed",
+          message.role === "user"
+            ? "max-w-[88%]"
+            : mode === "full"
+              ? "w-full"
+              : "max-w-[88%]",
+          message.role === "user"
+            ? "bg-primary text-primary-foreground"
+            : "bg-card text-card-foreground",
+          hasQuizAction && "space-y-3"
+        )}
+      >
+        {hasContent ? <SimpleMarkdown content={message.content} /> : null}
+        {quizAction ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onOpenQuiz?.(quizAction.quizId)}
+            className="rounded-full"
+          >
+            {quizAction.label}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 function SenseiConversation({
   thread,
@@ -57,6 +104,7 @@ function SenseiConversation({
   onDeleteThread,
   onSelectThread,
   onSend,
+  onOpenQuiz,
 }: {
   thread: SenseiThread | null;
   threads: SenseiThread[];
@@ -71,6 +119,7 @@ function SenseiConversation({
   onDeleteThread: (threadId: string) => Promise<void>;
   onSelectThread: (threadId: string) => Promise<void>;
   onSend: (text: string) => Promise<void>;
+  onOpenQuiz?: (quizId: string) => void;
 }) {
   const { t } = useI18n();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -186,23 +235,12 @@ function SenseiConversation({
         <div className="space-y-3 px-4 pt-14 pb-28">
           {thread && thread.messages.length > 0 ? (
             thread.messages.map((message) => (
-              <div key={message.id} className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
-                <div
-                  className={cn(
-                    "rounded-xl px-3 py-2 text-sm leading-relaxed",
-                    message.role === "user"
-                      ? "max-w-[88%]"
-                      : mode === "full"
-                        ? "w-full"
-                        : "max-w-[88%]",
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-card text-card-foreground"
-                  )}
-                >
-                  <SimpleMarkdown content={message.content} />
-                </div>
-              </div>
+              <SenseiMessageBubble
+                key={message.id}
+                message={message}
+                mode={mode}
+                onOpenQuiz={onOpenQuiz}
+              />
             ))
           ) : (
             <div className="rounded-xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
@@ -277,6 +315,7 @@ export function SenseiSidebar({
   mode = "sidebar",
   onExpand,
   onMinimize,
+  onOpenQuiz,
   pendingPromptRequest,
   onPendingPromptHandled,
 }: SenseiSidebarProps) {
@@ -394,7 +433,7 @@ export function SenseiSidebar({
   if (mode === "full") {
     return (
       <div className="flex h-full min-h-0 flex-1 bg-background">
-        <div className="flex min-h-0 w-full flex-1">
+        <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1">
           <SenseiConversation
             thread={thread}
             threads={threads}
@@ -409,6 +448,7 @@ export function SenseiSidebar({
             onDeleteThread={handleDeleteThread}
             onSelectThread={handleSelectThread}
             onSend={handleSend}
+            onOpenQuiz={onOpenQuiz}
           />
         </div>
       </div>
@@ -438,6 +478,7 @@ export function SenseiSidebar({
             onDeleteThread={handleDeleteThread}
             onSelectThread={handleSelectThread}
             onSend={handleSend}
+            onOpenQuiz={onOpenQuiz}
           />
           </div>
         </SheetContent>
@@ -463,6 +504,7 @@ export function SenseiSidebar({
         onDeleteThread={handleDeleteThread}
         onSelectThread={handleSelectThread}
         onSend={handleSend}
+        onOpenQuiz={onOpenQuiz}
       />
     </aside>
   );

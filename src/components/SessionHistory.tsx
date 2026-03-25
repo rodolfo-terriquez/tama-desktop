@@ -10,6 +10,7 @@ import {
   addVocabItem,
   getFlashcardReviewSessions,
   getOngoingChats,
+  getQuizzes,
   getSessions,
   getVocabulary,
 } from "@/services/storage";
@@ -18,10 +19,11 @@ import type {
   FlashcardReviewSession,
   Message,
   OngoingChat,
+  Quiz,
   Session,
   SessionFeedback,
 } from "@/types";
-import { Copy } from "lucide-react";
+import { CheckCircle2, Copy, XCircle } from "lucide-react";
 
 const RATING_CONFIG = {
   needs_work: { key: "history.needsWork", variant: "destructive-soft" as const },
@@ -57,6 +59,12 @@ type HistoryEntry =
       id: string;
       sortDate: string;
       review: FlashcardReviewSession;
+    }
+  | {
+      kind: "quiz";
+      id: string;
+      sortDate: string;
+      quiz: Quiz;
     };
 
 function getFeedbackVocabKey(word: string, meaning: string): string {
@@ -100,7 +108,8 @@ function normalizeSessionFeedback(feedback: Session["feedback"]): SessionFeedbac
 function buildHistoryEntries(
   sessions: Session[],
   chats: OngoingChat[],
-  flashcardReviewSessions: FlashcardReviewSession[]
+  flashcardReviewSessions: FlashcardReviewSession[],
+  quizzes: Quiz[]
 ): HistoryEntry[] {
   const sessionEntries: HistoryEntry[] = sessions.map((session) => ({
     kind: "session",
@@ -135,7 +144,16 @@ function buildHistoryEntries(
     review,
   }));
 
-  return [...sessionEntries, ...ongoingEntries, ...flashcardEntries].sort((a, b) =>
+  const quizEntries: HistoryEntry[] = quizzes
+    .filter((quiz) => Boolean(quiz.latestAttempt))
+    .map((quiz) => ({
+      kind: "quiz" as const,
+      id: `quiz:${quiz.id}`,
+      sortDate: quiz.latestAttempt?.completedAt ?? quiz.updatedAt,
+      quiz,
+    }));
+
+  return [...sessionEntries, ...ongoingEntries, ...flashcardEntries, ...quizEntries].sort((a, b) =>
     b.sortDate.localeCompare(a.sortDate)
   );
 }
@@ -166,8 +184,9 @@ export function SessionHistory() {
       getSessions(),
       getOngoingChats(),
       getFlashcardReviewSessions(),
-    ]).then(([sessions, chats, reviewSessions]) => {
-      setEntries(buildHistoryEntries(sessions, chats, reviewSessions));
+      getQuizzes(),
+    ]).then(([sessions, chats, reviewSessions, quizzes]) => {
+      setEntries(buildHistoryEntries(sessions, chats, reviewSessions, quizzes));
     });
   }, []);
 
@@ -325,17 +344,22 @@ function HistoryCard({
       ? entry.session.scenario.title
       : entry.kind === "ongoing-chat"
         ? entry.chat.name
-        : t("history.flashcardReviewTitle");
+        : entry.kind === "flashcard-review"
+          ? t("history.flashcardReviewTitle")
+          : entry.quiz.title;
   const titleJa = entry.kind === "session" ? entry.session.scenario.title_ja : "";
   const subtitle =
     entry.kind === "ongoing-chat"
       ? entry.chat.persona
       : entry.kind === "session" && entry.session.scenario.id.startsWith("ongoing-chat:")
         ? entry.session.scenario.description
+        : entry.kind === "quiz"
+          ? entry.quiz.instructions
         : "";
   const userMessages = entry.kind === "session"
     ? entry.session.messages.filter((m) => m.role === "user").length
     : 0;
+  const latestAttempt = entry.kind === "quiz" ? entry.quiz.latestAttempt : null;
 
   const metaParts = [
     formatDateTime(new Date(entry.sortDate)),
@@ -343,12 +367,21 @@ function HistoryCard({
       ? formatDuration(entry.session.duration_seconds)
       : entry.kind === "flashcard-review"
         ? formatDuration(entry.review.duration_seconds)
+        : entry.kind === "quiz"
+          ? t("quiz.questionCount", { count: entry.quiz.questions.length })
         : null,
     entry.kind === "session"
       ? t("feedback.exchanges", { count: userMessages })
       : entry.kind === "ongoing-chat"
         ? t("history.messageCount", { count: entry.messages.length })
-        : t("history.cardsReviewed", { count: entry.review.results.length }),
+        : entry.kind === "flashcard-review"
+          ? t("history.cardsReviewed", { count: entry.review.results.length })
+          : latestAttempt
+            ? t("quiz.score", {
+                correct: latestAttempt.correctCount,
+                total: latestAttempt.totalCount,
+              })
+            : null,
   ].filter((value): value is string => Boolean(value));
 
   return (
@@ -396,6 +429,10 @@ function HistoryCard({
               ) : entry.kind === "flashcard-review" ? (
                 <Badge variant="accent" className="text-[10px]">
                   {t("common.review")}
+                </Badge>
+              ) : entry.kind === "quiz" ? (
+                <Badge variant="accent" className="text-[10px]">
+                  {t("common.quizzes")}
                 </Badge>
               ) : null}
               <span className="text-[10px] text-muted-foreground">
@@ -468,6 +505,8 @@ function HistoryCard({
               <div className="px-5 py-4 max-h-[28rem] overflow-y-auto overflow-x-hidden min-w-0">
                 {entry.kind === "flashcard-review" ? (
                   <FlashcardReviewView review={entry.review} />
+                ) : entry.kind === "quiz" ? (
+                  <QuizAttemptView quiz={entry.quiz} />
                 ) : (
                   <ConversationPanel messages={messages} onCopy={canCopy ? onCopy : undefined} />
                 )}
@@ -560,6 +599,74 @@ function FlashcardReviewView({ review }: { review: FlashcardReviewSession }) {
               <Badge variant="outline">
                 {t(FLASHCARD_RATING_KEYS[result.rating])}
               </Badge>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function QuizAttemptView({ quiz }: { quiz: Quiz }) {
+  const { t } = useI18n();
+  const latestAttempt = quiz.latestAttempt;
+
+  if (!latestAttempt) {
+    return (
+      <p className="text-sm text-muted-foreground text-center py-4">
+        {t("quiz.notStarted")}
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary">{t("quiz.score", {
+          correct: latestAttempt.correctCount,
+          total: latestAttempt.totalCount,
+        })}</Badge>
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(latestAttempt.completedAt)}
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {latestAttempt.results.map((result, index) => (
+          <div key={`${latestAttempt.id}-${result.questionId}`} className="rounded-lg bg-muted/40 p-3 space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t("quiz.questionNumber", { number: index + 1 })}
+                </p>
+                <p className="text-sm leading-relaxed">{result.prompt}</p>
+              </div>
+              <Badge variant={result.isCorrect ? "success" : "outline"} className="shrink-0">
+                {result.isCorrect ? (
+                  <>
+                    <CheckCircle2 className="size-3.5" />
+                    {t("quiz.correct")}
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="size-3.5" />
+                    {t("quiz.incorrect")}
+                  </>
+                )}
+              </Badge>
+            </div>
+            <div className="space-y-1 text-sm">
+              <p>
+                <span className="text-muted-foreground">{t("quiz.yourAnswer")}:</span>{" "}
+                <span>{result.userAnswer || t("common.none")}</span>
+              </p>
+              {!result.isCorrect ? (
+                <p>
+                  <span className="text-muted-foreground">{t("quiz.correctAnswer")}:</span>{" "}
+                  <span>{result.correctAnswer}</span>
+                </p>
+              ) : null}
+              <p className="text-muted-foreground">{result.explanation}</p>
             </div>
           </div>
         ))}

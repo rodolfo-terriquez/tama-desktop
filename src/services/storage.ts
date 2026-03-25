@@ -3,6 +3,7 @@ import type {
   AccountBundleV1,
   FlashcardReviewSession,
   OngoingChat,
+  Quiz,
   Scenario,
   ShadowScript,
   SenseiThread,
@@ -357,6 +358,48 @@ export async function saveStudyPlan(plan: StudyPlan): Promise<void> {
   );
 }
 
+// ── Quizzes ────────────────────────────────────────────────────────
+
+interface QuizRow {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  quiz_json: string;
+}
+
+function rowToQuiz(row: QuizRow): Quiz {
+  const parsed = JSON.parse(row.quiz_json) as Quiz;
+  return {
+    ...parsed,
+    id: row.id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function getQuiz(id: string): Promise<Quiz | null> {
+  const d = await getDb();
+  const rows = await d.select<QuizRow[]>("SELECT * FROM quizzes WHERE id = $1", [id]);
+  return rows.length > 0 ? rowToQuiz(rows[0]) : null;
+}
+
+export async function getQuizzes(): Promise<Quiz[]> {
+  const d = await getDb();
+  const rows = await d.select<QuizRow[]>(
+    "SELECT * FROM quizzes ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC"
+  );
+  return rows.map(rowToQuiz);
+}
+
+export async function saveQuiz(quiz: Quiz): Promise<void> {
+  const d = await getDb();
+  await d.execute(
+    `INSERT OR REPLACE INTO quizzes (id, created_at, updated_at, quiz_json)
+     VALUES ($1, $2, $3, $4)`,
+    [quiz.id, quiz.createdAt, quiz.updatedAt, JSON.stringify(quiz)]
+  );
+}
+
 // ── Custom Scenarios ────────────────────────────────────────────────
 
 interface ScenarioRow {
@@ -640,6 +683,7 @@ export async function clearAllData(): Promise<void> {
   await d.execute("DELETE FROM sessions");
   await d.execute("DELETE FROM flashcard_review_sessions");
   await d.execute("DELETE FROM study_plans");
+  await d.execute("DELETE FROM quizzes");
   await d.execute("DELETE FROM custom_scenarios");
   await d.execute("DELETE FROM shadow_scripts");
   await d.execute("DELETE FROM ongoing_chats");
@@ -658,6 +702,7 @@ export async function replaceAccountBundle(bundle: AccountBundleV1): Promise<voi
     await d.execute("DELETE FROM sessions");
     await d.execute("DELETE FROM flashcard_review_sessions");
     await d.execute("DELETE FROM study_plans");
+    await d.execute("DELETE FROM quizzes");
     await d.execute("DELETE FROM custom_scenarios");
     await d.execute("DELETE FROM shadow_scripts");
     await d.execute("DELETE FROM ongoing_chats");
@@ -739,6 +784,14 @@ export async function replaceAccountBundle(bundle: AccountBundleV1): Promise<voi
           JSON.stringify(scenario.objectives),
           scenario.custom_prompt ?? null,
         ]
+      );
+    }
+
+    for (const quiz of bundle.quizzes ?? []) {
+      await d.execute(
+        `INSERT INTO quizzes (id, created_at, updated_at, quiz_json)
+         VALUES ($1, $2, $3, $4)`,
+        [quiz.id, quiz.createdAt, quiz.updatedAt, JSON.stringify(quiz)]
       );
     }
 

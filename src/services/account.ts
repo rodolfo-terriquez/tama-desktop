@@ -11,6 +11,7 @@ import { emitConfigChanged, emitDataChanged } from "@/services/app-events";
 import {
   getCustomScenarios,
   getOngoingChats,
+  getQuizzes,
   getSenseiThreads,
   getSessions,
   getUserProfile,
@@ -32,6 +33,7 @@ import type {
   AccountPreferences,
   Message,
   OngoingChat,
+  Quiz,
   Scenario,
   SenseiThread,
   Session,
@@ -74,7 +76,41 @@ function isMessage(value: unknown): value is Message {
     isString(value.id) &&
     (value.role === "user" || value.role === "assistant") &&
     isString(value.content) &&
-    isString(value.timestamp)
+    isString(value.timestamp) &&
+    (value.action === undefined ||
+      (isRecord(value.action) &&
+        value.action.type === "open_quiz" &&
+        isString(value.action.quizId) &&
+        isString(value.action.label) &&
+        (value.action.title === undefined || isString(value.action.title))))
+  );
+}
+
+function isQuiz(value: unknown): value is Quiz {
+  if (!isRecord(value)) return false;
+  return (
+    isString(value.id) &&
+    isString(value.title) &&
+    isString(value.instructions) &&
+    isString(value.createdAt) &&
+    isString(value.updatedAt) &&
+    value.source === "sensei" &&
+    isString(value.sourcePrompt) &&
+    (value.introMessage === undefined || isString(value.introMessage)) &&
+    Array.isArray(value.questions) &&
+    value.questions.every((question) => {
+      if (!isRecord(question)) return false;
+      return (
+        isString(question.id) &&
+        isString(question.prompt) &&
+        (question.type === "multiple_choice" ||
+          question.type === "fill_blank" ||
+          question.type === "dropdown") &&
+        (question.options === undefined || isStringArray(question.options)) &&
+        isString(question.correctAnswer) &&
+        isString(question.explanation)
+      );
+    })
   );
 }
 
@@ -218,6 +254,7 @@ export function validateAccountBundle(value: unknown): AccountBundleV1 {
     !value.ongoingChats.every(isOngoingChat) ||
     !Array.isArray(value.customScenarios) ||
     !value.customScenarios.every(isScenario) ||
+    (value.quizzes !== undefined && (!Array.isArray(value.quizzes) || !value.quizzes.every(isQuiz))) ||
     !isAccountPreferences(value.preferences) ||
     (value.sensei !== undefined && !isSenseiThread(value.sensei)) ||
     (value.senseiThreads !== undefined &&
@@ -271,6 +308,7 @@ export async function buildAccountBundle(): Promise<AccountBundleV1> {
     vocabulary,
     ongoingChats,
     customScenarios,
+    quizzes,
     senseiThreads,
   ] = await Promise.all([
     getUserProfile(),
@@ -278,6 +316,7 @@ export async function buildAccountBundle(): Promise<AccountBundleV1> {
     getVocabulary(),
     getOngoingChats(),
     getCustomScenarios(),
+    getQuizzes(),
     getSenseiThreads(),
   ]);
 
@@ -297,6 +336,7 @@ export async function buildAccountBundle(): Promise<AccountBundleV1> {
     vocabulary,
     ongoingChats,
     customScenarios,
+    ...(quizzes.length > 0 ? { quizzes } : {}),
     preferences: getAccountPreferences(),
     ...(senseiThreads.length > 0 ? { senseiThreads } : {}),
     activeSenseiThreadId: getActiveSenseiThreadId(),

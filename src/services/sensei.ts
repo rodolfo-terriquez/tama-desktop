@@ -1,23 +1,28 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAppLocale } from "@/services/app-config";
-import { getContextMessages, sendMessageWithTools, summarizeSenseiConversation } from "@/services/claude";
+import { emitDataChanged } from "@/services/app-events";
+import { getContextMessages, sendMessage, sendMessageWithTools, summarizeSenseiConversation } from "@/services/claude";
 import { getActiveStudyPlan } from "@/services/study-plan";
 import { SENSEI_TOOLS } from "@/services/tools";
 import {
   deleteSenseiThread,
   getCustomScenarios,
   getOngoingChats,
+  getQuizzes,
   getSenseiThread,
   getSenseiThreads,
   getSessions,
   getUserProfile,
   getVocabulary,
+  saveQuiz,
   saveSenseiThread,
 } from "@/services/storage";
 import type {
   AccountBundleV1,
   AppLocale,
   Message,
+  Quiz,
+  QuizQuestion,
   SenseiRequestContext,
   SenseiThread,
   SenseiViewContext,
@@ -33,6 +38,27 @@ const JAPANESE_CHAR_REGEX = /[\u3040-\u30ff\u3400-\u9fff]/gu;
 const LATIN_LETTER_REGEX = /[A-Za-z\u00c0-\u024f]/gu;
 const SPANISH_SIGNAL_REGEX =
   /[¿¡áéíóúñü]|\b(?:hola|gracias|por favor|puedo|puedes|quiero|quieres|necesito|explica|explicar|ayuda|como|cómo|que|qué|estoy|estás|tengo|para|porque|por qué|donde|dónde|esto|esta|este|responde|idioma|habla|dime|tambien|también)\b/giu;
+const SENSEI_TOOL_REQUEST_REGEX =
+  /\b(create|save|add|make|generate|setup|set up|mark|complete|completed|finish|finished|done|check off|uncheck|undo|crear|guardar|agregar|añadir|hacer|generar|marcar|completar|completado|termin[eé]|terminado|hecho)\b/iu;
+const SENSEI_SCENARIO_TARGET_REGEX = /\b(custom scenario|scenario|escenario)\b/iu;
+const SENSEI_PERSONA_TARGET_REGEX =
+  /\b(persona|friend|chat buddy|ongoing chat|persistent chat|companion|personaje)\b/iu;
+const SENSEI_FLASHCARD_TARGET_REGEX =
+  /\b(flashcard|flashcards|srs|spaced repetition|vocab card|vocabulary card|tarjeta de vocabulario|tarjetas de vocabulario)\b/iu;
+const SENSEI_STUDY_PLAN_TARGET_REGEX =
+  /\b(study plan|today'?s plan|plan item|plan task|task|step|daily plan|plan de hoy|plan diario|tarea|paso)\b/iu;
+const SENSEI_QUIZ_REQUEST_REGEX =
+  /\b(quiz|practice drill|drill|multiple choice|multiple-choice|fill in the blank|fill-in-the-blank|dropdown|test me|quiz me|cuestionario)\b/iu;
+
+function getQuizActionLabel(locale: AppLocale): string {
+  return locale === "es" ? "Abrir quiz" : "Open quiz";
+}
+
+function getQuizReadyMessage(locale: AppLocale): string {
+  return locale === "es"
+    ? "Preparé un quiz para ti. Ábrelo cuando quieras."
+    : "I put together a quiz for you. Open it when you're ready.";
+}
 
 function getLocaleFallbackLanguage(locale: AppLocale): "English" | "Spanish" {
   return locale === "es" ? "Spanish" : "English";
@@ -84,14 +110,22 @@ function formatViewContext(view: SenseiViewContext): string {
 }
 
 function formatSenseiMessageForModel(message: Message): Message {
-  if (message.role !== "user") {
-    return message;
+  if (message.role === "assistant" && message.action?.type === "open_quiz") {
+    const quizLinkSummary = `[Assistant linked quiz: ${message.action.title ?? message.action.label}]`;
+    return {
+      ...message,
+      content: message.content ? `${message.content}\n\n${quizLinkSummary}` : quizLinkSummary,
+    };
   }
 
-  return {
-    ...message,
-    content: `[User message timestamp: ${message.timestamp}]\n${message.content}`,
-  };
+  if (message.role === "user") {
+    return {
+      ...message,
+      content: `[User message timestamp: ${message.timestamp}]\n${message.content}`,
+    };
+  }
+
+  return message;
 }
 
 function getCurrentDateTimeBlock(locale: AppLocale): string {
@@ -121,7 +155,7 @@ function getCurrentDateTimeBlock(locale: AppLocale): string {
   );
 }
 
-function buildAccountSummary(bundle: Pick<AccountBundleV1, "profile" | "sessions" | "vocabulary" | "ongoingChats" | "customScenarios"> & {
+function buildAccountSummary(bundle: Pick<AccountBundleV1, "profile" | "sessions" | "vocabulary" | "ongoingChats" | "customScenarios" | "quizzes"> & {
   activeStudyPlan?: Awaited<ReturnType<typeof getActiveStudyPlan>>;
 }): string {
   const dueCount = bundle.vocabulary.filter((item) => item.next_review <= new Date().toISOString().split("T")[0]).length;
@@ -138,6 +172,18 @@ function buildAccountSummary(bundle: Pick<AccountBundleV1, "profile" | "sessions
   const customScenarios = bundle.customScenarios.slice(0, 5).map((scenario) => ({
     title: scenario.title,
     title_ja: scenario.title_ja,
+  }));
+  const recentQuizzes = (bundle.quizzes ?? []).slice(0, 5).map((quiz) => ({
+    title: quiz.title,
+    sourcePrompt: quiz.sourcePrompt,
+    questionCount: quiz.questions.length,
+    latestAttempt: quiz.latestAttempt
+      ? {
+          correctCount: quiz.latestAttempt.correctCount,
+          totalCount: quiz.latestAttempt.totalCount,
+          completedAt: quiz.latestAttempt.completedAt,
+        }
+      : null,
   }));
 
   return JSON.stringify(
@@ -163,15 +209,19 @@ function buildAccountSummary(bundle: Pick<AccountBundleV1, "profile" | "sessions
       recentSessions,
       activeChats,
       customScenarios,
+      recentQuizzes,
       activeStudyPlan: bundle.activeStudyPlan
         ? {
             date: bundle.activeStudyPlan.date,
             focusSummary: bundle.activeStudyPlan.focusSummary,
             reasoningSummary: bundle.activeStudyPlan.reasoningSummary,
             tasks: bundle.activeStudyPlan.tasks.map((task) => ({
+              id: task.id,
               kind: task.kind,
               title: task.title,
               description: task.description,
+              completed: Boolean(task.completedAt),
+              completedAt: task.completedAt ?? null,
             })),
           }
         : null,
@@ -181,7 +231,12 @@ function buildAccountSummary(bundle: Pick<AccountBundleV1, "profile" | "sessions
   );
 }
 
-function buildSenseiPrompt(context: SenseiRequestContext, thread: SenseiThread, accountSummary: string): string {
+function buildSenseiPrompt(
+  context: SenseiRequestContext,
+  thread: SenseiThread,
+  accountSummary: string,
+  toolsEnabled: boolean
+): string {
   const preferredLanguage = detectPreferredSenseiLanguage(thread.messages, context.locale);
   const fallbackLanguage = getLocaleFallbackLanguage(context.locale);
   const summaryBlock = thread.summary
@@ -205,18 +260,23 @@ Rules:
 4. Be concise and practical. Prefer short explanations with examples over long lectures.
 5. You may reference the student's saved learning history and the current app view.
 6. Do not claim to have performed actions or changed data in the app unless a tool result confirms it.
-7. You can create app content only by using the provided tools. Never pretend you created something unless the tool result confirms it.
-8. Create scenarios, personas, or flashcards only when the student clearly asks you to save or create them.
+7. If tools are available for this turn, you can create app content only by using the provided tools. Never pretend you created something unless the tool result confirms it.
+8. Create scenarios, personas, flashcards, or update study plan task status only when the student clearly asks, and only when tools are enabled for this turn.
 9. If required details are missing, ask a short follow-up question before using a tool.
 10. If the current view context is limited, say that plainly and answer from the account summary plus the student's question.
 11. When useful, include Japanese examples and short breakdowns, but keep the surrounding explanation in the student's chosen language unless they ask otherwise.
+12. If the student asks for a quiz, practice exercise, or drill, answer naturally and assume the app may create a separate quiz experience for them. Do not embed a full quiz payload in your reply.
+13. Gratitude, acknowledgements, reactions, or short follow-ups like "thanks", "good stuff", or "I get it" should always get a short normal reply.
 
-TOOLS:
+${toolsEnabled
+    ? `TOOLS:
 - create_custom_scenario: save a new custom practice scenario
 - create_ongoing_chat_persona: save a new persistent chat persona
 - create_flashcard: save a flashcard in the student's SRS deck
+- update_study_plan_task_status: mark a task in today's study plan as done or not done
 
-After a successful tool call, briefly tell the student what you created. If the tool reports an existing matching item, tell the student instead of claiming a new one was created.
+After a successful tool call, briefly tell the student what you created. If the tool reports an existing matching item, tell the student instead of claiming a new one was created.`
+    : `No creation tools are enabled for this turn. Answer in chat only and do not claim to save or create app content.`}
 ${summaryBlock}
 
 CURRENT DATE/TIME:
@@ -227,6 +287,271 @@ ${accountSummary}
 
 CURRENT VIEW CONTEXT:
 ${formatViewContext(context.view)}`;
+}
+
+function shouldEnableSenseiTools(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (!SENSEI_TOOL_REQUEST_REGEX.test(trimmed)) {
+    return false;
+  }
+
+  return (
+    SENSEI_SCENARIO_TARGET_REGEX.test(trimmed) ||
+    SENSEI_PERSONA_TARGET_REGEX.test(trimmed) ||
+    SENSEI_FLASHCARD_TARGET_REGEX.test(trimmed) ||
+    SENSEI_STUDY_PLAN_TARGET_REGEX.test(trimmed)
+  );
+}
+
+function shouldCreateSenseiQuiz(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  return SENSEI_QUIZ_REQUEST_REGEX.test(trimmed);
+}
+
+function extractJsonObject(text: string): string {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced?.[1]) {
+    return fenced[1].trim();
+  }
+
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    return trimmed.slice(start, end + 1);
+  }
+
+  return trimmed;
+}
+
+function parseLooseJsonObject(text: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    try {
+      return JSON.parse(text.replace(/,\s*([}\]])/g, "$1")) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function parseQuizQuestion(value: unknown, index: number): QuizQuestion | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const question = value as Record<string, unknown>;
+  const rawOptionsSource = Array.isArray(question.options)
+    ? question.options
+    : Array.isArray(question.choices)
+      ? question.choices
+      : undefined;
+  const options = rawOptionsSource
+    ?.filter((option): option is string => typeof option === "string" && option.trim().length > 0)
+    .map((option) => option.trim());
+  const rawType = typeof question.type === "string" ? question.type.trim().toLowerCase() : "";
+  const type =
+    rawType === "multiple_choice" ||
+    rawType === "multiple-choice" ||
+    rawType === "multiple choice" ||
+    rawType === "mcq"
+      ? "multiple_choice"
+      : rawType === "fill_blank" || rawType === "fill-blank" || rawType === "fill blank"
+        ? "fill_blank"
+        : rawType === "dropdown" || rawType === "select"
+          ? "dropdown"
+          : options && options.length > 0
+            ? "multiple_choice"
+            : "fill_blank";
+
+  const id = typeof question.id === "string" ? question.id.trim() : `q${index + 1}`;
+  const prompt =
+    typeof question.prompt === "string"
+      ? question.prompt.trim()
+      : typeof question.question === "string"
+        ? question.question.trim()
+        : "";
+  const correctAnswer =
+    typeof question.correctAnswer === "string"
+      ? question.correctAnswer.trim()
+      : typeof question.correct_answer === "string"
+        ? question.correct_answer.trim()
+        : "";
+  const explanation =
+    typeof question.explanation === "string"
+      ? question.explanation.trim()
+      : typeof question.reasoning === "string"
+        ? question.reasoning.trim()
+        : "Review the correction and compare it with the target phrasing.";
+
+  if (!prompt || !correctAnswer) {
+    return null;
+  }
+
+  if ((type === "multiple_choice" || type === "dropdown") && (!options || options.length < 2)) {
+    return null;
+  }
+
+  return {
+    id,
+    prompt,
+    type,
+    options,
+    correctAnswer,
+    explanation,
+  };
+}
+
+function parseGeneratedSenseiQuiz(raw: string): { introMessage: string; title: string; instructions: string; questions: QuizQuestion[] } | null {
+  const extracted = extractJsonObject(raw);
+  const parsed = parseLooseJsonObject(extracted);
+  if (!parsed) {
+    return null;
+  }
+
+  const quizRecord =
+    parsed.quiz && typeof parsed.quiz === "object"
+      ? (parsed.quiz as Record<string, unknown>)
+      : parsed;
+  const title =
+    typeof quizRecord.title === "string"
+      ? quizRecord.title.trim()
+      : typeof quizRecord.name === "string"
+        ? quizRecord.name.trim()
+        : "";
+  const instructions =
+    typeof quizRecord.instructions === "string"
+      ? quizRecord.instructions.trim()
+      : typeof quizRecord.description === "string"
+        ? quizRecord.description.trim()
+        : "Choose the best answer for each question.";
+  const introMessage =
+    typeof parsed.reply === "string"
+      ? parsed.reply.trim()
+      : typeof parsed.introMessage === "string"
+        ? parsed.introMessage.trim()
+        : "";
+  const rawQuestions = Array.isArray(quizRecord.questions)
+    ? quizRecord.questions
+    : Array.isArray(quizRecord.items)
+      ? quizRecord.items
+      : null;
+
+  if (!title || !rawQuestions || rawQuestions.length === 0) {
+    return null;
+  }
+
+  const questions = rawQuestions
+    .map((question, index) => parseQuizQuestion(question, index))
+    .filter((question): question is QuizQuestion => Boolean(question))
+    .slice(0, 5);
+
+  if (questions.length === 0) {
+    return null;
+  }
+
+  return {
+    introMessage,
+    title,
+    instructions,
+    questions,
+  };
+}
+
+function buildSenseiQuizPrompt(context: SenseiRequestContext, thread: SenseiThread, accountSummary: string): string {
+  const preferredLanguage = detectPreferredSenseiLanguage(thread.messages, context.locale);
+  const fallbackLanguage = getLocaleFallbackLanguage(context.locale);
+  const summaryBlock = thread.summary
+    ? `\n\nSENSEI MEMORY SUMMARY:\n${thread.summary}`
+    : "";
+
+  return `You are Tama generating a standalone Japanese learning quiz for a desktop app.
+
+Return ONLY valid JSON with no markdown fences and no extra commentary.
+
+Output schema:
+{
+  "reply": "short intro text shown in chat above the quiz link",
+  "quiz": {
+    "title": "short quiz title",
+    "instructions": "brief instructions",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple_choice" | "fill_blank" | "dropdown",
+        "prompt": "question text",
+        "options": ["choice A", "choice B"],
+        "correctAnswer": "exact correct answer string",
+        "explanation": "brief explanation"
+      }
+    ]
+  }
+}
+
+Rules:
+- The student's current preferred response language is ${preferredLanguage}. If ambiguous, fall back to ${fallbackLanguage}.
+- Create 2 to 5 questions only.
+- Focus tightly on the student's request and recent struggles.
+- Prefer multiple_choice when possible because it is the easiest format to render and complete.
+- Only include "options" for multiple_choice and dropdown questions.
+- Do not include romaji unless the student explicitly requested it.
+- Keep the quiz practical and teach toward one clear pattern or mistake.
+- Keep the chat "reply" short, natural, and inviting.
+${summaryBlock}
+
+CURRENT DATE/TIME:
+${getCurrentDateTimeBlock(context.locale)}
+
+ACCOUNT SUMMARY:
+${accountSummary}
+
+CURRENT VIEW CONTEXT:
+${formatViewContext(context.view)}`;
+}
+
+async function generateSenseiQuiz(
+  request: string,
+  context: SenseiRequestContext,
+  thread: SenseiThread,
+  accountSummary: string
+): Promise<Quiz> {
+  const systemPrompt = buildSenseiQuizPrompt(context, thread, accountSummary);
+  const userMessage = `Create a standalone quiz for this request:\n${request}`;
+  const rawResponse = await sendMessage(
+    [{ id: "sensei-quiz-request", role: "user", content: userMessage, timestamp: new Date().toISOString() }],
+    systemPrompt
+  );
+  const parsed = parseGeneratedSenseiQuiz(rawResponse);
+
+  if (!parsed) {
+    throw new Error("Failed to generate a valid quiz.");
+  }
+
+  const now = new Date().toISOString();
+  const quiz: Quiz = {
+    id: crypto.randomUUID(),
+    title: parsed.title,
+    instructions: parsed.instructions,
+    createdAt: now,
+    updatedAt: now,
+    source: "sensei",
+    sourcePrompt: request,
+    introMessage: parsed.introMessage,
+    questions: parsed.questions,
+  };
+
+  await saveQuiz(quiz);
+  emitDataChanged("quiz-write");
+  return quiz;
 }
 
 async function ensureSenseiThread(): Promise<SenseiThread> {
@@ -370,26 +695,68 @@ export async function sendSenseiUserMessage(
   setActiveSenseiThreadId(pendingThread.id);
   options?.onUserMessageSaved?.(pendingThread);
 
-  const [profile, sessions, vocabulary, ongoingChats, customScenarios, activeStudyPlan] = await Promise.all([
+  const [profile, sessions, vocabulary, ongoingChats, customScenarios, quizzes, activeStudyPlan] = await Promise.all([
     getUserProfile(),
     getSessions(),
     getVocabulary(),
     getOngoingChats(),
     getCustomScenarios(),
+    getQuizzes(),
     getActiveStudyPlan(),
   ]);
+  const toolsEnabled = shouldEnableSenseiTools(trimmed);
+  const quizRequested = shouldCreateSenseiQuiz(trimmed);
+  const accountSummary = buildAccountSummary({
+    profile,
+    sessions,
+    vocabulary,
+    ongoingChats,
+    customScenarios,
+    quizzes,
+    activeStudyPlan,
+  });
+
+  if (quizRequested) {
+    const quiz = await generateSenseiQuiz(trimmed, { locale, view }, pendingThread, accountSummary);
+    const assistantMessage: Message = {
+      id: uuidv4(),
+      role: "assistant",
+      content: quiz.introMessage?.trim() || getQuizReadyMessage(locale),
+      timestamp: new Date().toISOString(),
+      action: {
+        type: "open_quiz",
+        quizId: quiz.id,
+        label: getQuizActionLabel(locale),
+        title: quiz.title,
+      },
+    };
+
+    const updatedThread: SenseiThread = {
+      ...pendingThread,
+      messages: [...nextMessages, assistantMessage],
+      lastActiveAt: assistantMessage.timestamp,
+      totalMessages: pendingThread.totalMessages + 1,
+    };
+
+    await saveSenseiThread(updatedThread);
+    setActiveSenseiThreadId(updatedThread.id);
+    return updatedThread;
+  }
 
   const systemPrompt = buildSenseiPrompt(
     { locale, view },
     pendingThread,
-    buildAccountSummary({ profile, sessions, vocabulary, ongoingChats, customScenarios, activeStudyPlan })
+    accountSummary,
+    toolsEnabled
   );
 
-  const response = await sendMessageWithTools(
-    getContextMessages(nextMessages.map(formatSenseiMessageForModel)),
-    systemPrompt,
-    { tools: SENSEI_TOOLS, trackVocabularyUsage: false }
-  );
+  const modelMessages = getContextMessages(nextMessages.map(formatSenseiMessageForModel));
+  const response = toolsEnabled
+    ? await sendMessageWithTools(modelMessages, systemPrompt, {
+        tools: SENSEI_TOOLS,
+        trackVocabularyUsage: false,
+      })
+    : await sendMessage(modelMessages, systemPrompt);
   const assistantMessage: Message = {
     id: uuidv4(),
     role: "assistant",

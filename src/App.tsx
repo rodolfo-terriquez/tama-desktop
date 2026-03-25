@@ -49,6 +49,12 @@ const OngoingChatList = lazy(() =>
 const OngoingChatScreen = lazy(() =>
   import("@/components/ongoing/OngoingChatScreen").then((m) => ({ default: m.OngoingChatScreen }))
 );
+const QuizScreen = lazy(() =>
+  import("@/components/quiz/QuizScreen").then((m) => ({ default: m.QuizScreen }))
+);
+const QuizListScreen = lazy(() =>
+  import("@/components/quiz/QuizListScreen").then((m) => ({ default: m.QuizListScreen }))
+);
 
 function ScreenLoader() {
   const { t } = useI18n();
@@ -79,12 +85,14 @@ function App() {
     scenario: Scenario;
   } | null>(null);
   const [selectedOngoingChatId, setSelectedOngoingChatId] = useState<string | null>(null);
+  const [selectedQuizId, setSelectedQuizId] = useState<string | null>(null);
   const [senseiOpen, setSenseiOpen] = useState(false);
   const [senseiMode, setSenseiMode] = useState<SenseiMode>(() => {
     const stored = localStorage.getItem(SENSEI_MODE_STORAGE_KEY);
     return stored === "full" ? "full" : "sidebar";
   });
   const [senseiReturnScreen, setSenseiReturnScreen] = useState<Exclude<Screen, "sensei">>("home");
+  const [quizReturnScreen, setQuizReturnScreen] = useState<Exclude<Screen, "quiz">>("home");
   const [pendingSenseiPromptRequest, setPendingSenseiPromptRequest] = useState<{
     id: string;
     prompt: string;
@@ -119,6 +127,7 @@ function App() {
       if (customEvent.detail?.reason === "account-restore") {
         setSelectedScenario(null);
         setSelectedOngoingChatId(null);
+        setSelectedQuizId(null);
         setLastSession(null);
         setCurrentScreen("home");
         setDataVersion((value) => value + 1);
@@ -152,6 +161,12 @@ function App() {
     }
   }, [currentScreen, locale]);
 
+  useEffect(() => {
+    if (currentScreen === "quiz" && !selectedQuizId) {
+      setCurrentScreen(quizReturnScreen);
+    }
+  }, [currentScreen, quizReturnScreen, selectedQuizId]);
+
   const handleApiKeyComplete = () => {
     setApiOnboardingDismissed(false);
     setNeedsApiKey(false);
@@ -175,9 +190,17 @@ function App() {
 
   const handleNavigate = (screen: string) => {
     setCurrentScreen(screen as Screen);
-    if (screen !== "sensei") {
+    if (screen !== "sensei" && screen !== "quiz") {
       setSenseiReturnScreen(screen as Exclude<Screen, "sensei">);
     }
+  };
+
+  const handleOpenQuiz = (quizId: string) => {
+    setSelectedQuizId(quizId);
+    if (currentScreen !== "quiz") {
+      setQuizReturnScreen(currentScreen as Exclude<Screen, "quiz">);
+    }
+    setCurrentScreen("quiz");
   };
 
   const handleOpenSensei = (prompt?: string) => {
@@ -329,6 +352,26 @@ function App() {
       case "flashcards":
         return <FlashcardReview onContextChange={setSenseiViewContext} />;
 
+      case "quizzes":
+        return (
+          <QuizListScreen
+            onOpenQuiz={handleOpenQuiz}
+            onOpenSensei={() => handleOpenSensei()}
+          />
+        );
+
+      case "quiz":
+        if (!selectedQuizId) {
+          return <ScreenLoader />;
+        }
+        return (
+          <QuizScreen
+            quizId={selectedQuizId}
+            onBack={() => setCurrentScreen(quizReturnScreen)}
+            onContextChange={setSenseiViewContext}
+          />
+        );
+
       case "history":
         return <SessionHistory />;
 
@@ -345,6 +388,7 @@ function App() {
             mode="full"
             onExpand={handleExpandSensei}
             onMinimize={handleMinimizeSensei}
+            onOpenQuiz={handleOpenQuiz}
             pendingPromptRequest={pendingSenseiPromptRequest}
             onPendingPromptHandled={(id) => {
               setPendingSenseiPromptRequest((current) => (current?.id === id ? null : current));
@@ -395,6 +439,7 @@ function App() {
                 mode="sidebar"
                 onExpand={handleExpandSensei}
                 onMinimize={handleMinimizeSensei}
+                onOpenQuiz={handleOpenQuiz}
                 pendingPromptRequest={pendingSenseiPromptRequest}
                 onPendingPromptHandled={(id) => {
                   setPendingSenseiPromptRequest((current) => (current?.id === id ? null : current));

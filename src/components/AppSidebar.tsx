@@ -13,7 +13,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Settings, BookOpen, Home, Library, History, Users, ChartColumn } from "lucide-react";
+import { Settings, GalleryVerticalEnd, Home, Drama, History, UserRound, ChartColumn, SquareCheck } from "lucide-react";
 import { useI18n } from "@/i18n";
 
 interface AppSidebarProps {
@@ -52,21 +52,27 @@ export function AppSidebar({ currentScreen, onNavigate, senseiOpen, onToggleSens
     },
     {
       title: t("common.scenarios"),
-      icon: Library,
+      icon: Drama,
       id: "scenario-select",
       isActive: currentScreen === "scenario-select",
     },
     {
       title: t("common.personas"),
-      icon: Users,
+      icon: UserRound,
       id: "ongoing-chats",
       isActive: currentScreen === "ongoing-chats" || currentScreen === "ongoing-chat",
     },
     {
       title: t("common.flashcards"),
-      icon: BookOpen,
+      icon: GalleryVerticalEnd,
       id: "flashcards",
       isActive: currentScreen === "flashcards",
+    },
+    {
+      title: t("common.quizzes"),
+      icon: SquareCheck,
+      id: "quizzes",
+      isActive: currentScreen === "quizzes" || currentScreen === "quiz",
     },
     {
       title: t("common.history"),
