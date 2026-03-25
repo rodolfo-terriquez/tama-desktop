@@ -7,6 +7,7 @@ export type AppScreen =
   | "history"
   | "stats"
   | "settings"
+  | "sensei"
   | "session-complete"
   | "ongoing-chats"
   | "ongoing-chat";

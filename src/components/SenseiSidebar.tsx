@@ -23,13 +23,16 @@ import {
 } from "@/services/sensei";
 import { cn } from "@/lib/utils";
 import type { SenseiThread, SenseiViewContext } from "@/types";
-import { ArrowLeft, ArrowUp, History, Plus, Trash2 } from "lucide-react";
+import { ArrowUp, History, Maximize2, Minimize2, Plus, Trash2 } from "lucide-react";
 
 interface SenseiSidebarProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentViewContext: SenseiViewContext;
   dataVersion: number;
+  mode?: "sidebar" | "full";
+  onExpand?: () => void;
+  onMinimize?: () => void;
   pendingPromptRequest?: {
     id: string;
     prompt: string;
@@ -37,13 +40,18 @@ interface SenseiSidebarProps {
   onPendingPromptHandled?: (id: string) => void;
 }
 
+const frostedButtonClass =
+  "border-border/80 bg-background/95 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/85";
+
 function SenseiConversation({
   thread,
   threads,
   isLoading,
   error,
   historyOpen,
-  onClose,
+  mode,
+  onExpand,
+  onMinimize,
   onCreateNewChat,
   onToggleHistory,
   onDeleteThread,
@@ -55,7 +63,9 @@ function SenseiConversation({
   isLoading: boolean;
   error: string | null;
   historyOpen: boolean;
-  onClose: () => void;
+  mode: "sidebar" | "full";
+  onExpand?: () => void;
+  onMinimize?: () => void;
   onCreateNewChat: () => Promise<void>;
   onToggleHistory: () => void;
   onDeleteThread: (threadId: string) => Promise<void>;
@@ -91,19 +101,21 @@ function SenseiConversation({
           <Button
             type="button"
             variant="outline"
-            onClick={onClose}
-            title={t("sensei.closeChat")}
-            className="h-8 rounded-full px-2.5"
+            onClick={mode === "full" ? onMinimize : onExpand}
+            title={mode === "full" ? t("sensei.minimizeChat") : t("sensei.expandChat")}
+            className={cn("h-8 rounded-full px-2.5", frostedButtonClass)}
           >
-            <ArrowLeft className="size-4" />
-            <span className="sr-only">{t("sensei.closeChat")}</span>
+            {mode === "full" ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+            <span className="sr-only">
+              {mode === "full" ? t("sensei.minimizeChat") : t("sensei.expandChat")}
+            </span>
           </Button>
           <Button
             type="button"
             variant="outline"
             onClick={() => void onCreateNewChat()}
             title={t("sensei.newChat")}
-            className="h-8 rounded-full px-2.5"
+            className={cn("h-8 rounded-full px-2.5", frostedButtonClass)}
           >
             <Plus className="size-4" />
             <span className="sr-only">{t("sensei.newChat")}</span>
@@ -113,7 +125,11 @@ function SenseiConversation({
             variant="outline"
             onClick={onToggleHistory}
             title={t("sensei.history")}
-            className={cn("ml-auto h-8 rounded-full px-2.5", historyOpen && "bg-accent text-accent-foreground")}
+            className={cn(
+              "ml-auto h-8 rounded-full px-2.5",
+              frostedButtonClass,
+              historyOpen && "bg-accent/90 text-accent-foreground supports-[backdrop-filter]:bg-accent/80"
+            )}
           >
             <History className="size-4" />
             <span className="sr-only">{t("sensei.history")}</span>
@@ -167,13 +183,18 @@ function SenseiConversation({
         </div>
       )}
       <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-3 px-4 pt-14 pb-4">
+        <div className="space-y-3 px-4 pt-14 pb-28">
           {thread && thread.messages.length > 0 ? (
             thread.messages.map((message) => (
               <div key={message.id} className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
                 <div
                   className={cn(
-                    "max-w-[88%] rounded-xl px-3 py-2 text-sm leading-relaxed",
+                    "rounded-xl px-3 py-2 text-sm leading-relaxed",
+                    message.role === "user"
+                      ? "max-w-[88%]"
+                      : mode === "full"
+                        ? "w-full"
+                        : "max-w-[88%]",
                     message.role === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-card text-card-foreground"
@@ -210,7 +231,7 @@ function SenseiConversation({
       </ScrollArea>
 
       <form
-        className="shrink-0 px-3 pb-3"
+        className="absolute inset-x-3 bottom-3 z-20"
         onSubmit={(event) => {
           event.preventDefault();
           const form = event.target as HTMLFormElement;
@@ -226,14 +247,19 @@ function SenseiConversation({
             name="senseiInput"
             placeholder={t("sensei.placeholder")}
             disabled={isLoading}
-            className="h-12 rounded-2xl border-border/70 bg-background pr-14"
+            className={cn(
+              "h-12 rounded-2xl border-border/80 bg-background/95 pr-14 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/85",
+              mode === "sidebar" && "bg-card/95 supports-[backdrop-filter]:bg-card/85"
+            )}
           />
           <Button
             type="submit"
             size="icon"
             disabled={isLoading}
             title={t("sensei.send")}
-            className="absolute top-1/2 right-1.5 size-9 -translate-y-1/2 rounded-full"
+            className={cn(
+              "absolute top-1/2 right-1.5 size-9 -translate-y-1/2 rounded-full border border-border/80 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-primary/85"
+            )}
           >
             <ArrowUp className="size-4" />
           </Button>
@@ -248,6 +274,9 @@ export function SenseiSidebar({
   onOpenChange,
   currentViewContext,
   dataVersion,
+  mode = "sidebar",
+  onExpand,
+  onMinimize,
   pendingPromptRequest,
   onPendingPromptHandled,
 }: SenseiSidebarProps) {
@@ -362,6 +391,30 @@ export function SenseiSidebar({
     void handleSend(pendingPromptRequest.prompt);
   }, [isLoading, onPendingPromptHandled, open, pendingPromptRequest]);
 
+  if (mode === "full") {
+    return (
+      <div className="flex h-full min-h-0 flex-1 bg-background">
+        <div className="flex min-h-0 w-full flex-1">
+          <SenseiConversation
+            thread={thread}
+            threads={threads}
+            isLoading={isLoading}
+            error={error}
+            historyOpen={historyOpen}
+            mode={mode}
+            onExpand={onExpand}
+            onMinimize={onMinimize}
+            onCreateNewChat={handleCreateNewChat}
+            onToggleHistory={() => setHistoryOpen((value) => !value)}
+            onDeleteThread={handleDeleteThread}
+            onSelectThread={handleSelectThread}
+            onSend={handleSend}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (isMobile) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -377,7 +430,9 @@ export function SenseiSidebar({
             isLoading={isLoading}
             error={error}
             historyOpen={historyOpen}
-            onClose={() => onOpenChange(false)}
+            mode={mode}
+            onExpand={onExpand}
+            onMinimize={onMinimize}
             onCreateNewChat={handleCreateNewChat}
             onToggleHistory={() => setHistoryOpen((value) => !value)}
             onDeleteThread={handleDeleteThread}
@@ -400,7 +455,9 @@ export function SenseiSidebar({
         isLoading={isLoading}
         error={error}
         historyOpen={historyOpen}
-        onClose={() => onOpenChange(false)}
+        mode={mode}
+        onExpand={onExpand}
+        onMinimize={onMinimize}
         onCreateNewChat={handleCreateNewChat}
         onToggleHistory={() => setHistoryOpen((value) => !value)}
         onDeleteThread={handleDeleteThread}

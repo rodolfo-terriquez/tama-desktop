@@ -16,6 +16,8 @@ import { useI18n } from "@/i18n";
 import type { AppScreen, Message, Scenario, SenseiViewContext } from "@/types";
 
 type Screen = AppScreen;
+type SenseiMode = "sidebar" | "full";
+const SENSEI_MODE_STORAGE_KEY = "tama_sensei_mode";
 
 const VoiceModeScreen = lazy(() =>
   import("@/components/conversation/VoiceModeScreen").then((m) => ({ default: m.VoiceModeScreen }))
@@ -78,6 +80,11 @@ function App() {
   } | null>(null);
   const [selectedOngoingChatId, setSelectedOngoingChatId] = useState<string | null>(null);
   const [senseiOpen, setSenseiOpen] = useState(false);
+  const [senseiMode, setSenseiMode] = useState<SenseiMode>(() => {
+    const stored = localStorage.getItem(SENSEI_MODE_STORAGE_KEY);
+    return stored === "full" ? "full" : "sidebar";
+  });
+  const [senseiReturnScreen, setSenseiReturnScreen] = useState<Exclude<Screen, "sensei">>("home");
   const [pendingSenseiPromptRequest, setPendingSenseiPromptRequest] = useState<{
     id: string;
     prompt: string;
@@ -90,6 +97,10 @@ function App() {
   useEffect(() => {
     void checkForAppUpdatesOnLaunch();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(SENSEI_MODE_STORAGE_KEY, senseiMode);
+  }, [senseiMode]);
 
   useEffect(() => {
     const syncApiRequirements = () => {
@@ -120,6 +131,8 @@ function App() {
 
   useEffect(() => {
     switch (currentScreen) {
+      case "sensei":
+        break;
       case "scenario-select":
         setSenseiViewContext(buildScenarioSelectSenseiViewContext([], 0, locale));
         break;
@@ -162,10 +175,24 @@ function App() {
 
   const handleNavigate = (screen: string) => {
     setCurrentScreen(screen as Screen);
+    if (screen !== "sensei") {
+      setSenseiReturnScreen(screen as Exclude<Screen, "sensei">);
+    }
   };
 
   const handleOpenSensei = (prompt?: string) => {
-    setSenseiOpen(true);
+    if (senseiMode === "full") {
+      if (currentScreen !== "sensei") {
+        setSenseiReturnScreen(currentScreen);
+      }
+      setSenseiOpen(false);
+      setCurrentScreen("sensei");
+    } else {
+      if (currentScreen === "sensei") {
+        setCurrentScreen(senseiReturnScreen);
+      }
+      setSenseiOpen(true);
+    }
     if (!prompt?.trim()) {
       return;
     }
@@ -174,6 +201,37 @@ function App() {
       id: crypto.randomUUID(),
       prompt: prompt.trim(),
     });
+  };
+
+  const handleExpandSensei = () => {
+    setSenseiMode("full");
+    if (currentScreen !== "sensei") {
+      setSenseiReturnScreen(currentScreen);
+    }
+    setSenseiOpen(false);
+    setCurrentScreen("sensei");
+  };
+
+  const handleMinimizeSensei = () => {
+    setSenseiMode("sidebar");
+    setCurrentScreen(senseiReturnScreen);
+    setSenseiOpen(true);
+  };
+
+  const handleToggleSensei = () => {
+    if (currentScreen === "sensei") {
+      handleMinimizeSensei();
+      return;
+    }
+
+    if (senseiMode === "full") {
+      setSenseiReturnScreen(currentScreen);
+      setSenseiOpen(false);
+      setCurrentScreen("sensei");
+      return;
+    }
+
+    setSenseiOpen((open) => !open);
   };
 
   if (needsApiKey) {
@@ -277,6 +335,23 @@ function App() {
       case "stats":
         return <StatsScreen />;
 
+      case "sensei":
+        return (
+          <SenseiSidebar
+            open={true}
+            onOpenChange={() => undefined}
+            currentViewContext={senseiViewContext}
+            dataVersion={dataVersion}
+            mode="full"
+            onExpand={handleExpandSensei}
+            onMinimize={handleMinimizeSensei}
+            pendingPromptRequest={pendingSenseiPromptRequest}
+            onPendingPromptHandled={(id) => {
+              setPendingSenseiPromptRequest((current) => (current?.id === id ? null : current));
+            }}
+          />
+        );
+
       case "home":
       default:
         return (
@@ -305,25 +380,39 @@ function App() {
         <AppSidebar
           currentScreen={currentScreen}
           onNavigate={handleNavigate}
-          senseiOpen={senseiOpen}
-          onToggleSensei={() => setSenseiOpen((open) => !open)}
+          senseiOpen={senseiOpen || currentScreen === "sensei"}
+          onToggleSensei={handleToggleSensei}
         />
         <SidebarInset>
           <ExpandButton />
           <div className="flex h-screen min-h-0 overflow-hidden">
-            <SenseiSidebar
-              open={senseiOpen}
-              onOpenChange={setSenseiOpen}
-              currentViewContext={senseiViewContext}
-              dataVersion={dataVersion}
-              pendingPromptRequest={pendingSenseiPromptRequest}
-              onPendingPromptHandled={(id) => {
-                setPendingSenseiPromptRequest((current) => (current?.id === id ? null : current));
-              }}
-            />
-            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+            {currentScreen !== "sensei" ? (
+              <SenseiSidebar
+                open={senseiOpen}
+                onOpenChange={setSenseiOpen}
+                currentViewContext={senseiViewContext}
+                dataVersion={dataVersion}
+                mode="sidebar"
+                onExpand={handleExpandSensei}
+                onMinimize={handleMinimizeSensei}
+                pendingPromptRequest={pendingSenseiPromptRequest}
+                onPendingPromptHandled={(id) => {
+                  setPendingSenseiPromptRequest((current) => (current?.id === id ? null : current));
+                }}
+              />
+            ) : null}
+            <main
+              className={
+                currentScreen === "sensei"
+                  ? "min-h-0 min-w-0 flex-1 overflow-hidden"
+                  : "min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
+              }
+            >
               <Suspense fallback={<ScreenLoader />}>
-                <div key={`${currentScreen}-${dataVersion}`} className="min-w-0 w-full">
+                <div
+                  key={`${currentScreen}-${dataVersion}`}
+                  className={currentScreen === "sensei" ? "min-h-0 h-full min-w-0 w-full" : "min-w-0 w-full"}
+                >
                   {renderContent()}
                 </div>
               </Suspense>
