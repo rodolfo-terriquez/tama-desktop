@@ -15,6 +15,7 @@ import {
 import { useI18n } from "@/i18n";
 import { generateFeedback } from "@/services/claude";
 import { FeedbackParseError, parseFeedbackResponse } from "@/services/feedback-parser";
+import { generateDailyStudyPlan } from "@/services/study-plan";
 import {
   addVocabItem,
   getUserProfile,
@@ -102,6 +103,10 @@ export function OngoingFeedbackDialog({
         total_sessions: profile.total_sessions + 1,
         topics_covered: [...profile.topics_covered, ...newTopics].slice(-20),
         recent_struggles: newStruggles.length > 0 ? newStruggles : profile.recent_struggles,
+      });
+
+      void generateDailyStudyPlan().catch((error) => {
+        console.error("Failed to refresh daily study plan after ongoing feedback:", error);
       });
 
       setSessionSaved(true);

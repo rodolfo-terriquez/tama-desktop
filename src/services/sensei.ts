@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAppLocale } from "@/services/app-config";
 import { getContextMessages, sendMessageWithTools, summarizeSenseiConversation } from "@/services/claude";
+import { getActiveStudyPlan } from "@/services/study-plan";
 import { SENSEI_TOOLS } from "@/services/tools";
 import {
   deleteSenseiThread,
@@ -120,7 +121,9 @@ function getCurrentDateTimeBlock(locale: AppLocale): string {
   );
 }
 
-function buildAccountSummary(bundle: Pick<AccountBundleV1, "profile" | "sessions" | "vocabulary" | "ongoingChats" | "customScenarios">): string {
+function buildAccountSummary(bundle: Pick<AccountBundleV1, "profile" | "sessions" | "vocabulary" | "ongoingChats" | "customScenarios"> & {
+  activeStudyPlan?: Awaited<ReturnType<typeof getActiveStudyPlan>>;
+}): string {
   const dueCount = bundle.vocabulary.filter((item) => item.next_review <= new Date().toISOString().split("T")[0]).length;
   const recentSessions = bundle.sessions.slice(0, 3).map((session) => ({
     date: session.date,
@@ -160,6 +163,18 @@ function buildAccountSummary(bundle: Pick<AccountBundleV1, "profile" | "sessions
       recentSessions,
       activeChats,
       customScenarios,
+      activeStudyPlan: bundle.activeStudyPlan
+        ? {
+            date: bundle.activeStudyPlan.date,
+            focusSummary: bundle.activeStudyPlan.focusSummary,
+            reasoningSummary: bundle.activeStudyPlan.reasoningSummary,
+            tasks: bundle.activeStudyPlan.tasks.map((task) => ({
+              kind: task.kind,
+              title: task.title,
+              description: task.description,
+            })),
+          }
+        : null,
     },
     null,
     2
@@ -177,8 +192,10 @@ function buildSenseiPrompt(context: SenseiRequestContext, thread: SenseiThread, 
 
 Your job:
 - answer questions about the student's current view and their study history
+- explain the student's active daily study plan when one is available
 - explain Japanese clearly, concretely, and briefly
 - help the student connect current work to prior sessions, flashcards, and patterns
+- when a study plan is present, help the student understand why those tasks were chosen and how to do them
 - stay grounded in the provided app context instead of inventing UI state
 
 Rules:
@@ -353,18 +370,19 @@ export async function sendSenseiUserMessage(
   setActiveSenseiThreadId(pendingThread.id);
   options?.onUserMessageSaved?.(pendingThread);
 
-  const [profile, sessions, vocabulary, ongoingChats, customScenarios] = await Promise.all([
+  const [profile, sessions, vocabulary, ongoingChats, customScenarios, activeStudyPlan] = await Promise.all([
     getUserProfile(),
     getSessions(),
     getVocabulary(),
     getOngoingChats(),
     getCustomScenarios(),
+    getActiveStudyPlan(),
   ]);
 
   const systemPrompt = buildSenseiPrompt(
     { locale, view },
     pendingThread,
-    buildAccountSummary({ profile, sessions, vocabulary, ongoingChats, customScenarios })
+    buildAccountSummary({ profile, sessions, vocabulary, ongoingChats, customScenarios, activeStudyPlan })
   );
 
   const response = await sendMessageWithTools(

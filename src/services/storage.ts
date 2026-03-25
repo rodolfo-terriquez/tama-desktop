@@ -7,6 +7,7 @@ import type {
   ShadowScript,
   SenseiThread,
   Session,
+  StudyPlan,
   UserProfile,
   VocabItem,
 } from "@/types";
@@ -319,6 +320,43 @@ export async function saveFlashcardReviewSession(session: FlashcardReviewSession
   );
 }
 
+// ── Study Plans ────────────────────────────────────────────────────
+
+interface StudyPlanRow {
+  id: string;
+  date: string;
+  generated_at: string;
+  plan_json: string;
+}
+
+function rowToStudyPlan(row: StudyPlanRow): StudyPlan {
+  const parsed = JSON.parse(row.plan_json) as StudyPlan;
+  return {
+    ...parsed,
+    id: row.id,
+    date: row.date,
+    generatedAt: row.generated_at,
+  };
+}
+
+export async function getStudyPlanByDate(date: string): Promise<StudyPlan | null> {
+  const d = await getDb();
+  const rows = await d.select<StudyPlanRow[]>(
+    "SELECT * FROM study_plans WHERE date = $1 ORDER BY datetime(generated_at) DESC LIMIT 1",
+    [date]
+  );
+  return rows.length > 0 ? rowToStudyPlan(rows[0]) : null;
+}
+
+export async function saveStudyPlan(plan: StudyPlan): Promise<void> {
+  const d = await getDb();
+  await d.execute(
+    `INSERT OR REPLACE INTO study_plans (id, date, generated_at, plan_json)
+     VALUES ($1, $2, $3, $4)`,
+    [plan.id, plan.date, plan.generatedAt, JSON.stringify(plan)]
+  );
+}
+
 // ── Custom Scenarios ────────────────────────────────────────────────
 
 interface ScenarioRow {
@@ -601,6 +639,7 @@ export async function clearAllData(): Promise<void> {
   await d.execute("DELETE FROM vocab_items");
   await d.execute("DELETE FROM sessions");
   await d.execute("DELETE FROM flashcard_review_sessions");
+  await d.execute("DELETE FROM study_plans");
   await d.execute("DELETE FROM custom_scenarios");
   await d.execute("DELETE FROM shadow_scripts");
   await d.execute("DELETE FROM ongoing_chats");
@@ -618,6 +657,7 @@ export async function replaceAccountBundle(bundle: AccountBundleV1): Promise<voi
     await d.execute("DELETE FROM vocab_items");
     await d.execute("DELETE FROM sessions");
     await d.execute("DELETE FROM flashcard_review_sessions");
+    await d.execute("DELETE FROM study_plans");
     await d.execute("DELETE FROM custom_scenarios");
     await d.execute("DELETE FROM shadow_scripts");
     await d.execute("DELETE FROM ongoing_chats");

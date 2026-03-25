@@ -8,6 +8,7 @@ import { hasApiKey } from "@/services/claude";
 import { isApiOnboardingDismissed, setApiOnboardingDismissed } from "@/services/app-config";
 import {
   buildFallbackSenseiViewContext,
+  buildHomeSenseiViewContext,
   buildScenarioSelectSenseiViewContext,
 } from "@/services/sensei-context";
 import { checkForAppUpdatesOnLaunch } from "@/services/updater";
@@ -77,9 +78,13 @@ function App() {
   } | null>(null);
   const [selectedOngoingChatId, setSelectedOngoingChatId] = useState<string | null>(null);
   const [senseiOpen, setSenseiOpen] = useState(false);
+  const [pendingSenseiPromptRequest, setPendingSenseiPromptRequest] = useState<{
+    id: string;
+    prompt: string;
+  } | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
   const [senseiViewContext, setSenseiViewContext] = useState<SenseiViewContext>(
-    buildFallbackSenseiViewContext("home")
+    buildHomeSenseiViewContext()
   );
 
   useEffect(() => {
@@ -125,7 +130,11 @@ function App() {
         setSenseiViewContext(buildFallbackSenseiViewContext("ongoing-chat"));
         break;
       default:
-        setSenseiViewContext(buildFallbackSenseiViewContext(currentScreen));
+        setSenseiViewContext(
+          currentScreen === "home"
+            ? buildHomeSenseiViewContext()
+            : buildFallbackSenseiViewContext(currentScreen)
+        );
         break;
     }
   }, [currentScreen, locale]);
@@ -153,6 +162,18 @@ function App() {
 
   const handleNavigate = (screen: string) => {
     setCurrentScreen(screen as Screen);
+  };
+
+  const handleOpenSensei = (prompt?: string) => {
+    setSenseiOpen(true);
+    if (!prompt?.trim()) {
+      return;
+    }
+
+    setPendingSenseiPromptRequest({
+      id: crypto.randomUUID(),
+      prompt: prompt.trim(),
+    });
   };
 
   if (needsApiKey) {
@@ -271,6 +292,8 @@ function App() {
               setCurrentScreen("ongoing-chat");
             }}
             onOngoingChats={() => setCurrentScreen("ongoing-chats")}
+            onOpenSensei={handleOpenSensei}
+            onContextChange={setSenseiViewContext}
           />
         );
     }
@@ -293,6 +316,10 @@ function App() {
               onOpenChange={setSenseiOpen}
               currentViewContext={senseiViewContext}
               dataVersion={dataVersion}
+              pendingPromptRequest={pendingSenseiPromptRequest}
+              onPendingPromptHandled={(id) => {
+                setPendingSenseiPromptRequest((current) => (current?.id === id ? null : current));
+              }}
             />
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
               <Suspense fallback={<ScreenLoader />}>

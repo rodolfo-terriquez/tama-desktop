@@ -10,6 +10,7 @@ import type {
   SenseiFlashcardResult,
   SenseiScenarioSummary,
   SenseiViewContext,
+  StudyPlan,
   VocabItem,
 } from "@/types";
 
@@ -31,6 +32,27 @@ function summarizeScenario(scenario: Scenario, locale: AppLocale): SenseiScenari
 
 export function buildFallbackSenseiViewContext(screen: AppScreen): SenseiViewContext {
   return { kind: "screen", screen };
+}
+
+export function buildHomeSenseiViewContext(studyPlan?: StudyPlan | null): SenseiViewContext {
+  return {
+    kind: "home",
+    screen: "home",
+    studyPlan: studyPlan
+      ? {
+          date: studyPlan.date,
+          focusSummary: studyPlan.focusSummary,
+          reasoningSummary: studyPlan.reasoningSummary,
+          tasks: studyPlan.tasks.map((task) => ({
+            id: task.id,
+            kind: task.kind,
+            title: task.title,
+            description: task.description,
+            ctaLabel: task.ctaLabel,
+          })),
+        }
+      : undefined,
+  };
 }
 
 export function buildScenarioSelectSenseiViewContext(
@@ -236,6 +258,8 @@ export function buildFlashcardSenseiViewContext(args: {
 
 export function getSenseiContextLabel(context: SenseiViewContext): string {
   switch (context.kind) {
+    case "home":
+      return "Home";
     case "scenario-select":
       return "Scenario picker";
     case "scenario-preview":

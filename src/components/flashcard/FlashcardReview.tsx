@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Flashcard } from "@/components/flashcard/Flashcard";
 import { useI18n } from "@/i18n";
 import { buildFlashcardSenseiViewContext } from "@/services/sensei-context";
+import { generateDailyStudyPlan } from "@/services/study-plan";
 import {
   saveFlashcardReviewSession,
   getDueVocabulary,
@@ -265,10 +266,16 @@ function ReviewTab({
       date: new Date().toISOString(),
       duration_seconds: durationSeconds,
       results,
-    }).catch((error) => {
-      console.error("Failed to save flashcard review session:", error);
-      sessionSavedRef.current = false;
-    });
+    })
+      .then(() =>
+        generateDailyStudyPlan().catch((error) => {
+          console.error("Failed to refresh daily study plan after flashcard review:", error);
+        })
+      )
+      .catch((error) => {
+        console.error("Failed to save flashcard review session:", error);
+        sessionSavedRef.current = false;
+      });
   }, [results, state]);
 
   useEffect(() => {

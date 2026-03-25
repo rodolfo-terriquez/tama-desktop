@@ -3,13 +3,16 @@ import { getVersion } from "@tauri-apps/api/app";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { localizeScenario } from "@/data/scenarios";
-import { getDueVocabulary, getLastSession, getOngoingChats, getSessions, getUserProfile } from "@/services/storage";
+import { Separator } from "@/components/ui/separator";
+import { SCENARIOS, localizeScenario } from "@/data/scenarios";
+import { buildHomeSenseiViewContext } from "@/services/sensei-context";
+import { ensureDailyStudyPlan } from "@/services/study-plan";
+import { getCustomScenarios, getDueVocabulary, getLastSession, getOngoingChats, getSessions, getUserProfile } from "@/services/storage";
 import { useI18n } from "@/i18n";
 import { formatRelativeTime, formatWeekdayMonthDay, getWeekdayLabels } from "@/services/locale-format";
-import type { OngoingChat, Scenario } from "@/types";
+import type { OngoingChat, Scenario, SenseiViewContext, StudyPlan, StudyPlanTask } from "@/types";
 import { addDays, format, getISOWeek, isSameDay, startOfWeek } from "date-fns";
-import { Mic, Sparkles } from "lucide-react";
+import { BookOpenText, Mic, Sparkles } from "lucide-react";
 import hanamaruStamp from "@/assets/hanamaru.svg";
 
 interface HomeScreenProps {
@@ -18,6 +21,8 @@ interface HomeScreenProps {
   onContinueScenario: (scenario: Scenario) => void;
   onContinueChat: (chatId: string) => void;
   onOngoingChats: () => void;
+  onOpenSensei: (prompt?: string) => void;
+  onContextChange?: (context: SenseiViewContext) => void;
 }
 
 function useWeeklyActivity() {
@@ -119,12 +124,72 @@ function getGreeting(date: Date, name: string | undefined): string {
   return name ? `${baseGreeting}、${name}` : baseGreeting;
 }
 
+function TodayPlanCard({
+  studyPlan,
+  isLoading,
+  onTaskAction,
+}: {
+  studyPlan: StudyPlan | null;
+  isLoading: boolean;
+  onTaskAction: (task: StudyPlanTask) => void;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <Card className="py-0 gap-0">
+      <CardContent className="px-4 py-3 space-y-2">
+        <div>
+          <p className="text-sm font-medium">{t("home.todaysPlan")}</p>
+        </div>
+
+        {studyPlan ? (
+          <div>
+            {studyPlan.tasks.map((task, index) => (
+              <div key={task.id}>
+                {index > 0 ? <Separator className="my-1.5" /> : null}
+                <div className="flex items-center justify-between gap-3 py-1">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm">
+                      <span className="mr-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {t("home.planStep", { number: index + 1 })}
+                      </span>
+                      <span className="font-medium">{task.title}</span>
+                      <span className="mx-2 text-muted-foreground">-</span>
+                      <span className="text-muted-foreground">{task.description}</span>
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={task.kind === "flashcards" ? "outline" : "default"}
+                    className="h-8 shrink-0 px-3"
+                    onClick={() => onTaskAction(task)}
+                  >
+                    {task.kind === "flashcards" ? <BookOpenText className="size-4" /> : null}
+                    {task.kind === "scenario" ? <Mic className="size-4" /> : null}
+                    {task.kind === "sensei" ? <Sparkles className="size-4" /> : null}
+                    {task.ctaLabel}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : isLoading ? (
+          <p className="text-sm text-muted-foreground">{t("home.generatingPlan")}</p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function HomeScreen({
   onBrowseScenarios,
   onFlashcards,
   onContinueScenario,
   onContinueChat,
   onOngoingChats,
+  onOpenSensei,
+  onContextChange,
 }: HomeScreenProps) {
   const { locale, t } = useI18n();
   const [now, setNow] = useState(() => new Date());
@@ -136,12 +201,23 @@ export function HomeScreen({
   const [lastPersonaChat, setLastPersonaChat] = useState<OngoingChat | null>(null);
   const [profileName, setProfileName] = useState("");
   const [appVersion, setAppVersion] = useState("");
+  const [studyPlan, setStudyPlan] = useState<StudyPlan | null>(null);
+  const [studyPlanLoading, setStudyPlanLoading] = useState(true);
+  const [availableScenarios, setAvailableScenarios] = useState<Scenario[]>(SCENARIOS);
   const greeting = getGreeting(now, profileName);
 
   useEffect(() => {
     const loadHomeData = () => {
-      Promise.all([getDueVocabulary(), getLastSession(), getOngoingChats(), getUserProfile()]).then(
-        ([due, recentSession, chats, profile]) => {
+      setStudyPlanLoading(true);
+      Promise.all([
+        getDueVocabulary(),
+        getLastSession(),
+        getOngoingChats(),
+        getUserProfile(),
+        ensureDailyStudyPlan(),
+        getCustomScenarios(),
+      ]).then(
+        ([due, recentSession, chats, profile, plan, customScenarios]) => {
           setDueCount(due.length);
           setLastScenario(
             recentSession
@@ -151,14 +227,25 @@ export function HomeScreen({
           const latestChat = [...chats].sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt))[0] ?? null;
           setLastPersonaChat(latestChat);
           setProfileName(profile.name?.trim() ?? "");
+          setStudyPlan(plan);
+          setAvailableScenarios([...SCENARIOS, ...customScenarios]);
+          setStudyPlanLoading(false);
         }
-      );
+      ).catch((error) => {
+        console.error("Failed to load home data:", error);
+        setStudyPlan(null);
+        setStudyPlanLoading(false);
+      });
     };
 
     loadHomeData();
     window.addEventListener("tama-data-changed", loadHomeData);
     return () => window.removeEventListener("tama-data-changed", loadHomeData);
   }, []);
+
+  useEffect(() => {
+    onContextChange?.(buildHomeSenseiViewContext(studyPlan));
+  }, [onContextChange, studyPlan]);
 
   useEffect(() => {
     const tick = () => setNow(new Date());
@@ -178,6 +265,27 @@ export function HomeScreen({
       .then((version) => setAppVersion(version))
       .catch(() => setAppVersion(""));
   }, []);
+
+  const handlePlanTaskAction = (task: StudyPlanTask) => {
+    switch (task.target.screen) {
+      case "flashcards":
+        onFlashcards();
+        return;
+      case "sensei":
+        onOpenSensei(task.target.prompt);
+        return;
+      case "scenario": {
+        const scenarioId = task.target.scenarioId;
+        const scenario = availableScenarios.find((item) => item.id === scenarioId);
+        if (scenario) {
+          onContinueScenario(scenario);
+          return;
+        }
+        onBrowseScenarios();
+        return;
+      }
+    }
+  };
 
   return (
     <div className="flex flex-col items-center h-full p-4 overflow-auto">
@@ -212,6 +320,12 @@ export function HomeScreen({
             </Button>
           </div>
         </div>
+
+        <TodayPlanCard
+          studyPlan={studyPlan}
+          isLoading={studyPlanLoading}
+          onTaskAction={handlePlanTaskAction}
+        />
 
         <div className="grid gap-3 md:grid-cols-3">
           {/* Quick resume: last scenario */}

@@ -51,11 +51,11 @@ function isRule(line: string): boolean {
   return /^-{3,}$/.test(line.trim());
 }
 
-function getHeading(line: string): { level: 1 | 2 | 3; text: string } | null {
-  const match = /^(#{1,3})\s+(.*)$/.exec(line.trim());
+function getHeading(line: string): { level: 1 | 2 | 3 | 4 | 5 | 6; text: string } | null {
+  const match = /^(#{1,6})\s+(.*)$/.exec(line.trim());
   if (!match) return null;
   return {
-    level: match[1].length as 1 | 2 | 3,
+    level: match[1].length as 1 | 2 | 3 | 4 | 5 | 6,
     text: match[2],
   };
 }
@@ -73,6 +73,51 @@ function getListItem(line: string): { type: ListType; text: string } | null {
   }
 
   return null;
+}
+
+function splitTableRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function isTableSeparator(line: string): boolean {
+  const trimmed = line.trim();
+  return /^\|?[\s:-]+(?:\|[\s:-]+)+\|?$/.test(trimmed) && trimmed.includes("-");
+}
+
+function isTableRow(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.includes("|") && splitTableRow(trimmed).length >= 2;
+}
+
+function getTable(lines: string[], startIndex: number): { header: string[]; rows: string[][]; nextIndex: number } | null {
+  if (startIndex + 1 >= lines.length) return null;
+  const headerLine = lines[startIndex];
+  const separatorLine = lines[startIndex + 1];
+
+  if (!isTableRow(headerLine) || !isTableSeparator(separatorLine)) {
+    return null;
+  }
+
+  const header = splitTableRow(headerLine);
+  const rows: string[][] = [];
+  let index = startIndex + 2;
+
+  while (index < lines.length && lines[index].trim()) {
+    if (!isTableRow(lines[index])) break;
+    rows.push(splitTableRow(lines[index]));
+    index += 1;
+  }
+
+  return {
+    header,
+    rows,
+    nextIndex: index,
+  };
 }
 
 export function SimpleMarkdown({ content, className }: SimpleMarkdownProps) {
@@ -95,6 +140,44 @@ export function SimpleMarkdown({ content, className }: SimpleMarkdownProps) {
       continue;
     }
 
+    const table = getTable(lines, index);
+    if (table) {
+      blocks.push(
+        <div
+          key={`table-${index}`}
+          className="overflow-x-auto rounded-lg border border-border/60 bg-background/30"
+        >
+          <table className="min-w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-border/60 bg-foreground/5">
+                {table.header.map((cell, cellIndex) => (
+                  <th
+                    key={cellIndex}
+                    className="px-3 py-2 text-left font-semibold align-top"
+                  >
+                    {renderInlineMarkdown(cell)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((row, rowIndex) => (
+                <tr key={rowIndex} className="border-b border-border/40 last:border-b-0">
+                  {row.map((cell, cellIndex) => (
+                    <td key={cellIndex} className="px-3 py-2 align-top text-muted-foreground">
+                      {renderInlineMarkdown(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      index = table.nextIndex;
+      continue;
+    }
+
     const heading = getHeading(line);
     if (heading) {
       const headingClass =
@@ -102,7 +185,9 @@ export function SimpleMarkdown({ content, className }: SimpleMarkdownProps) {
           ? "text-base font-semibold"
           : heading.level === 2
             ? "text-[0.95rem] font-semibold"
-            : "text-sm font-semibold";
+            : heading.level === 3
+              ? "text-sm font-semibold"
+              : "text-sm font-semibold text-foreground/95";
       blocks.push(
         <div key={`heading-${index}`} className={headingClass}>
           {renderInlineMarkdown(heading.text)}

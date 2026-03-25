@@ -150,6 +150,19 @@ ALTER TABLE sessions ADD COLUMN run_mode TEXT NOT NULL DEFAULT 'conversation';
         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 8,
+            description: "Add persistent daily study plans",
+            sql: r#"
+CREATE TABLE IF NOT EXISTS study_plans (
+  id TEXT PRIMARY KEY,
+  date TEXT NOT NULL UNIQUE,
+  generated_at TEXT NOT NULL,
+  plan_json TEXT NOT NULL
+);
+        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

@@ -1,4 +1,4 @@
-export type TamaDataChangeReason = "account-restore" | "sensei-write";
+export type TamaDataChangeReason = "account-restore" | "sensei-write" | "study-plan-write";
 
 export function emitConfigChanged(): void {
   window.dispatchEvent(new Event("tama-config-changed"));

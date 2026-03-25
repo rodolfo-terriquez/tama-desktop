@@ -30,6 +30,11 @@ interface SenseiSidebarProps {
   onOpenChange: (open: boolean) => void;
   currentViewContext: SenseiViewContext;
   dataVersion: number;
+  pendingPromptRequest?: {
+    id: string;
+    prompt: string;
+  } | null;
+  onPendingPromptHandled?: (id: string) => void;
 }
 
 function SenseiConversation({
@@ -243,6 +248,8 @@ export function SenseiSidebar({
   onOpenChange,
   currentViewContext,
   dataVersion,
+  pendingPromptRequest,
+  onPendingPromptHandled,
 }: SenseiSidebarProps) {
   const isMobile = useIsMobile();
   const [thread, setThread] = useState<SenseiThread | null>(null);
@@ -250,6 +257,7 @@ export function SenseiSidebar({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const lastAutoPromptIdRef = useRef<string | null>(null);
 
   const upsertThread = useCallback((nextThread: SenseiThread) => {
     setThread(nextThread);
@@ -339,6 +347,20 @@ export function SenseiSidebar({
       setError(err instanceof Error ? err.message : "Failed to delete Sensei chat");
     }
   };
+
+  useEffect(() => {
+    if (!open || !pendingPromptRequest || isLoading) {
+      return;
+    }
+
+    if (lastAutoPromptIdRef.current === pendingPromptRequest.id) {
+      return;
+    }
+
+    lastAutoPromptIdRef.current = pendingPromptRequest.id;
+    onPendingPromptHandled?.(pendingPromptRequest.id);
+    void handleSend(pendingPromptRequest.prompt);
+  }, [isLoading, onPendingPromptHandled, open, pendingPromptRequest]);
 
   if (isMobile) {
     return (

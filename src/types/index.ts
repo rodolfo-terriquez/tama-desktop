@@ -138,6 +138,62 @@ export interface FlashcardReviewSession {
   results: SenseiFlashcardResult[];
 }
 
+export type StudyPlanTaskKind = "flashcards" | "scenario" | "sensei";
+
+export type StudyPlanTaskTarget =
+  | {
+      screen: "flashcards";
+    }
+  | {
+      screen: "scenario";
+      scenarioId: string;
+    }
+  | {
+      screen: "sensei";
+      prompt?: string;
+    };
+
+export interface StudyPlanTask {
+  id: string;
+  kind: StudyPlanTaskKind;
+  title: string;
+  description: string;
+  ctaLabel: string;
+  target: StudyPlanTaskTarget;
+  metadata?: {
+    dueCount?: number;
+    scenarioId?: string;
+    scenarioTitle?: string;
+    topStruggle?: string;
+    suggestedPrompt?: string;
+  };
+}
+
+export interface StudyPlanSourceSignals {
+  dueCount: number;
+  totalVocabulary: number;
+  totalSessions: number;
+  recentSessionCount: number;
+  recentFlashcardReviewCount: number;
+  recentPerformance: "unknown" | "mixed" | "needs_work" | "good" | "excellent";
+  lastPerformanceRating?: "needs_work" | "good" | "excellent";
+  recommendedScenarioId?: string;
+  recommendedScenarioTitle?: string;
+  topStruggle?: string;
+  nextSessionHint?: string;
+  weakWords?: string[];
+}
+
+export interface StudyPlan {
+  id: string;
+  date: string;
+  generatedAt: string;
+  focusSummary: string;
+  reasoningSummary: string;
+  tasks: StudyPlanTask[];
+  sourceSignals: StudyPlanSourceSignals;
+}
+
 // VOICEVOX speaker/style
 export interface VoicevoxSpeaker {
   name: string;
@@ -216,6 +272,13 @@ export type SenseiViewContext =
   | {
       kind: "screen";
       screen: AppScreen;
+    }
+  | {
+      kind: "home";
+      screen: "home";
+      studyPlan?: Pick<StudyPlan, "date" | "focusSummary" | "reasoningSummary"> & {
+        tasks: Array<Pick<StudyPlanTask, "id" | "kind" | "title" | "description" | "ctaLabel">>;
+      };
     }
   | {
       kind: "scenario-select";

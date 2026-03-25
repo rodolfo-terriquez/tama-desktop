@@ -2,7 +2,7 @@ import { SCENARIOS } from "@/data/scenarios";
 import { getSessions, getDueVocabulary, getCustomScenarios, getUserProfile } from "@/services/storage";
 import type { Scenario } from "@/types";
 
-interface ScoredScenario {
+export interface ScoredScenario {
   scenario: Scenario;
   score: number;
   reasonKey: string;

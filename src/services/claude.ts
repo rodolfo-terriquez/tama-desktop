@@ -1,4 +1,15 @@
-import type { AppLocale, Message, OngoingChat, ResponseLength, Scenario, ShadowTurn, UserProfile } from "@/types";
+import type {
+  AppLocale,
+  Message,
+  OngoingChat,
+  ResponseLength,
+  Scenario,
+  ShadowTurn,
+  StudyPlanSourceSignals,
+  StudyPlanTaskKind,
+  StudyPlanTaskTarget,
+  UserProfile,
+} from "@/types";
 import {
   CONVERSATION_TOOLS,
   type ToolDefinition,
@@ -23,6 +34,32 @@ export interface GeneratedCustomScenarioDetails {
 export interface GeneratedShadowScript {
   turns: ShadowTurn[];
   focusPhrases: string[];
+}
+
+export interface GeneratedStudyPlanCopyRequest {
+  locale: AppLocale;
+  focusSummary: string;
+  reasoningSummary: string;
+  tasks: Array<{
+    id: string;
+    kind: StudyPlanTaskKind;
+    title: string;
+    description: string;
+    ctaLabel: string;
+    target: StudyPlanTaskTarget;
+  }>;
+  sourceSignals: StudyPlanSourceSignals;
+}
+
+export interface GeneratedStudyPlanCopy {
+  focusSummary: string;
+  reasoningSummary: string;
+  tasks: Array<{
+    id: string;
+    title: string;
+    description: string;
+    ctaLabel: string;
+  }>;
 }
 
 const STORAGE_KEYS = {
@@ -880,6 +917,102 @@ Description: ${description.trim()}`;
       typeof data.custom_prompt === "string" && data.custom_prompt.trim()
         ? data.custom_prompt.trim()
         : undefined,
+  };
+}
+
+export async function generateDailyStudyPlanCopy(
+  request: GeneratedStudyPlanCopyRequest
+): Promise<GeneratedStudyPlanCopy> {
+  const targetLanguage = getTranslationTargetLanguage(request.locale);
+  const systemPrompt = `You help write concise daily study plans for a Japanese learning app. You will receive a deterministic plan seed with fixed task ids and targets.
+
+Return ONLY valid JSON with no markdown fences and no extra commentary.
+
+Output schema:
+{
+  "focusSummary": "short one-sentence focus",
+  "reasoningSummary": "short one- or two-sentence reason",
+  "tasks": [
+    {
+      "id": "same id from the input",
+      "title": "short task title",
+      "description": "short practical description",
+      "ctaLabel": "short button label"
+    }
+  ]
+}
+
+Rules:
+- Preserve the same task ids and task order from the input.
+- Do not invent, remove, or reorder tasks.
+- Do not change the underlying action of a task.
+- Keep copy compact and actionable for a home dashboard.
+- Write in natural ${targetLanguage}.
+- Avoid markdown, bullets, numbering, or quotes inside values.
+- Keep titles to a few words and CTA labels very short.`;
+
+  const userMessage = `Rewrite this daily study plan seed into polished UI copy.
+
+PLAN SEED:
+${JSON.stringify(request, null, 2)}`;
+
+  const provider = getLLMProvider();
+  const responseText =
+    provider === "openrouter"
+      ? (await callOpenRouter(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1200 })).text
+      : (await callAnthropic(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1200 })).text;
+
+  if (!responseText) {
+    throw new ClaudeError("No text content in study plan response");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(extractJsonObject(responseText));
+  } catch {
+    throw new ClaudeError("The AI returned an invalid study plan");
+  }
+
+  const data = parsed as Record<string, unknown>;
+  const tasks = Array.isArray(data.tasks)
+    ? data.tasks
+        .map((item) => {
+          if (typeof item !== "object" || item === null) {
+            return null;
+          }
+          const record = item as Record<string, unknown>;
+          const id = typeof record.id === "string" ? record.id.trim() : "";
+          const title = typeof record.title === "string" ? record.title.trim() : "";
+          const description = typeof record.description === "string" ? record.description.trim() : "";
+          const ctaLabel = typeof record.ctaLabel === "string" ? record.ctaLabel.trim() : "";
+
+          if (!id || !title || !description || !ctaLabel) {
+            return null;
+          }
+
+          return { id, title, description, ctaLabel };
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    : [];
+
+  const expectedTaskIds = request.tasks.map((task) => task.id);
+  const returnedTaskIds = tasks.map((task) => task.id);
+
+  if (
+    typeof data.focusSummary !== "string" ||
+    !data.focusSummary.trim() ||
+    typeof data.reasoningSummary !== "string" ||
+    !data.reasoningSummary.trim() ||
+    tasks.length !== expectedTaskIds.length ||
+    expectedTaskIds.some((id, index) => returnedTaskIds[index] !== id)
+  ) {
+    throw new ClaudeError("The AI returned a malformed study plan");
+  }
+
+  return {
+    focusSummary: data.focusSummary.trim(),
+    reasoningSummary: data.reasoningSummary.trim(),
+    tasks,
   };
 }
 

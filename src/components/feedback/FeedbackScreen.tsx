@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { useI18n } from "@/i18n";
 import { generateFeedback } from "@/services/claude";
 import { FeedbackParseError, parseFeedbackResponse } from "@/services/feedback-parser";
+import { generateDailyStudyPlan } from "@/services/study-plan";
 import { addVocabItem, saveSession, getVocabulary, getUserProfile, updateUserProfile } from "@/services/storage";
 import type { Message, Scenario, SessionFeedback, Session } from "@/types";
 
@@ -74,6 +75,10 @@ export function FeedbackScreen({
         total_sessions: profile.total_sessions + 1,
         topics_covered: [...profile.topics_covered, ...newTopics].slice(-20),
         recent_struggles: newStruggles.length > 0 ? newStruggles : profile.recent_struggles,
+      });
+
+      void generateDailyStudyPlan().catch((error) => {
+        console.error("Failed to refresh daily study plan after session:", error);
       });
 
       setSessionSaved(true);

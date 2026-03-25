@@ -8,6 +8,7 @@ import { useVADRecorder } from "@/hooks/useVADRecorder";
 import { useI18n } from "@/i18n";
 import { translateJapaneseText } from "@/services/claude";
 import { buildShadowSessionSenseiViewContext } from "@/services/sensei-context";
+import { generateDailyStudyPlan } from "@/services/study-plan";
 import {
   compareShadowAttempt,
   getShadowPairs,
@@ -457,6 +458,9 @@ export function ShadowModeScreen({
       const profile = await getUserProfile();
       await updateUserProfile({
         total_sessions: profile.total_sessions + 1,
+      });
+      void generateDailyStudyPlan().catch((error) => {
+        console.error("Failed to refresh daily study plan after shadow session:", error);
       });
     })().catch((err) => {
       console.error("Failed to save shadow session:", err);
