@@ -1,7 +1,7 @@
 # Tama Desktop
 
 Japanese conversation practice app built with Tauri + React.  
-Current app includes scenario chat, persistent persona chats, voice mode with local VAD/Whisper, session feedback, and SRS flashcards.
+Current app includes scenario chat, shadow speaking practice, persistent persona chats, Sensei-guided study tools, quizzes, SRS flashcards, and study activity tracking.
 
 ## For Users (Start Here)
 
@@ -9,15 +9,20 @@ If you only want to use the app, this section is all you need. The rest of this 
 
 ### What It Is
 
-Tama Desktop is a Japanese conversation practice app with speaking + listening practice, AI chat scenarios, and study tools like feedback and flashcards.
+Tama Desktop is a Japanese conversation practice app with speaking + listening practice, AI chat scenarios, and study tools like daily plans, quizzes, feedback, and flashcards.
 
 ### Main Features
 
 - Scenario chat practice (text or voice)
+- Shadow speaking practice with fixed AI-generated scripts and hiragana readings
 - Persistent persona chats
+- Sensei assistant for follow-up help, quiz generation, and study support
+- Daily study plan on the home screen with quick actions
+- Saved quizzes with review mode and hiragana readings for Japanese text
 - Session feedback (grammar, vocabulary, fluency, rating)
 - SRS flashcards and Anki export
-- Session history and monthly stats
+- Session history plus weekly/monthly study activity tracking
+- Account backup and restore
 - Voice input with local Whisper or OpenAI Whisper API
 - Japanese TTS with VOICEVOX or Style-Bert-VITS2
 
@@ -81,10 +86,15 @@ sudo dnf install ./Tama-*.x86_64.rpm
 Implemented:
 
 - Scenario-based conversations (voice or text input)
+- Shadow mode for fixed speaking drills with line-by-line practice
 - Persistent persona chats with conversation summarization
+- Sensei assistant with contextual help from the current screen
+- Home dashboard with a daily study plan, quick resume actions, and study activity calendar
+- Saved quizzes generated from Sensei requests, with score review and hiragana readings for Japanese text
 - Session feedback (grammar, vocabulary, fluency, rating)
 - SRS flashcards with SM-2 scheduling and Anki export
-- Session history + monthly stats
+- Session history, weekly activity tracking, and monthly activity stats
+- Account backup/restore for local progress and non-secret settings
 - Two TTS engines:
   - VOICEVOX (managed from app; supports in-app download on supported platforms)
   - Style-Bert-VITS2 (optional local Python server)
@@ -133,7 +143,7 @@ npm run tauri dev
 On first launch:
 
 1. Enter LLM provider key (Anthropic or OpenRouter)
-2. Enter OpenAI key in onboarding dialog
+2. Optionally enter an OpenAI key if you want to use OpenAI Whisper for transcription
 3. Open Settings and choose:
    - TTS engine (VOICEVOX or SBV2)
    - Speech recognition engine (Local Whisper or OpenAI API)
@@ -180,6 +190,7 @@ npm run preview
 - Local Whisper model: app data `models/ggml-small.bin`
 - Downloaded VOICEVOX engine: app data `engines/voicevox/`
 - Legacy localStorage data is migrated to SQLite on first DB load
+- Account backups include history, quizzes, flashcards, settings, and other non-secret app data
 
 ## Project Structure
 
@@ -191,7 +202,6 @@ server/sbv2_api.py   # Optional local SBV2 API bridge
 
 ## Known Caveats
 
-- Onboarding currently requires entering an OpenAI key even if you plan to use local Whisper afterward.
 - API keys are stored in localStorage, not OS keychain.
 - SBV2 models are not bundled; you must provide them in `sbv2-models/`.
 

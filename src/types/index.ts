@@ -62,10 +62,14 @@ export type QuizQuestionType = "multiple_choice" | "fill_blank" | "dropdown";
 export interface QuizQuestion {
   id: string;
   prompt: string;
+  promptReading?: string;
   type: QuizQuestionType;
   options?: string[];
+  optionReadings?: string[];
   correctAnswer: string;
+  correctAnswerReading?: string;
   explanation: string;
+  explanationReading?: string;
 }
 
 export interface QuizAttemptQuestionResult {
@@ -90,7 +94,9 @@ export interface QuizAttempt {
 export interface Quiz {
   id: string;
   title: string;
+  titleReading?: string;
   instructions: string;
+  instructionsReading?: string;
   createdAt: string;
   updatedAt: string;
   source: "sensei";

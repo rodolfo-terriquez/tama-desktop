@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getSessions, getVocabulary } from "@/services/storage";
+import { getStudyActivityCountsByDate } from "@/services/activity-calendar";
+import { getVocabulary } from "@/services/storage";
 import { useI18n } from "@/i18n";
 import { formatMonthYear, getWeekdayLabels } from "@/services/locale-format";
 import hanamaruStamp from "@/assets/hanamaru.svg";
-import type { Session, VocabItem } from "@/types";
+import type { VocabItem } from "@/types";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { addMonths, startOfMonth } from "date-fns";
 
@@ -33,14 +34,20 @@ export function StatsScreen() {
   const year = viewedMonth.getFullYear();
   const month = viewedMonth.getMonth();
 
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [activityCounts, setActivityCounts] = useState<Map<string, number>>(new Map());
   const [vocab, setVocab] = useState<VocabItem[]>([]);
 
   useEffect(() => {
-    Promise.all([getSessions(), getVocabulary()]).then(([loadedSessions, loadedVocab]) => {
-      setSessions(loadedSessions);
-      setVocab(loadedVocab);
-    });
+    const load = () => {
+      Promise.all([getStudyActivityCountsByDate(), getVocabulary()]).then(([loadedActivityCounts, loadedVocab]) => {
+        setActivityCounts(loadedActivityCounts);
+        setVocab(loadedVocab);
+      });
+    };
+
+    load();
+    window.addEventListener("tama-data-changed", load);
+    return () => window.removeEventListener("tama-data-changed", load);
   }, []);
 
   const monthName = useMemo(
@@ -49,20 +56,20 @@ export function StatsScreen() {
   );
   const canGoNextMonth = viewedMonth < currentMonthStart;
 
-  const sessionCountsByDay = useMemo(() => {
+  const activityCountsByDay = useMemo(() => {
     const counts = new Map<number, number>();
-    for (const session of sessions) {
-      const d = new Date(session.date);
+    for (const [dateKey, count] of activityCounts.entries()) {
+      const d = new Date(dateKey);
       if (isSameMonth(d, year, month)) {
-        counts.set(d.getDate(), (counts.get(d.getDate()) ?? 0) + 1);
+        counts.set(d.getDate(), (counts.get(d.getDate()) ?? 0) + count);
       }
     }
     return counts;
-  }, [sessions, year, month]);
+  }, [activityCounts, year, month]);
 
-  const totalSessionsThisMonth = useMemo(
-    () => [...sessionCountsByDay.values()].reduce((a, b) => a + b, 0),
-    [sessionCountsByDay]
+  const totalActivitiesThisMonth = useMemo(
+    () => [...activityCountsByDay.values()].reduce((a, b) => a + b, 0),
+    [activityCountsByDay]
   );
 
   const newFlashcardsThisMonth = useMemo(() => {
@@ -94,7 +101,7 @@ export function StatsScreen() {
           <Card className="py-0 gap-0">
             <CardContent className="py-4">
               <p className="text-sm text-muted-foreground">{t("stats.sessionsInMonth")}</p>
-              <p className="text-3xl font-semibold mt-1">{totalSessionsThisMonth}</p>
+              <p className="text-3xl font-semibold mt-1">{totalActivitiesThisMonth}</p>
             </CardContent>
           </Card>
           <Card className="py-0 gap-0">
@@ -149,8 +156,8 @@ export function StatsScreen() {
                   year === currentMonthStart.getFullYear() &&
                   month === currentMonthStart.getMonth() &&
                   day === currentMonthStart.getDate();
-                const hasSession = (sessionCountsByDay.get(day) ?? 0) > 0;
-                const sessionCount = sessionCountsByDay.get(day) ?? 0;
+                const hasSession = (activityCountsByDay.get(day) ?? 0) > 0;
+                const sessionCount = activityCountsByDay.get(day) ?? 0;
                 return (
                   <div
                     key={day}

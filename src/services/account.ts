@@ -91,7 +91,9 @@ function isQuiz(value: unknown): value is Quiz {
   return (
     isString(value.id) &&
     isString(value.title) &&
+    (value.titleReading === undefined || isString(value.titleReading)) &&
     isString(value.instructions) &&
+    (value.instructionsReading === undefined || isString(value.instructionsReading)) &&
     isString(value.createdAt) &&
     isString(value.updatedAt) &&
     value.source === "sensei" &&
@@ -103,12 +105,16 @@ function isQuiz(value: unknown): value is Quiz {
       return (
         isString(question.id) &&
         isString(question.prompt) &&
+        (question.promptReading === undefined || isString(question.promptReading)) &&
         (question.type === "multiple_choice" ||
           question.type === "fill_blank" ||
           question.type === "dropdown") &&
         (question.options === undefined || isStringArray(question.options)) &&
+        (question.optionReadings === undefined || isStringArray(question.optionReadings)) &&
         isString(question.correctAnswer) &&
-        isString(question.explanation)
+        (question.correctAnswerReading === undefined || isString(question.correctAnswerReading)) &&
+        isString(question.explanation) &&
+        (question.explanationReading === undefined || isString(question.explanationReading))
       );
     })
   );

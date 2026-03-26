@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "@/i18n";
 import { emitDataChanged } from "@/services/app-events";
+import { ensureQuizReadings, quizNeedsReadingHydration } from "@/services/quiz-readings";
 import { buildQuizSenseiViewContext } from "@/services/sensei-context";
 import { getQuiz, saveQuiz } from "@/services/storage";
 import { cn } from "@/lib/utils";
 import type { Quiz, QuizAttempt, QuizQuestion, SenseiViewContext } from "@/types";
+
+const JAPANESE_CHAR_REGEX = /[\u3040-\u30ff\u3400-\u9fff]/u;
 
 function normalizeQuizAnswer(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
@@ -15,6 +18,47 @@ function normalizeQuizAnswer(value: string): string {
 
 function isQuizAnswerCorrect(answer: string, correctAnswer: string): boolean {
   return normalizeQuizAnswer(answer) === normalizeQuizAnswer(correctAnswer);
+}
+
+function shouldShowReading(text: string, reading: string | undefined): boolean {
+  const trimmedReading = reading?.trim();
+  if (!trimmedReading) {
+    return false;
+  }
+
+  return JAPANESE_CHAR_REGEX.test(text) && trimmedReading !== text.trim();
+}
+
+function getAnswerReading(question: QuizQuestion, answer: string): string | undefined {
+  const optionIndex = question.options?.findIndex((option) => option === answer) ?? -1;
+  if (optionIndex >= 0) {
+    return question.optionReadings?.[optionIndex];
+  }
+
+  return normalizeQuizAnswer(answer) === normalizeQuizAnswer(question.correctAnswer)
+    ? question.correctAnswerReading
+    : undefined;
+}
+
+function QuizText({
+  text,
+  reading,
+  textClassName,
+  readingClassName,
+}: {
+  text: string;
+  reading?: string;
+  textClassName?: string;
+  readingClassName?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <span className={cn("block", textClassName)}>{text}</span>
+      {shouldShowReading(text, reading) ? (
+        <span className={cn("block text-xs text-muted-foreground", readingClassName)}>{reading}</span>
+      ) : null}
+    </div>
+  );
 }
 
 function QuizQuestionInput({
@@ -44,19 +88,34 @@ function QuizQuestionInput({
 
   if (question.type === "dropdown") {
     return (
-      <select
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        className="flex h-11 w-full rounded-xl border border-border/70 bg-background/70 px-3 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <option value="">{placeholder}</option>
+      <div className="space-y-2">
         {question.options?.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
+          <label
+            key={option}
+            className={cn(
+              "flex cursor-pointer items-start gap-2 rounded-xl border border-border/70 bg-background/50 px-3 py-3 text-sm transition-colors",
+              value === option && "border-primary/50 bg-primary/10",
+              disabled && "cursor-default"
+            )}
+          >
+            <input
+              type="radio"
+              name={question.id}
+              value={option}
+              checked={value === option}
+              disabled={disabled}
+              onChange={(event) => onChange(event.target.value)}
+              className="mt-0.5"
+            />
+            <QuizText
+              text={option}
+              reading={question.optionReadings?.[question.options?.findIndex((item) => item === option) ?? -1]}
+              textClassName="text-sm"
+            />
+          </label>
         ))}
-      </select>
+        {!value ? <p className="text-xs text-muted-foreground">{placeholder}</p> : null}
+      </div>
     );
   }
 
@@ -80,7 +139,11 @@ function QuizQuestionInput({
             onChange={(event) => onChange(event.target.value)}
             className="mt-0.5"
           />
-          <span>{option}</span>
+          <QuizText
+            text={option}
+            reading={question.optionReadings?.[question.options?.findIndex((item) => item === option) ?? -1]}
+            textClassName="text-sm"
+          />
         </label>
       ))}
     </div>
@@ -127,6 +190,20 @@ export function QuizScreen({
         setSubmitted(Boolean(loaded.latestAttempt));
         setShowAnswers(Boolean(loaded.latestAttempt));
         onContextChange?.(buildQuizSenseiViewContext(loaded));
+
+        if (!quizNeedsReadingHydration(loaded)) {
+          return;
+        }
+
+        void ensureQuizReadings(loaded)
+          .then((hydrated) => {
+            if (!cancelled) {
+              setQuiz(hydrated);
+            }
+          })
+          .catch((readingError) => {
+            console.warn("Failed to hydrate quiz readings:", readingError);
+          });
       })
       .catch((loadError) => {
         if (!cancelled) {
@@ -224,8 +301,19 @@ export function QuizScreen({
           <CardContent className="px-4 py-4">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
-                <CardTitle className="text-xl">{quiz.title}</CardTitle>
-                <p className="text-sm text-muted-foreground">{quiz.instructions}</p>
+                <div className="space-y-2">
+                  <QuizText
+                    text={quiz.title}
+                    reading={quiz.titleReading}
+                    textClassName="text-xl font-semibold text-foreground"
+                    readingClassName="text-sm"
+                  />
+                  <QuizText
+                    text={quiz.instructions}
+                    reading={quiz.instructionsReading}
+                    textClassName="text-sm text-muted-foreground"
+                  />
+                </div>
                 {submitted ? (
                   <p className="text-xs font-medium text-primary">
                     {t("quiz.score", { correct: correctCount, total: quiz.questions.length })}
@@ -252,7 +340,11 @@ export function QuizScreen({
                       <p className="text-sm font-semibold text-foreground">
                         {t("quiz.questionNumber", { number: index + 1 })}
                       </p>
-                      <p className="text-sm leading-relaxed text-foreground">{question.prompt}</p>
+                      <QuizText
+                        text={question.prompt}
+                        reading={question.promptReading}
+                        textClassName="text-sm leading-relaxed text-foreground"
+                      />
                     </div>
 
                     <QuizQuestionInput
@@ -281,16 +373,30 @@ export function QuizScreen({
                           {correct ? t("quiz.correct") : t("quiz.incorrect")}
                         </p>
                         {answer ? (
-                          <p className="text-xs text-muted-foreground">
-                            {t("quiz.yourAnswer")}: {answer}
-                          </p>
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            <span className="block">{t("quiz.yourAnswer")}:</span>
+                            <QuizText
+                              text={answer}
+                              reading={getAnswerReading(question, answer)}
+                              textClassName="text-xs text-foreground"
+                            />
+                          </div>
                         ) : null}
                         {!correct || showAnswers ? (
-                          <p className="text-xs text-muted-foreground">
-                            {t("quiz.correctAnswer")}: {question.correctAnswer}
-                          </p>
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            <span className="block">{t("quiz.correctAnswer")}:</span>
+                            <QuizText
+                              text={question.correctAnswer}
+                              reading={question.correctAnswerReading}
+                              textClassName="text-xs text-foreground"
+                            />
+                          </div>
                         ) : null}
-                        <p className="text-xs leading-relaxed text-muted-foreground">{question.explanation}</p>
+                        <QuizText
+                          text={question.explanation}
+                          reading={question.explanationReading}
+                          textClassName="text-xs leading-relaxed text-muted-foreground"
+                        />
                       </div>
                     ) : null}
                   </CardContent>

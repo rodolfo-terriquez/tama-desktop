@@ -358,6 +358,13 @@ function parseQuizQuestion(value: unknown, index: number): QuizQuestion | null {
   const options = rawOptionsSource
     ?.filter((option): option is string => typeof option === "string" && option.trim().length > 0)
     .map((option) => option.trim());
+  const rawOptionReadingsSource = Array.isArray(question.optionReadings)
+    ? question.optionReadings
+    : Array.isArray(question.option_readings)
+      ? question.option_readings
+      : undefined;
+  const optionReadings = rawOptionReadingsSource
+    ?.map((option) => typeof option === "string" ? option.trim() : "");
   const rawType = typeof question.type === "string" ? question.type.trim().toLowerCase() : "";
   const type =
     rawType === "multiple_choice" ||
@@ -380,11 +387,23 @@ function parseQuizQuestion(value: unknown, index: number): QuizQuestion | null {
       : typeof question.question === "string"
         ? question.question.trim()
         : "";
+  const promptReading =
+    typeof question.promptReading === "string"
+      ? question.promptReading.trim()
+      : typeof question.prompt_reading === "string"
+        ? question.prompt_reading.trim()
+        : "";
   const correctAnswer =
     typeof question.correctAnswer === "string"
       ? question.correctAnswer.trim()
       : typeof question.correct_answer === "string"
         ? question.correct_answer.trim()
+        : "";
+  const correctAnswerReading =
+    typeof question.correctAnswerReading === "string"
+      ? question.correctAnswerReading.trim()
+      : typeof question.correct_answer_reading === "string"
+        ? question.correct_answer_reading.trim()
         : "";
   const explanation =
     typeof question.explanation === "string"
@@ -392,6 +411,12 @@ function parseQuizQuestion(value: unknown, index: number): QuizQuestion | null {
       : typeof question.reasoning === "string"
         ? question.reasoning.trim()
         : "Review the correction and compare it with the target phrasing.";
+  const explanationReading =
+    typeof question.explanationReading === "string"
+      ? question.explanationReading.trim()
+      : typeof question.explanation_reading === "string"
+        ? question.explanation_reading.trim()
+        : "";
 
   if (!prompt || !correctAnswer) {
     return null;
@@ -404,14 +429,28 @@ function parseQuizQuestion(value: unknown, index: number): QuizQuestion | null {
   return {
     id,
     prompt,
+    promptReading: promptReading || undefined,
     type,
     options,
+    optionReadings:
+      optionReadings && (!options || optionReadings.length === options.length)
+        ? optionReadings
+        : undefined,
     correctAnswer,
+    correctAnswerReading: correctAnswerReading || undefined,
     explanation,
+    explanationReading: explanationReading || undefined,
   };
 }
 
-function parseGeneratedSenseiQuiz(raw: string): { introMessage: string; title: string; instructions: string; questions: QuizQuestion[] } | null {
+function parseGeneratedSenseiQuiz(raw: string): {
+  introMessage: string;
+  title: string;
+  titleReading?: string;
+  instructions: string;
+  instructionsReading?: string;
+  questions: QuizQuestion[];
+} | null {
   const extracted = extractJsonObject(raw);
   const parsed = parseLooseJsonObject(extracted);
   if (!parsed) {
@@ -428,12 +467,24 @@ function parseGeneratedSenseiQuiz(raw: string): { introMessage: string; title: s
       : typeof quizRecord.name === "string"
         ? quizRecord.name.trim()
         : "";
+  const titleReading =
+    typeof quizRecord.titleReading === "string"
+      ? quizRecord.titleReading.trim()
+      : typeof quizRecord.title_reading === "string"
+        ? quizRecord.title_reading.trim()
+        : "";
   const instructions =
     typeof quizRecord.instructions === "string"
       ? quizRecord.instructions.trim()
       : typeof quizRecord.description === "string"
         ? quizRecord.description.trim()
         : "Choose the best answer for each question.";
+  const instructionsReading =
+    typeof quizRecord.instructionsReading === "string"
+      ? quizRecord.instructionsReading.trim()
+      : typeof quizRecord.instructions_reading === "string"
+        ? quizRecord.instructions_reading.trim()
+        : "";
   const introMessage =
     typeof parsed.reply === "string"
       ? parsed.reply.trim()
@@ -462,7 +513,9 @@ function parseGeneratedSenseiQuiz(raw: string): { introMessage: string; title: s
   return {
     introMessage,
     title,
+    titleReading: titleReading || undefined,
     instructions,
+    instructionsReading: instructionsReading || undefined,
     questions,
   };
 }
@@ -483,15 +536,21 @@ Output schema:
   "reply": "short intro text shown in chat above the quiz link",
   "quiz": {
     "title": "short quiz title",
+    "titleReading": "hiragana reading for any Japanese in the title",
     "instructions": "brief instructions",
+    "instructionsReading": "hiragana reading for any Japanese in the instructions",
     "questions": [
       {
         "id": "q1",
         "type": "multiple_choice" | "fill_blank" | "dropdown",
         "prompt": "question text",
+        "promptReading": "hiragana reading for any Japanese in the prompt",
         "options": ["choice A", "choice B"],
+        "optionReadings": ["hiragana reading for option A", "hiragana reading for option B"],
         "correctAnswer": "exact correct answer string",
-        "explanation": "brief explanation"
+        "correctAnswerReading": "hiragana reading for any Japanese in the correct answer",
+        "explanation": "brief explanation",
+        "explanationReading": "hiragana reading for any Japanese in the explanation"
       }
     ]
   }
@@ -503,6 +562,9 @@ Rules:
 - Focus tightly on the student's request and recent struggles.
 - Prefer multiple_choice when possible because it is the easiest format to render and complete.
 - Only include "options" for multiple_choice and dropdown questions.
+- Include the titleReading, instructionsReading, promptReading, optionReadings, correctAnswerReading, and explanationReading fields whenever the paired text contains Japanese.
+- Every reading field must be written only in hiragana.
+- For mixed English/Japanese strings, each reading should cover only the Japanese wording in the same order it appears.
 - Do not include romaji unless the student explicitly requested it.
 - Keep the quiz practical and teach toward one clear pattern or mistake.
 - Keep the chat "reply" short, natural, and inviting.
@@ -540,7 +602,9 @@ async function generateSenseiQuiz(
   const quiz: Quiz = {
     id: crypto.randomUUID(),
     title: parsed.title,
+    titleReading: parsed.titleReading,
     instructions: parsed.instructions,
+    instructionsReading: parsed.instructionsReading,
     createdAt: now,
     updatedAt: now,
     source: "sensei",

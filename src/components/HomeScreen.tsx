@@ -5,14 +5,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { SCENARIOS, localizeScenario } from "@/data/scenarios";
+import { getStudyActivityCountsByDate } from "@/services/activity-calendar";
 import { buildHomeSenseiViewContext } from "@/services/sensei-context";
 import { ensureDailyStudyPlan, setStudyPlanTaskCompleted } from "@/services/study-plan";
-import { getCustomScenarios, getDueVocabulary, getLastSession, getOngoingChats, getSessions, getUserProfile } from "@/services/storage";
+import { getCustomScenarios, getDueVocabulary, getLastSession, getOngoingChats, getUserProfile } from "@/services/storage";
 import { useI18n } from "@/i18n";
 import { formatRelativeTime, formatWeekdayMonthDay, getWeekdayLabels } from "@/services/locale-format";
 import type { OngoingChat, Scenario, SenseiViewContext, StudyPlan, StudyPlanTask } from "@/types";
 import { addDays, format, getISOWeek, isSameDay, startOfWeek } from "date-fns";
-import { BookOpenText, Check, Mic, RotateCcw, Sparkles } from "lucide-react";
+import { BookOpenText, Check, Mic, Sparkles } from "lucide-react";
 import hanamaruStamp from "@/assets/hanamaru.svg";
 
 interface HomeScreenProps {
@@ -39,15 +40,14 @@ function useWeeklyActivity() {
 
   useEffect(() => {
     async function load() {
-      const sessions = await getSessions();
+      const activityCounts = await getStudyActivityCountsByDate();
       const now = new Date();
       const weekStart = startOfWeek(now, { weekStartsOn: 1 });
       const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
       const weekKeys = new Set(weekDays.map((day) => format(day, "yyyy-MM-dd")));
       const completedDays = new Set<string>();
 
-      for (const session of sessions) {
-        const key = format(new Date(session.date), "yyyy-MM-dd");
+      for (const key of activityCounts.keys()) {
         if (weekKeys.has(key)) {
           completedDays.add(key);
         }
@@ -60,6 +60,8 @@ function useWeeklyActivity() {
       });
     }
     load();
+    window.addEventListener("tama-data-changed", load);
+    return () => window.removeEventListener("tama-data-changed", load);
   }, []);
 
   return data;
@@ -149,12 +151,23 @@ function TodayPlanCard({
             {studyPlan.tasks.map((task, index) => (
               <div key={task.id}>
                 {index > 0 ? <Separator className="my-1.5" /> : null}
-                <div className="flex items-center justify-between gap-3 py-1">
+                <div className="flex items-center gap-3 py-1">
+                  <button
+                    type="button"
+                    className={`flex size-5 shrink-0 items-center justify-center rounded border transition-colors ${
+                      task.completedAt
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input bg-background text-transparent hover:border-primary/60"
+                    }`}
+                    title={task.completedAt ? t("home.markTaskPending") : t("home.markTaskDone")}
+                    aria-label={task.completedAt ? t("home.markTaskPending") : t("home.markTaskDone")}
+                    aria-pressed={Boolean(task.completedAt)}
+                    onClick={() => onTaskCompletionChange(task, !task.completedAt)}
+                  >
+                    <Check className="size-3" />
+                  </button>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm">
-                      <span className="mr-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {t("home.planStep", { number: index + 1 })}
-                      </span>
                       <span className={task.completedAt ? "font-medium text-muted-foreground line-through" : "font-medium"}>
                         {task.title}
                       </span>
@@ -165,16 +178,6 @@ function TodayPlanCard({
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant={task.completedAt ? "secondary" : "outline"}
-                      className="h-8 w-8"
-                      title={task.completedAt ? t("home.markTaskPending") : t("home.markTaskDone")}
-                      onClick={() => onTaskCompletionChange(task, !task.completedAt)}
-                    >
-                      {task.completedAt ? <RotateCcw className="size-4" /> : <Check className="size-4" />}
-                    </Button>
                     <Button
                       type="button"
                       size="sm"
