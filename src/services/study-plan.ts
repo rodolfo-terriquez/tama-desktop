@@ -264,6 +264,34 @@ function hydratePlan(seed: PlanSeed, overrides?: {
   };
 }
 
+function mergeWithExistingPlan(existing: StudyPlan | null, nextPlan: StudyPlan): StudyPlan {
+  if (!existing || existing.date !== nextPlan.date) {
+    return nextPlan;
+  }
+
+  const existingTasksById = new Map(existing.tasks.map((task) => [task.id, task]));
+  const mergedTasks = nextPlan.tasks.map((task) => {
+    const existingTask = existingTasksById.get(task.id);
+    return existingTask?.completedAt
+      ? {
+          ...task,
+          completedAt: existingTask.completedAt,
+        }
+      : task;
+  });
+
+  const completedLegacyTasks = existing.tasks.filter((task) =>
+    Boolean(task.completedAt) && !mergedTasks.some((candidate) => candidate.id === task.id)
+  );
+
+  return {
+    ...nextPlan,
+    id: existing.id,
+    date: existing.date,
+    tasks: [...mergedTasks, ...completedLegacyTasks],
+  };
+}
+
 export async function getActiveStudyPlan(): Promise<StudyPlan | null> {
   return getStudyPlanByDate(getTodayKey());
 }
@@ -308,6 +336,7 @@ export async function setStudyPlanTaskCompleted(taskId: string, completed: boole
 
 export async function generateDailyStudyPlan(): Promise<StudyPlan> {
   const locale = getAppLocale();
+  const existingPlan = await getActiveStudyPlan();
   const [profile, sessions, vocabulary, dueVocabulary, flashcardReviewSessions, rankedScenarios] = await Promise.all([
     getUserProfile(),
     getSessions(),
@@ -360,6 +389,7 @@ export async function generateDailyStudyPlan(): Promise<StudyPlan> {
     console.warn("Falling back to heuristic daily study plan:", error);
   }
 
+  plan = mergeWithExistingPlan(existingPlan, plan);
   await saveStudyPlan(plan);
   return plan;
 }

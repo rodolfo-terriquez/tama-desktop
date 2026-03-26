@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { MessageBubble } from "@/components/conversation/MessageBubble";
 import { localizeScenario } from "@/data/scenarios";
 import { useI18n } from "@/i18n";
@@ -12,7 +13,7 @@ import { sendMessage, sendMessageWithTools, buildScenarioPrompt } from "@/servic
 import { getUserProfile } from "@/services/storage";
 import type { Message, Scenario, UserProfile } from "@/types";
 import { v4 as uuidv4 } from "uuid";
-import { Send, LogOut } from "lucide-react";
+import { Mic, Send, LogOut } from "lucide-react";
 
 interface ConversationScreenProps {
   scenario: Scenario;
@@ -36,6 +37,7 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
   const [error, setError] = useState<string | null>(null);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(!scenario.isCustom);
+  const [draftMessage, setDraftMessage] = useState("");
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -304,69 +306,110 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
 
   // Conversation in progress
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)] max-w-3xl mx-auto p-4 overflow-hidden">
+    <div className="flex h-full min-h-0 flex-1 overflow-hidden bg-background">
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1">
+        <div className="relative flex min-h-0 flex-1 flex-col">
       {/* Error display */}
       {error && (
-        <Alert variant="destructive" className="mb-4 shrink-0">
+        <Alert variant="destructive" className="mx-4 mt-4 shrink-0">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto mb-4 border rounded-lg">
-        <div className="space-y-4 p-4">
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="space-y-4 px-4 pt-4 pb-28">
           {messages.map((message) => (
             <MessageBubble
               key={message.id}
               message={message}
               isSpeaking={message.id === speakingMessageId}
+              layout="sensei-like"
             />
           ))}
 
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-muted rounded-lg px-4 py-2">
-                <p className="text-muted-foreground">...</p>
+              <div className="flex items-center gap-2 rounded-xl border bg-card px-3 py-2 text-sm text-muted-foreground">
+                <p>...</p>
               </div>
             </div>
           )}
 
           <div ref={bottomRef} />
         </div>
-      </div>
+      </ScrollArea>
 
       {/* Input + actions */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          const form = e.target as HTMLFormElement;
-          const input = form.elements.namedItem("textInput") as HTMLInputElement;
-          if (input.value.trim()) {
-            handleUserMessage(input.value.trim());
-            input.value = "";
+          const value = draftMessage.trim();
+          if (value) {
+            void handleUserMessage(value);
+            setDraftMessage("");
           }
         }}
-        className="flex gap-1.5 shrink-0"
+        className="absolute inset-x-3 bottom-3 z-20"
       >
-        <Input
-          name="textInput"
-          placeholder={t("scenario.typeInJapanese")}
-          disabled={isLoading || isSpeaking}
-          className="flex-1"
-        />
-        <Button type="submit" disabled={isLoading || isSpeaking} size="icon" title={t("scenario.send")}>
-          <Send className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={endSession}
-          title={t("scenario.endSession")}
-        >
-          <LogOut className="size-4" />
-        </Button>
+        <div className="rounded-2xl border border-border/80 bg-background/95 px-3 pt-2.5 pb-2 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/85">
+          <Textarea
+            name="textInput"
+            placeholder={t("scenario.typeInJapanese")}
+            disabled={isLoading || isSpeaking}
+            value={draftMessage}
+            onChange={(event) => setDraftMessage(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                const value = draftMessage.trim();
+                if (value && !isLoading && !isSpeaking) {
+                  void handleUserMessage(value);
+                  setDraftMessage("");
+                }
+              }
+            }}
+            className="min-h-[56px] resize-none border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
+          />
+          <div className="mt-1.5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-1">
+              {onModeChange ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => onModeChange("voice")}
+                  title={t("scenario.voiceMode")}
+                  className="size-8 rounded-full"
+                >
+                  <Mic className="size-4" />
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={endSession}
+                title={t("scenario.endSession")}
+                className="size-8 rounded-full"
+              >
+                <LogOut className="size-4" />
+              </Button>
+            </div>
+            <Button
+              type="submit"
+              disabled={isLoading || isSpeaking || !draftMessage.trim()}
+              size="icon"
+              title={t("scenario.send")}
+              className="size-9 shrink-0 rounded-full"
+            >
+              <Send className="size-4" />
+            </Button>
+          </div>
+        </div>
       </form>
+        </div>
+      </div>
     </div>
   );
 }

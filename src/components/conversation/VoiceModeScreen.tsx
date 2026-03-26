@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { ShadowModeScreen } from "@/components/conversation/ShadowModeScreen";
 import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
 import { TranscriptBubbles } from "@/components/conversation/TranscriptBubbles";
@@ -29,7 +30,7 @@ import { buildScenarioPrompt, generateShadowScript, sendMessage, sendMessageWith
 import { getShadowScript, getUserProfile, saveShadowScript } from "@/services/storage";
 import type { Message, Scenario, ScenarioRunMode, SenseiViewContext, ShadowScript, UserProfile } from "@/types";
 import { v4 as uuidv4 } from "uuid";
-import { Loader2, Send, Mic, Keyboard, LogOut, RefreshCcw } from "lucide-react";
+import { Loader2, ArrowUp, Mic, Keyboard, LogOut, RefreshCcw } from "lucide-react";
 
 type InputMode = "voice" | "text";
 
@@ -68,6 +69,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   const [isShadowLoading, setIsShadowLoading] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [shadowScript, setShadowScript] = useState<ShadowScript | null>(null);
+  const [draftMessage, setDraftMessage] = useState("");
 
   const messagesRef = useRef<Message[]>([]);
   const sessionEndedRef = useRef(false);
@@ -100,6 +102,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     setShowCaptions(false);
     setSpeakingMessageId(null);
     setShadowScript(null);
+    setDraftMessage("");
     sessionEndedRef.current = false;
   }, [scenario.id, scenario.isCustom]);
 
@@ -474,7 +477,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   // ── Setup screen ──
   if (!started) {
     return (
-      <div className="h-[calc(100vh-3rem)] overflow-y-auto p-4">
+      <div className="h-full overflow-y-auto p-4">
         <div className="mx-auto flex min-h-full w-full max-w-lg items-start justify-center py-4">
           <Card className="w-full">
             <CardHeader>
@@ -660,7 +663,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     const hasTranscript = showCaptions && messages.length > 0;
 
     return (
-      <div className="flex h-[calc(100vh-3rem)] flex-col max-w-3xl mx-auto overflow-hidden">
+      <div className="flex h-full flex-col max-w-3xl mx-auto overflow-hidden">
         {error && (
           <Alert variant="destructive" className="mx-4 mt-2 mb-0">
             <AlertDescription>{error}</AlertDescription>
@@ -719,75 +722,105 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
 
   // ── Text mode ──
   return (
-    <div className="flex h-[calc(100vh-3rem)] flex-col max-w-3xl mx-auto p-4 overflow-hidden">
-      {error && (
-        <Alert variant="destructive" className="mb-4 shrink-0">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="flex-1 min-h-0 overflow-y-auto mb-4 border rounded-lg">
-        <div className="space-y-4 p-4">
-          {messages.map((message) => (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              isSpeaking={message.id === speakingMessageId}
-            />
-          ))}
-
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-muted rounded-lg px-4 py-2">
-                <p className="text-muted-foreground">...</p>
-              </div>
-            </div>
+    <div className="flex h-full min-h-0 flex-1 overflow-hidden bg-background">
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1">
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {error && (
+            <Alert variant="destructive" className="mx-4 mt-4 shrink-0">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
-          <div ref={bottomRef} />
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="space-y-4 px-4 pt-4 pb-28">
+              {messages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  isSpeaking={message.id === speakingMessageId}
+                  layout="sensei-like"
+                />
+              ))}
+
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="flex items-center gap-2 rounded-xl border bg-card px-3 py-2 text-sm text-muted-foreground">
+                    <p>...</p>
+                  </div>
+                </div>
+              )}
+
+              <div ref={bottomRef} />
+            </div>
+          </ScrollArea>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const value = draftMessage.trim();
+              if (value) {
+                void handleTextSubmit(value);
+                setDraftMessage("");
+              }
+            }}
+            className="absolute inset-x-3 bottom-3 z-20"
+          >
+            <div className="rounded-2xl border border-border/80 bg-background/95 px-3 pt-2.5 pb-2 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/85">
+              <Textarea
+                name="textInput"
+                placeholder={t("scenario.typeInJapanese")}
+                disabled={isLoading}
+                value={draftMessage}
+                onChange={(event) => setDraftMessage(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    const value = draftMessage.trim();
+                    if (value && !isLoading) {
+                      void handleTextSubmit(value);
+                      setDraftMessage("");
+                    }
+                  }
+                }}
+                className="min-h-[56px] resize-none border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
+              />
+              <div className="mt-1.5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleSwitchToVoice}
+                    title={t("scenario.switchToVoice")}
+                    className="size-8 rounded-full"
+                  >
+                    <Mic className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={endSession}
+                    title={t("scenario.endSession")}
+                    className="size-8 rounded-full"
+                  >
+                    <LogOut className="size-4" />
+                  </Button>
+                </div>
+                <Button
+                  type="submit"
+                  disabled={isLoading || !draftMessage.trim()}
+                  size="icon"
+                  title={t("scenario.send")}
+                  className="size-9 shrink-0 rounded-full"
+                >
+                  <ArrowUp className="size-4" />
+                </Button>
+              </div>
+            </div>
+          </form>
         </div>
       </div>
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const form = e.target as HTMLFormElement;
-          const input = form.elements.namedItem("textInput") as HTMLInputElement;
-          if (input.value.trim()) {
-            handleTextSubmit(input.value.trim());
-            input.value = "";
-          }
-        }}
-        className="flex gap-1.5 shrink-0"
-      >
-        <Input
-          name="textInput"
-          placeholder={t("scenario.typeInJapanese")}
-          disabled={isLoading}
-          className="flex-1"
-        />
-        <Button type="submit" disabled={isLoading} size="icon" title={t("scenario.send")}>
-          <Send className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={handleSwitchToVoice}
-          title={t("scenario.switchToVoice")}
-        >
-          <Mic className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={endSession}
-          title={t("scenario.endSession")}
-        >
-          <LogOut className="size-4" />
-        </Button>
-      </form>
     </div>
   );
 }

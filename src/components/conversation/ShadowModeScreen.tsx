@@ -482,7 +482,7 @@ export function ShadowModeScreen({
 
   if (phase === "complete") {
     return (
-      <div className="h-[calc(100vh-3rem)] overflow-y-auto p-4">
+      <div className="h-full overflow-y-auto p-4">
         <div className="mx-auto flex min-h-full w-full max-w-2xl items-start justify-center py-4">
           <Card className="w-full">
             <CardHeader>
@@ -587,7 +587,7 @@ export function ShadowModeScreen({
   }
 
   return (
-    <div className="h-[calc(100vh-3rem)] overflow-y-auto p-3">
+    <div className="h-full overflow-y-auto p-3">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={onBackToPreview}>

@@ -11,9 +11,14 @@ import type { Message } from "@/types";
 interface MessageBubbleProps {
   message: Message;
   isSpeaking?: boolean;
+  layout?: "default" | "sensei-like";
 }
 
-export function MessageBubble({ message, isSpeaking: externalSpeaking }: MessageBubbleProps) {
+export function MessageBubble({
+  message,
+  isSpeaking: externalSpeaking,
+  layout = "default",
+}: MessageBubbleProps) {
   const { locale, t } = useI18n();
   const [translations, setTranslations] = useState<Partial<Record<AppLocale, string>>>({});
   const [isTranslating, setIsTranslating] = useState(false);
@@ -25,6 +30,7 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
   const showGlow = isAssistant && (isPlaying || externalSpeaking);
   const translation = translations[locale];
   const targetLanguage = t(locale === "es" ? "common.spanish" : "common.english");
+  const isSenseiLike = layout === "sensei-like";
 
   const handleTranslate = async () => {
     if (translation) {
@@ -59,7 +65,15 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className={`relative max-w-[80%] ${showGlow ? "speaking-glow" : ""}`}>
+      <div
+        className={`relative ${
+          isUser
+            ? "max-w-[88%]"
+            : isSenseiLike
+              ? "w-full"
+              : "max-w-[80%]"
+        } ${showGlow ? "speaking-glow" : ""}`}
+      >
         {showGlow && (
           <div
             className="absolute -inset-[2px] rounded-xl opacity-75 blur-[3px] animate-gradient-rotate"
@@ -70,11 +84,11 @@ export function MessageBubble({ message, isSpeaking: externalSpeaking }: Message
           />
         )}
         <div
-          className={`relative rounded-lg px-4 py-2 ${
+          className={`relative rounded-xl px-4 py-2 ${
             isUser ? "bg-primary text-primary-foreground" : "bg-muted"
           }`}
         >
-          <SimpleMarkdown content={message.content} className="text-lg" />
+          <SimpleMarkdown content={message.content} className={isSenseiLike ? "text-sm" : "text-lg"} />
 
           {isAssistant && (
             <>

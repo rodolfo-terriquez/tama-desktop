@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageBubble } from "@/components/conversation/MessageBubble";
 import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
@@ -393,15 +394,17 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
 
   // ── Text mode layout ──
   return (
-    <div className="flex flex-col h-screen max-w-3xl mx-auto p-4 overflow-hidden">
+    <div className="flex h-full min-h-0 flex-1 overflow-hidden bg-background">
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1">
+        <div className="relative flex min-h-0 flex-1 flex-col">
       {error && (
-        <Alert variant="destructive" className="mb-4">
+        <Alert variant="destructive" className="mx-4 mt-4">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto mb-4 border rounded-lg">
-        <div className="space-y-4 p-4">
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="space-y-4 px-4 pt-4 pb-36">
           {chat.summary && messages.length === 0 && (
             <div className="text-center py-4">
               <p className="text-sm text-muted-foreground italic">
@@ -411,13 +414,18 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
           )}
 
           {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} isSpeaking={message.id === speakingMessageId} />
+            <MessageBubble
+              key={message.id}
+              message={message}
+              isSpeaking={message.id === speakingMessageId}
+              layout="sensei-like"
+            />
           ))}
 
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-muted rounded-lg px-4 py-2">
-                <p className="text-muted-foreground">...</p>
+              <div className="flex items-center gap-2 rounded-xl border bg-card px-3 py-2 text-sm text-muted-foreground">
+                <p>...</p>
               </div>
             </div>
           )}
@@ -434,7 +442,7 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
 
           <div ref={bottomRef} />
         </div>
-      </div>
+      </ScrollArea>
 
       <form
         onSubmit={(e) => {
@@ -445,9 +453,9 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
             setDraftMessage("");
           }
         }}
-        className="shrink-0"
+        className="absolute inset-x-3 bottom-3 z-20"
       >
-        <div className="rounded-2xl border border-border/70 bg-card px-3 py-3">
+        <div className="rounded-2xl border border-border/80 bg-background/95 px-3 pt-2.5 pb-2 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/85">
           <Textarea
             placeholder={`Message ${chat.name}...`}
             disabled={isLoading}
@@ -463,9 +471,9 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
                 }
               }
             }}
-            className="min-h-[72px] resize-none border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
+            className="min-h-[56px] resize-none border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
-          <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="mt-1.5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-1">
               <Button
                 type="button"
@@ -504,7 +512,7 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
               disabled={isLoading || !draftMessage.trim()}
               size="icon"
               title="Send"
-              className="size-9 rounded-full"
+              className="size-9 shrink-0 rounded-full"
             >
               <ArrowUp className="size-4" />
             </Button>
@@ -521,6 +529,8 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
         chatPersona={chat.persona}
         onFeedbackGenerated={handleFeedbackGenerated}
       />
+        </div>
+      </div>
     </div>
   );
 }

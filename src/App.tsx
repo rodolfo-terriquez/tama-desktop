@@ -418,6 +418,11 @@ function App() {
     }
   };
 
+  const usesFullHeightShell =
+    currentScreen === "sensei" ||
+    currentScreen === "conversation" ||
+    currentScreen === "ongoing-chat";
+
   return (
     <TooltipProvider>
       <SidebarProvider open={false}>
@@ -448,7 +453,7 @@ function App() {
             ) : null}
             <main
               className={
-                currentScreen === "sensei"
+                usesFullHeightShell
                   ? "min-h-0 min-w-0 flex-1 overflow-hidden"
                   : "min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
               }
@@ -456,7 +461,7 @@ function App() {
               <Suspense fallback={<ScreenLoader />}>
                 <div
                   key={`${currentScreen}-${dataVersion}`}
-                  className={currentScreen === "sensei" ? "min-h-0 h-full min-w-0 w-full" : "min-w-0 w-full"}
+                  className={usesFullHeightShell ? "min-h-0 h-full min-w-0 w-full" : "min-w-0 w-full"}
                 >
                   {renderContent()}
                 </div>
