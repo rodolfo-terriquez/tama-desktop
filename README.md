@@ -1,5 +1,7 @@
 # Tama Desktop
 
+![Tama Desktop screenshot](./tama-screen-01.png)
+
 Japanese conversation practice app built with Tauri + React.  
 Current app includes scenario chat, shadow speaking practice, persistent persona chats, Sensei-guided study tools, quizzes, SRS flashcards, and study activity tracking.
 
