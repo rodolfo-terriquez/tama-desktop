@@ -23,7 +23,7 @@ import {
 } from "@/services/sensei";
 import { cn } from "@/lib/utils";
 import type { Message, SenseiThread, SenseiViewContext } from "@/types";
-import { ArrowUp, History, Maximize2, Minimize2, Plus, Trash2 } from "lucide-react";
+import { ArrowUp, Check, Copy, History, Maximize2, Minimize2, Plus, Trash2 } from "lucide-react";
 
 interface SenseiSidebarProps {
   open: boolean;
@@ -53,15 +53,41 @@ function SenseiMessageBubble({
   mode: "sidebar" | "full";
   onOpenQuiz?: (quizId: string) => void;
 }) {
+  const { t } = useI18n();
+  const [isCopied, setIsCopied] = useState(false);
   const hasContent = message.content.trim().length > 0;
-  const hasQuizAction = message.role === "assistant" && message.action?.type === "open_quiz";
+  const isAssistant = message.role === "assistant";
+  const hasQuizAction = isAssistant && message.action?.type === "open_quiz";
   const quizAction = hasQuizAction ? message.action : null;
+
+  const handleCopy = async () => {
+    if (!hasContent) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(message.content);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = message.content;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "absolute";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+
+    setIsCopied(true);
+    window.setTimeout(() => setIsCopied(false), 1600);
+  };
 
   return (
     <div className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "rounded-xl px-3 py-2 text-sm leading-relaxed",
+          "group relative rounded-xl px-3 py-2 text-sm leading-relaxed",
           message.role === "user"
             ? "max-w-[88%]"
             : mode === "full"
@@ -70,9 +96,26 @@ function SenseiMessageBubble({
           message.role === "user"
             ? "bg-primary text-primary-foreground"
             : "bg-card text-card-foreground",
+          isAssistant && hasContent && "pr-11",
           hasQuizAction && "space-y-3"
         )}
       >
+        {isAssistant && hasContent ? (
+          <button
+            type="button"
+            onClick={handleCopy}
+            title={t("common.copy")}
+            className={cn(
+              "absolute top-2 right-2 inline-flex size-7 items-center justify-center rounded-md border border-border/60 bg-background/85 text-muted-foreground shadow-sm backdrop-blur transition-all",
+              "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+              isCopied && "opacity-100 text-foreground"
+            )}
+            data-1p-ignore
+          >
+            {isCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+            <span className="sr-only">{t("common.copy")}</span>
+          </button>
+        ) : null}
         {hasContent ? <SimpleMarkdown content={message.content} /> : null}
         {quizAction ? (
           <Button
