@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-sans: "Noto Sans", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif;
+    --font-sans: "Geist", "M PLUS Rounded 1c", ui-sans-serif, system-ui, sans-serif;
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
     --radius-lg: var(--radius);
