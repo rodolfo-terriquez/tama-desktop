@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import tamaDarkIcon from "@/assets/tama-white.svg";
 import tamaLightIcon from "@/assets/tama.svg";
+import tamaPurpleIcon from "@/assets/tama-purple.svg";
 import { AppStatusDot } from "@/components/AppStatusDot";
 import {
   Sidebar,
@@ -26,6 +27,7 @@ interface AppSidebarProps {
 export function AppSidebar({ currentScreen, onNavigate, senseiOpen, onToggleSensei }: AppSidebarProps) {
   const { t } = useI18n();
   const { isMobile, setOpenMobile } = useSidebar();
+  const isSenseiFullMode = currentScreen === "sensei";
   const labelFadeClass =
     "group-data-[collapsible=icon]:[&>span:last-child]:opacity-0 [&>span:last-child]:transition-opacity [&>span:last-child]:duration-100";
 
@@ -96,13 +98,19 @@ export function AppSidebar({ currentScreen, onNavigate, senseiOpen, onToggleSens
             <SidebarMenu className="gap-1">
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  isActive={senseiOpen}
+                  isActive={isSenseiFullMode}
                   onClick={handleToggleSensei}
                   tooltip={t("sensei.openChat")}
                   className={labelFadeClass}
                 >
-                  <img src={tamaLightIcon} alt="" className="h-4 w-4 shrink-0 dark:hidden" />
-                  <img src={tamaDarkIcon} alt="" className="hidden h-4 w-4 shrink-0 dark:block" />
+                  {senseiOpen ? (
+                    <img src={tamaPurpleIcon} alt="" className="h-4 w-4 shrink-0" />
+                  ) : (
+                    <>
+                      <img src={tamaLightIcon} alt="" className="h-4 w-4 shrink-0 dark:hidden" />
+                      <img src={tamaDarkIcon} alt="" className="hidden h-4 w-4 shrink-0 dark:block" />
+                    </>
+                  )}
                   <span>{t("sensei.openChat")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>

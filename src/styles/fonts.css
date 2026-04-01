@@ -1,0 +1,127 @@
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('../assets/fonts/geist-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('../assets/fonts/geist-latin-500-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url('../assets/fonts/geist-latin-600-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('../assets/fonts/geist-latin-700-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('../assets/fonts/geist-latin-ext-400-normal.woff2') format('woff2');
+  unicode-range:
+    U+0100-024F,
+    U+0259,
+    U+1E00-1EFF,
+    U+2020,
+    U+20A0-20AB,
+    U+20AD-20CF,
+    U+2113,
+    U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('../assets/fonts/geist-latin-ext-500-normal.woff2') format('woff2');
+  unicode-range:
+    U+0100-024F,
+    U+0259,
+    U+1E00-1EFF,
+    U+2020,
+    U+20A0-20AB,
+    U+20AD-20CF,
+    U+2113,
+    U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url('../assets/fonts/geist-latin-ext-600-normal.woff2') format('woff2');
+  unicode-range:
+    U+0100-024F,
+    U+0259,
+    U+1E00-1EFF,
+    U+2020,
+    U+20A0-20AB,
+    U+20AD-20CF,
+    U+2113,
+    U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('../assets/fonts/geist-latin-ext-700-normal.woff2') format('woff2');
+  unicode-range:
+    U+0100-024F,
+    U+0259,
+    U+1E00-1EFF,
+    U+2020,
+    U+20A0-20AB,
+    U+20AD-20CF,
+    U+2113,
+    U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'M PLUS Rounded 1c';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('../assets/fonts/m-plus-rounded-1c-japanese-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'M PLUS Rounded 1c';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('../assets/fonts/m-plus-rounded-1c-japanese-500-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'M PLUS Rounded 1c';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('../assets/fonts/m-plus-rounded-1c-japanese-700-normal.woff2') format('woff2');
+}

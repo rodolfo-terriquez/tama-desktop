@@ -287,8 +287,12 @@ function SenseiConversation({
             ))
           ) : (
             <div className="rounded-xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">{t("sensei.emptyTitle")}</p>
-              <p className="mt-1">{t("sensei.emptyDescription")}</p>
+              <p className="font-medium text-foreground">{t("sensei.openChat")}</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>{t("sensei.emptySuggestionFeedback")}</li>
+                <li>{t("sensei.emptySuggestionScenario")}</li>
+                <li>{t("sensei.emptySuggestionFlashcards")}</li>
+              </ul>
             </div>
           )}
 
