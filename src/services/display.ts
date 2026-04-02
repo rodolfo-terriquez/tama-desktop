@@ -89,3 +89,37 @@ export function setDisplayMode(mode: DisplayMode) {
 export function initializeDisplayMode() {
   applyDisplayMode(getDisplayMode());
 }
+
+const FONT_SCALE_KEY = "tama_font_scale";
+const DEFAULT_FONT_SCALE = 100;
+const MIN_FONT_SCALE = 75;
+const MAX_FONT_SCALE = 200;
+const FONT_SCALE_STEP = 5;
+
+export { MIN_FONT_SCALE, MAX_FONT_SCALE, FONT_SCALE_STEP };
+
+function clampFontScale(value: number): number {
+  return Math.min(MAX_FONT_SCALE, Math.max(MIN_FONT_SCALE, value));
+}
+
+export function getFontScale(): number {
+  const stored = localStorage.getItem(FONT_SCALE_KEY);
+  if (!stored) return DEFAULT_FONT_SCALE;
+  const parsed = Number(stored);
+  return Number.isFinite(parsed) ? clampFontScale(parsed) : DEFAULT_FONT_SCALE;
+}
+
+export function applyFontScale(percent: number) {
+  const clamped = clampFontScale(percent);
+  document.documentElement.style.fontSize = `${clamped}%`;
+}
+
+export function setFontScale(percent: number) {
+  const clamped = clampFontScale(percent);
+  localStorage.setItem(FONT_SCALE_KEY, String(clamped));
+  applyFontScale(clamped);
+}
+
+export function initializeFontScale() {
+  applyFontScale(getFontScale());
+}

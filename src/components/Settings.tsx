@@ -64,6 +64,8 @@ import {
   type DisplayMode,
   getDisplayMode,
   setDisplayMode,
+  getFontScale,
+  setFontScale,
 } from "@/services/display";
 import { setApiOnboardingDismissed } from "@/services/app-config";
 import type { JLPTLevel, ResponseLength } from "@/types";
@@ -73,6 +75,8 @@ const DISPLAY_MODE_OPTIONS: { value: DisplayMode; label: string }[] = [
   { value: "dark", label: "Dark" },
   { value: "system", label: "System" },
 ];
+
+const FONT_SCALE_STEP = 10;
 
 interface SpeakerGroup {
   speakerName: string;
@@ -198,6 +202,7 @@ export function Settings() {
   const [responseLength, setResponseLengthState] = useState<ResponseLength>("natural");
   const [includeFlashcardVocab, setIncludeFlashcardVocab] = useState(true);
   const [displayMode, setDisplayModeState] = useState<DisplayMode>(getDisplayMode());
+  const [fontScale, setFontScaleState] = useState(getFontScale);
   const [profileName, setProfileName] = useState("");
   const [profileAge, setProfileAge] = useState("");
   const [profileAboutYou, setProfileAboutYou] = useState("");
@@ -511,6 +516,12 @@ export function Settings() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const handleFontScaleChange = (value: number) => {
+    const clamped = Math.min(150, Math.max(100, value));
+    setFontScaleState(clamped);
+    setFontScale(clamped);
+  };
+
   const handleSavePersonalContext = async () => {
     const trimmedName = profileName.trim();
     const trimmedAbout = profileAboutYou.trim();
@@ -625,6 +636,8 @@ export function Settings() {
       setOpenrouterKeyState("");
       setDisplayMode("system");
       setDisplayModeState("system");
+      setFontScale(100);
+      setFontScaleState(100);
       setIncludeFlashcardVocab(true);
       setProfileName("");
       setProfileAge("");
@@ -880,6 +893,37 @@ export function Settings() {
                             : t("settings.system")}
                       </button>
                     ))}
+                  </div>
+                }
+              />
+
+              <SettingRow
+                label={t("settings.fontScale")}
+                description={t("settings.fontScaleDescription")}
+                controlClassName="lg:min-w-0 lg:max-w-none"
+                control={
+                  <div className="flex items-center justify-start gap-2 lg:justify-end">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="size-9 shrink-0"
+                      disabled={fontScale <= 100}
+                      onClick={() => handleFontScaleChange(fontScale - FONT_SCALE_STEP)}
+                    >
+                      <span className="text-lg leading-none">−</span>
+                    </Button>
+                    <span className="w-12 text-center text-sm font-medium tabular-nums">
+                      {fontScale}%
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="size-9 shrink-0"
+                      disabled={fontScale >= 150}
+                      onClick={() => handleFontScaleChange(fontScale + FONT_SCALE_STEP)}
+                    >
+                      <span className="text-lg leading-none">+</span>
+                    </Button>
                   </div>
                 }
               />

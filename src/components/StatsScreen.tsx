@@ -21,10 +21,9 @@ function parseSourceSessionDate(item: VocabItem): Date | null {
   const direct = new Date(raw);
   if (!Number.isNaN(direct.getTime())) return direct;
 
-  const m = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return null;
-  const fallback = new Date(m[1]);
-  return Number.isNaN(fallback.getTime()) ? null : fallback;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
 
 export function StatsScreen() {
@@ -59,9 +58,9 @@ export function StatsScreen() {
   const activityCountsByDay = useMemo(() => {
     const counts = new Map<number, number>();
     for (const [dateKey, count] of activityCounts.entries()) {
-      const d = new Date(dateKey);
-      if (isSameMonth(d, year, month)) {
-        counts.set(d.getDate(), (counts.get(d.getDate()) ?? 0) + count);
+      const [y, m, d] = dateKey.split("-").map(Number);
+      if (y === year && m - 1 === month) {
+        counts.set(d, (counts.get(d) ?? 0) + count);
       }
     }
     return counts;
