@@ -49,6 +49,8 @@ const SENSEI_STUDY_PLAN_TARGET_REGEX =
   /\b(study plan|today'?s plan|plan item|plan task|task|step|daily plan|plan de hoy|plan diario|tarea|paso)\b/iu;
 const SENSEI_QUIZ_REQUEST_REGEX =
   /\b(quiz|practice drill|drill|multiple choice|multiple-choice|fill in the blank|fill-in-the-blank|dropdown|test me|quiz me|cuestionario)\b/iu;
+const SENSEI_TOOL_FOLLOW_UP_REGEX =
+  /\b(again|retry|try again|please try again|go ahead|do it|please do|yes|yeah|yep|sure|ok|okay|otra vez|intenta de nuevo|hazlo|si|sí|dale|otro|otra|another one|one more|also|too)\b/iu;
 
 function getQuizActionLabel(locale: AppLocale): string {
   return locale === "es" ? "Abrir quiz" : "Open quiz";
@@ -289,21 +291,63 @@ CURRENT VIEW CONTEXT:
 ${formatViewContext(context.view)}`;
 }
 
-function shouldEnableSenseiTools(text: string): boolean {
+function senseiViewImpliesToolTarget(view: SenseiViewContext): {
+  scenario: boolean;
+  persona: boolean;
+  flashcard: boolean;
+  studyPlan: boolean;
+} {
+  switch (view.screen) {
+    case "scenario-select":
+    case "conversation":
+      return { scenario: true, persona: false, flashcard: false, studyPlan: false };
+    case "ongoing-chat":
+    case "ongoing-chats":
+      return { scenario: false, persona: true, flashcard: false, studyPlan: false };
+    case "flashcards":
+      return { scenario: false, persona: false, flashcard: true, studyPlan: false };
+    case "home":
+      return { scenario: false, persona: false, flashcard: false, studyPlan: true };
+    default:
+      return { scenario: false, persona: false, flashcard: false, studyPlan: false };
+  }
+}
+
+function shouldEnableSenseiTools(
+  text: string,
+  view: SenseiViewContext,
+  recentMessages: Message[]
+): boolean {
   const trimmed = text.trim();
   if (!trimmed) {
     return false;
   }
 
-  if (!SENSEI_TOOL_REQUEST_REGEX.test(trimmed)) {
+  const recentUserText = recentMessages
+    .filter((message) => message.role === "user")
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+    .join("\n");
+  const currentHasActionVerb = SENSEI_TOOL_REQUEST_REGEX.test(trimmed);
+  const recentHasActionVerb = SENSEI_TOOL_REQUEST_REGEX.test(recentUserText);
+  const currentIsFollowUp = SENSEI_TOOL_FOLLOW_UP_REGEX.test(trimmed);
+
+  if (!currentHasActionVerb && !(currentIsFollowUp && recentHasActionVerb)) {
     return false;
   }
 
+  const targetText = `${recentUserText}\n${trimmed}`;
+  const impliedTargets = senseiViewImpliesToolTarget(view);
+
   return (
-    SENSEI_SCENARIO_TARGET_REGEX.test(trimmed) ||
-    SENSEI_PERSONA_TARGET_REGEX.test(trimmed) ||
-    SENSEI_FLASHCARD_TARGET_REGEX.test(trimmed) ||
-    SENSEI_STUDY_PLAN_TARGET_REGEX.test(trimmed)
+    SENSEI_SCENARIO_TARGET_REGEX.test(targetText) ||
+    SENSEI_PERSONA_TARGET_REGEX.test(targetText) ||
+    SENSEI_FLASHCARD_TARGET_REGEX.test(targetText) ||
+    SENSEI_STUDY_PLAN_TARGET_REGEX.test(targetText) ||
+    (impliedTargets.scenario && currentHasActionVerb) ||
+    (impliedTargets.persona && currentHasActionVerb) ||
+    (impliedTargets.flashcard && currentHasActionVerb) ||
+    (impliedTargets.studyPlan && currentHasActionVerb)
   );
 }
 
@@ -768,7 +812,7 @@ export async function sendSenseiUserMessage(
     getQuizzes(),
     getActiveStudyPlan(),
   ]);
-  const toolsEnabled = shouldEnableSenseiTools(trimmed);
+  const toolsEnabled = shouldEnableSenseiTools(trimmed, view, pendingThread.messages.slice(-6));
   const quizRequested = shouldCreateSenseiQuiz(trimmed);
   const accountSummary = buildAccountSummary({
     profile,
