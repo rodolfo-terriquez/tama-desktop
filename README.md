@@ -2,44 +2,205 @@
 
 ![Tama Desktop screenshot](./tama-screen-01.png)
 
-Japanese conversation practice app built with Tauri + React.  
-Current app includes scenario chat, shadow speaking practice, persistent persona chats, Sensei-guided study tools, quizzes, SRS flashcards, and study activity tracking.
+Tama Desktop is a Japanese speaking and listening practice app for people who want more than flashcards, but still need structure.
 
-## For Users (Start Here)
+It helps you practice real conversations, repeat useful lines out loud, review vocabulary, get feedback on your mistakes, and keep your study history in one place.
 
-If you only want to use the app, this section is all you need. The rest of this README is for development/building from source.
+## Start Here
 
-### What It Is
+If you just want to use the app, this is the section to read.
 
-Tama Desktop is a Japanese conversation practice app with speaking + listening practice, AI chat scenarios, and study tools like daily plans, quizzes, feedback, and flashcards.
+### What Tama Is Good For
 
-### Main Features
+Tama is built for practical Japanese practice. You can use it to:
 
-- Scenario chat practice (text or voice)
-- Shadow speaking practice with fixed AI-generated scripts and hiragana readings
-- Persistent persona chats
-- Sensei assistant for follow-up help, quiz generation, and study support
-- Daily study plan on the home screen with quick actions
-- Saved quizzes with review mode and hiragana readings for Japanese text
-- Session feedback (grammar, vocabulary, fluency, rating)
-- SRS flashcards and Anki export
-- Session history plus weekly/monthly study activity tracking
-- Account backup and restore
-- Voice input with local Whisper or OpenAI Whisper API
-- Japanese TTS with VOICEVOX or Style-Bert-VITS2
+- practice everyday situations like restaurants, convenience stores, hotels, train stations, phone calls, and self-introductions
+- speak out loud instead of only reading or typing
+- get a simple daily plan when you are not sure what to study next
+- save useful vocabulary from your sessions and review it later
+- ask for explanations, drills, and quizzes without leaving the app
+- keep long-term practice going with ongoing persona chats
 
-### How To Run It
+### What You Can Do In The App
 
-1. Download the latest build from [Releases](https://github.com/rodolfo-terriquez/tama-desktop/releases).
-2. Choose the file for your OS:
-   - macOS (Apple Silicon): `*_aarch64.dmg`
-   - Windows (x64): `*_x64-setup.exe` or `*_x64_en-US.msi`
-   - Linux (x64): `*_amd64.AppImage`, `*_amd64.deb`, or `*.x86_64.rpm`
+#### 1. Practice Real-World Scenarios
 
-#### macOS
+Choose a guided situation and talk through it by voice or text.
+
+Examples:
+
+- ordering at a restaurant
+- asking for directions
+- checking into a hotel
+- talking about hobbies
+- handling a phone call
+- free practice on any topic
+
+Each scenario gives you a setting, a role for the AI, and a few goals so you know what to aim for.
+
+#### 2. Use Voice Or Text
+
+You can practice by:
+
+- speaking naturally with microphone input
+- typing in Japanese if you want a quieter or slower session
+
+If you use voice mode, Tama can transcribe what you say and read responses out loud when a voice engine is set up.
+
+#### 3. Do Shadowing Practice
+
+Shadow mode gives you a fixed dialogue to repeat line by line.
+
+This is useful when you want to:
+
+- copy natural pronunciation and rhythm
+- practice set phrases before a trip or conversation
+- build confidence before open-ended speaking
+
+The app can show:
+
+- hiragana readings for the lines
+- optional translations
+- your result for each attempt, so you can see whether you were close or need more work
+
+#### 4. Keep Ongoing Persona Chats
+
+You can create persistent chat partners instead of starting from zero every time.
+
+For example, you can make:
+
+- a friendly university student
+- a coworker
+- a travel buddy
+- your own custom character
+
+These chats keep their conversation history and can be resumed later, so they feel more like an ongoing relationship than a one-off roleplay.
+
+#### 5. Get Feedback After A Session
+
+After a scenario conversation, Tama can generate a feedback screen with:
+
+- grammar fixes
+- vocabulary worth learning
+- fluency notes
+- a simple performance rating
+- a suggestion for what to work on next
+
+You can save suggested vocabulary directly into your flashcards.
+
+#### 6. Review Flashcards
+
+Tama includes built-in spaced repetition review.
+
+You can:
+
+- review due vocabulary
+- see whether cards are new, learning, or mature
+- edit or delete cards
+- export your deck to Anki
+
+This is helpful if you want your speaking practice and your vocab review to stay connected.
+
+#### 7. Take Saved Quizzes
+
+Tama can save quizzes that were created through Sensei.
+
+Quizzes support:
+
+- multiple choice
+- fill-in-the-blank
+- dropdown-style answers
+- saved scores for later review
+- hiragana readings for Japanese text when needed
+
+#### 8. Use Sensei As Your In-App Study Helper
+
+Sensei is the built-in assistant you can open from anywhere in the app.
+
+You can ask it to:
+
+- explain a grammar point
+- make a short drill for today
+- create a quiz
+- help you understand your current screen
+- create a custom scenario
+- create a new persona chat
+- add a flashcard for a word you want to remember
+- mark tasks in your daily plan as done
+
+Sensei also uses your app context, so it can respond based on what you are currently studying instead of acting like a generic chatbot.
+
+#### 9. Follow A Daily Plan
+
+The home screen can generate a short study plan for the day using things like:
+
+- flashcards that are due
+- your recent performance
+- recommended scenarios
+- recent trouble spots
+
+This is especially useful on days when you want to study but do not want to decide what to do first.
+
+#### 10. Track Your Progress
+
+Tama keeps your study history and progress in the app.
+
+You can review:
+
+- completed scenario sessions
+- persona chat activity
+- flashcard review sessions
+- quiz attempts
+- monthly activity
+- new flashcards added over time
+
+### A Typical Study Session
+
+One simple way to use Tama:
+
+1. Open the home screen and follow today’s plan.
+2. Do one scenario or one shadowing session.
+3. Read the feedback and save useful vocabulary.
+4. Review your due flashcards.
+5. Ask Sensei for a short drill or quiz on anything that still feels weak.
+
+### Language And Voice Support
+
+Current app capabilities include:
+
+- app interface in English or Spanish
+- Japanese conversation practice
+- message translation buttons when you need help
+- voice input with local Whisper or OpenAI Whisper API
+- Japanese text-to-speech with VOICEVOX or Style-Bert-VITS2
+
+### What You Need Before First Launch
+
+You will need at least one AI provider key for the main conversation features:
+
+- Anthropic API key, or
+- OpenRouter API key
+
+Optional:
+
+- OpenAI API key if you want to use OpenAI Whisper for speech transcription
+
+You can still choose local speech tools for some voice features if you prefer.
+
+## Download And Install
+
+Download the latest build from [Releases](https://github.com/rodolfo-terriquez/tama-desktop/releases).
+
+Choose the file for your system:
+
+- macOS (Apple Silicon): `*_aarch64.dmg`
+- Windows (x64): `*_x64-setup.exe` or `*_x64_en-US.msi`
+- Linux (x64): `*_amd64.AppImage`, `*_amd64.deb`, or `*.x86_64.rpm`
+
+### macOS
 
 1. Move `Tama Desktop.app` to `Applications`.
-2. If macOS says the app cannot be opened because it is from an unidentified developer, run:
+2. If macOS blocks the app because it is from an unidentified developer, run:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Tama Desktop.app"
@@ -52,115 +213,135 @@ xattr -dr com.apple.quarantine "/Applications/Tama Desktop.app"
 ```
 
 4. If prompted, open `System Settings -> Privacy & Security` and click `Open Anyway`.
-5. Launch again (Finder or Terminal). After this one-time approval, it should open normally.
+5. After that, you should be able to launch it normally.
 
-#### Windows
+### Windows
 
-1. Run the `.exe` installer (or `.msi` package).
-2. If SmartScreen appears, click `More info` -> `Run anyway`.
-3. Open Tama Desktop from Start Menu.
+1. Run the installer.
+2. If SmartScreen appears, click `More info` and then `Run anyway`.
+3. Open Tama Desktop from the Start Menu.
 
-#### Linux
+### Linux
 
-Use the package format that matches your distro:
+Use the package format that matches your distro.
 
-- AppImage:
+AppImage:
 
 ```bash
 chmod +x Tama_*_amd64.AppImage
 ./Tama_*_amd64.AppImage
 ```
 
-- Debian/Ubuntu (`.deb`):
+Debian or Ubuntu:
 
 ```bash
 sudo apt install ./Tama_*_amd64.deb
 ```
 
-- Fedora/RHEL (`.rpm`):
+Fedora or RHEL:
 
 ```bash
 sudo dnf install ./Tama-*.x86_64.rpm
 ```
 
-## Current State (March 2026)
+## First-Time Setup
 
-Implemented:
+When you open Tama for the first time:
 
-- Scenario-based conversations (voice or text input)
-- Shadow mode for fixed speaking drills with line-by-line practice
-- Persistent persona chats with conversation summarization
-- Sensei assistant with contextual help from the current screen
-- Home dashboard with a daily study plan, quick resume actions, and study activity calendar
-- Saved quizzes generated from Sensei requests, with score review and hiragana readings for Japanese text
-- Session feedback (grammar, vocabulary, fluency, rating)
-- SRS flashcards with SM-2 scheduling and Anki export
-- Session history, weekly activity tracking, and monthly activity stats
-- Account backup/restore for local progress and non-secret settings
-- Two TTS engines:
-  - VOICEVOX (managed from app; supports in-app download on supported platforms)
-  - Style-Bert-VITS2 (optional local Python server)
-- Two transcription engines:
-  - Local Whisper (`ggml-small.bin`, downloaded in app)
-  - OpenAI Whisper API
-- Auto-update checks on app launch (production builds)
+1. Choose your interface language.
+2. Add your Anthropic or OpenRouter key.
+3. Optionally add an OpenAI key for Whisper API transcription.
+4. In Settings, choose your speech transcription option and voice engine.
+5. If you want local speech recognition, download the Whisper model from Settings.
 
-## Tech Stack
+## Data, Privacy, And Backups
+
+Tama stores your study data locally on your device.
+
+That includes things like:
+
+- sessions
+- quizzes
+- flashcards
+- persona chats
+- custom scenarios
+- study plans
+- non-secret settings
+
+You can export a backup of your account data and restore it later.
+
+Important:
+
+- API keys are currently stored in local storage, not in the OS keychain
+- account backups do not include secret API keys
+
+## Current User-Facing Capabilities
+
+As of April 2026, the app includes:
+
+- guided scenario conversations with voice or text
+- shadow speaking practice with line-by-line scoring
+- custom scenarios you can create yourself or generate with AI help
+- persistent persona chats with saved history
+- Sensei chat with quiz creation and in-app actions
+- saved quizzes with answer review and hiragana readings
+- vocabulary feedback after scenario sessions
+- spaced repetition flashcards with Anki export
+- daily study plans on the home screen
+- study history and monthly activity tracking
+- account backup and restore
+- optional in-app update checks for production builds
+
+## Build From Source
+
+This section is only for development.
+
+### Tech Stack
 
 | Layer | Choice |
 | --- | --- |
-| Desktop shell | Tauri v2 (Rust) |
+| Desktop shell | Tauri v2 |
 | Frontend | React 19 + TypeScript + Vite 7 |
 | UI | Tailwind CSS 4 + shadcn/ui |
+| Local storage | SQLite + localStorage |
 | LLM providers | Anthropic API or OpenRouter |
-| Speech recognition | Local Whisper (Rust `whisper-rs`) or OpenAI Whisper API |
+| Speech recognition | Local Whisper or OpenAI Whisper API |
 | TTS | VOICEVOX or Style-Bert-VITS2 |
-| Local storage | SQLite (`@tauri-apps/plugin-sql`) + localStorage |
 
-## Prerequisites
+### Prerequisites
 
 - Node.js 20+
 - npm
-- Rust toolchain (for Tauri desktop app builds)
-- API keys:
-  - Anthropic (`sk-ant-...`) or OpenRouter (`sk-or-...`) for LLM
-  - OpenAI (`sk-...`) for Whisper API key entry on onboarding
+- Rust toolchain
 
-Optional (for local components):
+Optional local components:
 
-- `7z` for in-app VOICEVOX engine download/extraction  
-  macOS: `brew install p7zip`
-- Python 3 + Style-Bert-VITS2 dependencies (only if using SBV2 TTS)
-- SBV2 model files in `sbv2-models/` (only if using SBV2 TTS)
+- `7z` for in-app VOICEVOX download and extraction
+- Python 3 if you want to run Style-Bert-VITS2 locally
+- SBV2 model files in `sbv2-models/` if using SBV2
 
-Linux dev/build also needs WebKit and audio system libraries (see `.github/workflows/release.yml` for the exact package list used in CI).
-
-## Developer Quick Start (Build From Source)
+### Quick Start
 
 ```bash
 npm install
 npm run tauri dev
 ```
 
-On first launch:
+### Optional Local Voice Setup
 
-1. Enter LLM provider key (Anthropic or OpenRouter)
-2. Optionally enter an OpenAI key if you want to use OpenAI Whisper for transcription
-3. Open Settings and choose:
-   - TTS engine (VOICEVOX or SBV2)
-   - Speech recognition engine (Local Whisper or OpenAI API)
-4. If using Local Whisper, download/load the model from Settings
+#### VOICEVOX
 
-## Optional Setup
+VOICEVOX can be managed from the app settings.
 
-### VOICEVOX
+Default endpoint:
 
-- Can be started/downloaded from Settings -> TTS Engine -> VOICEVOX.
-- Default endpoint: `http://localhost:50021`.
+```text
+http://localhost:50021
+```
 
-### Style-Bert-VITS2 (SBV2)
+#### Style-Bert-VITS2
 
-Create virtualenv and install dependencies:
+Create a virtual environment and install dependencies:
 
 ```bash
 python3 -m venv .venv
@@ -168,52 +349,37 @@ source .venv/bin/activate
 pip install style-bert-vits2 fastapi uvicorn
 ```
 
-Put model folders in `sbv2-models/`, then start from Settings (the app launches `server/sbv2_api.py`) or run manually:
+Put model folders in `sbv2-models/`, then run:
 
 ```bash
 python server/sbv2_api.py --port 5001 --models sbv2-models
 ```
 
-## Available Scripts
+### Available Scripts
 
 ```bash
-npm run dev         # Frontend only (Vite dev server)
-npm run tauri dev   # Full desktop app in development
-npm run build       # Frontend build
-npm run tauri build # Desktop production build
+npm run dev
+npm run tauri dev
+npm run build
+npm run tauri build
 npm run lint
 npm run preview
 ```
 
-## Data and Persistence
-
-- Main app data: SQLite database `tama.db` (Tauri app data directory)
-- API keys and some preferences: `localStorage` (inside Tauri WebView)
-- Local Whisper model: app data `models/ggml-small.bin`
-- Downloaded VOICEVOX engine: app data `engines/voicevox/`
-- Legacy localStorage data is migrated to SQLite on first DB load
-- Account backups include history, quizzes, flashcards, settings, and other non-secret app data
-
-## Project Structure
+### Project Structure
 
 ```text
-src/                 # React app (screens, hooks, services)
-src-tauri/           # Rust backend (Whisper, VAD, TTS process management, updater, DB migrations)
-server/sbv2_api.py   # Optional local SBV2 API bridge
+src/                 React app
+src-tauri/           Rust backend
+server/sbv2_api.py   Optional SBV2 bridge
 ```
-
-## Known Caveats
-
-- API keys are stored in localStorage, not OS keychain.
-- SBV2 models are not bundled; you must provide them in `sbv2-models/`.
 
 ## Release Notes
 
-For release and updater signing steps, see [`RELEASE_CHECKLIST.md`](./RELEASE_CHECKLIST.md).
+For release and updater signing steps, see [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md).
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0. You can
-use and modify it for your own needs, but if you distribute the app or a
-modified version, you must also make the source available under the same
-license. See [LICENSE](./LICENSE).
+This project is licensed under the GNU General Public License v3.0.
+
+If you distribute the app or a modified version, you must also make the source available under the same license. See [LICENSE](./LICENSE).
