@@ -190,7 +190,6 @@ fn build_app_menu<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>) -> tauri:
             .name(Some(app_name))
             .version(Some(pkg_info.version.to_string()))
             .short_version(None::<String>)
-            .credits(Some("Made by Rodolfo Terriquez"))
             .icon(about_icon)
             .build();
 

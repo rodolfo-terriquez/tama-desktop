@@ -56,7 +56,10 @@ export function AppSidebar({ currentScreen, onNavigate, senseiOpen, onToggleSens
       title: t("common.scenarios"),
       icon: Drama,
       id: "scenario-select",
-      isActive: currentScreen === "scenario-select",
+      isActive:
+        currentScreen === "scenario-select" ||
+        currentScreen === "conversation" ||
+        currentScreen === "session-complete",
     },
     {
       title: t("common.personas"),
