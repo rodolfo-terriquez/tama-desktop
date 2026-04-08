@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Flashcard } from "@/components/flashcard/Flashcard";
 import { useI18n } from "@/i18n";
 import { buildFlashcardSenseiViewContext } from "@/services/sensei-context";
-import { generateDailyStudyPlan } from "@/services/study-plan";
+import { generateDailyStudyPlan, setStudyPlanTaskCompleted } from "@/services/study-plan";
 import {
   saveFlashcardReviewSession,
   getDueVocabulary,
@@ -267,11 +267,15 @@ function ReviewTab({
       duration_seconds: durationSeconds,
       results,
     })
-      .then(() =>
-        generateDailyStudyPlan().catch((error) => {
+      .then(async () => {
+        await setStudyPlanTaskCompleted("flashcards", true).catch((error) => {
+          console.error("Failed to mark flashcard study plan task complete:", error);
+        });
+
+        await generateDailyStudyPlan().catch((error) => {
           console.error("Failed to refresh daily study plan after flashcard review:", error);
-        })
-      )
+        });
+      })
       .catch((error) => {
         console.error("Failed to save flashcard review session:", error);
         sessionSavedRef.current = false;

@@ -283,21 +283,6 @@ export function ShadowModeScreen({
     [pairs, playAssistantLine]
   );
 
-  const replayCurrentTurn = useCallback(async () => {
-    if (!currentPair) return;
-
-    if (lastAttempt?.turnIndex === currentPairIndex) {
-      setAttempts((prev) => prev.slice(0, -1));
-    }
-
-    setIsReplayingLine(true);
-    try {
-      await startPair(currentPairIndex);
-    } finally {
-      setIsReplayingLine(false);
-    }
-  }, [currentPair, currentPairIndex, lastAttempt?.turnIndex, startPair]);
-
   const moveToNextTurn = useCallback(async () => {
     stopCurrentAudio();
     if (currentPairIndex + 1 >= pairs.length) {
@@ -616,7 +601,7 @@ export function ShadowModeScreen({
 
         <Progress value={progressValue} />
 
-        <Card>
+        <Card className="py-0">
           <CardHeader className="px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               <CardTitle className="text-base">{assistantLineLabel}</CardTitle>
@@ -648,7 +633,7 @@ export function ShadowModeScreen({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="py-0">
           <CardHeader className="px-4 py-3">
             <CardTitle className="text-base">{t("shadow.yourLine")}</CardTitle>
           </CardHeader>
@@ -689,10 +674,6 @@ export function ShadowModeScreen({
         </Card>
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => void replayCurrentTurn()} disabled={isReplayingLine}>
-            <RefreshCcw className="mr-1 size-4" />
-            {t("shadow.repeatCurrentLine")}
-          </Button>
           <Button variant="ghost" onClick={() => void handleManualAdvance()}>
             <SkipForward className="mr-1 size-4" />
             {phase === "result" && currentPairIndex + 1 >= pairs.length

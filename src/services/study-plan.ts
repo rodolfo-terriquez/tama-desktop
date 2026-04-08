@@ -272,12 +272,13 @@ function mergeWithExistingPlan(existing: StudyPlan | null, nextPlan: StudyPlan):
   const existingTasksById = new Map(existing.tasks.map((task) => [task.id, task]));
   const mergedTasks = nextPlan.tasks.map((task) => {
     const existingTask = existingTasksById.get(task.id);
-    return existingTask?.completedAt
-      ? {
-          ...task,
-          completedAt: existingTask.completedAt,
-        }
-      : task;
+    if (!existingTask?.completedAt) {
+      return task;
+    }
+
+    // Keep completed tasks intact for the rest of the day so a regenerated
+    // plan does not silently swap them to a different recommended target.
+    return existingTask;
   });
 
   const completedLegacyTasks = existing.tasks.filter((task) =>

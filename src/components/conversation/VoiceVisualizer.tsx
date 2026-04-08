@@ -17,20 +17,20 @@ interface StateStyle {
 
 const STYLES: Record<string, StateStyle> = {
   processing: {
-    color: "var(--warning)",
-    glow: "color-mix(in srgb, var(--warning) 45%, transparent)",
+    color: "#D58AC8",
+    glow: "color-mix(in srgb, #D58AC8 45%, transparent)",
   },
   userSpeaking: {
-    color: "var(--success)",
-    glow: "color-mix(in srgb, var(--success) 45%, transparent)",
+    color: "#789BE8",
+    glow: "color-mix(in srgb, #789BE8 45%, transparent)",
   },
   aiSpeaking: {
-    color: "var(--info)",
-    glow: "color-mix(in srgb, var(--info) 40%, transparent)",
+    color: "#BD7CDA",
+    glow: "color-mix(in srgb, #BD7CDA 40%, transparent)",
   },
   listening: {
-    color: "var(--primary)",
-    glow: "color-mix(in srgb, var(--primary) 35%, transparent)",
+    color: "#D3B8EA",
+    glow: "color-mix(in srgb, #D3B8EA 35%, transparent)",
   },
   idle: {
     color: "var(--neutral)",

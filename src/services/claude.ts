@@ -725,12 +725,12 @@ ${suffix}`;
 function getShadowTurnCountInstruction(responseLength: ResponseLength): string {
   switch (responseLength) {
     case "short":
-      return "Write exactly 6 turns total (3 assistant lines and 3 user lines).";
+      return "Write exactly 8 turns total (4 assistant lines and 4 user lines).";
     case "long":
-      return "Write exactly 10 turns total (5 assistant lines and 5 user lines).";
+      return "Write exactly 12 turns total (6 assistant lines and 6 user lines).";
     case "natural":
     default:
-      return "Write exactly 8 turns total (4 assistant lines and 4 user lines).";
+      return "Write exactly 10 turns total (5 assistant lines and 5 user lines).";
   }
 }
 

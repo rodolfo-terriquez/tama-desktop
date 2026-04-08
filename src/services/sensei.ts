@@ -31,6 +31,8 @@ import type {
 const SENSEI_ACTIVE_THREAD_KEY = "tama_sensei_active_thread_id";
 const SENSEI_SUMMARIZE_THRESHOLD = 32;
 const SENSEI_KEEP_AFTER_SUMMARIZE = 12;
+const MIN_SENSEI_QUIZ_QUESTIONS = 5;
+const MAX_SENSEI_QUIZ_QUESTIONS = 7;
 
 type SenseiResponseLanguage = "English" | "Spanish" | "Japanese";
 
@@ -388,6 +390,79 @@ function parseLooseJsonObject(text: string): Record<string, unknown> | null {
   }
 }
 
+function normalizeQuizOption(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const optionRecord = value as Record<string, unknown>;
+  const candidateKeys = ["text", "label", "value", "option", "answer", "content"];
+  for (const key of candidateKeys) {
+    const candidate = optionRecord[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return null;
+}
+
+function resolveQuizAnswerReference(value: unknown, options?: string[]): string {
+  if (typeof value === "number" && Number.isInteger(value) && options && options.length > 0) {
+    if (value >= 0 && value < options.length) {
+      return options[value];
+    }
+    if (value >= 1 && value <= options.length) {
+      return options[value - 1];
+    }
+  }
+
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (!options || options.length === 0) {
+    return trimmed;
+  }
+
+  const directMatch = options.find((option) => option === trimmed);
+  if (directMatch) {
+    return directMatch;
+  }
+
+  const letterMatch = trimmed.match(/^(?:option|choice|answer)?\s*([A-Z])$/i);
+  if (letterMatch?.[1]) {
+    const index = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
+    if (index >= 0 && index < options.length) {
+      return options[index];
+    }
+  }
+
+  const numberMatch = trimmed.match(/^(?:option|choice|answer)?\s*(\d+)$/i);
+  if (numberMatch?.[1]) {
+    const parsed = Number.parseInt(numberMatch[1], 10);
+    if (!Number.isNaN(parsed)) {
+      if (parsed >= 1 && parsed <= options.length) {
+        return options[parsed - 1];
+      }
+      if (parsed >= 0 && parsed < options.length) {
+        return options[parsed];
+      }
+    }
+  }
+
+  return trimmed;
+}
+
 function parseQuizQuestion(value: unknown, index: number): QuizQuestion | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -398,10 +473,12 @@ function parseQuizQuestion(value: unknown, index: number): QuizQuestion | null {
     ? question.options
     : Array.isArray(question.choices)
       ? question.choices
+      : Array.isArray(question.answers)
+        ? question.answers
       : undefined;
   const options = rawOptionsSource
-    ?.filter((option): option is string => typeof option === "string" && option.trim().length > 0)
-    .map((option) => option.trim());
+    ?.map((option) => normalizeQuizOption(option))
+    .filter((option): option is string => Boolean(option));
   const rawOptionReadingsSource = Array.isArray(question.optionReadings)
     ? question.optionReadings
     : Array.isArray(question.option_readings)
@@ -430,6 +507,8 @@ function parseQuizQuestion(value: unknown, index: number): QuizQuestion | null {
       ? question.prompt.trim()
       : typeof question.question === "string"
         ? question.question.trim()
+        : typeof question.text === "string"
+          ? question.text.trim()
         : "";
   const promptReading =
     typeof question.promptReading === "string"
@@ -438,11 +517,23 @@ function parseQuizQuestion(value: unknown, index: number): QuizQuestion | null {
         ? question.prompt_reading.trim()
         : "";
   const correctAnswer =
-    typeof question.correctAnswer === "string"
-      ? question.correctAnswer.trim()
-      : typeof question.correct_answer === "string"
-        ? question.correct_answer.trim()
-        : "";
+    resolveQuizAnswerReference(
+      question.correctAnswer ??
+        question.correct_answer ??
+        question.answer ??
+        question.solution ??
+        question.correctOption ??
+        question.correct_option ??
+        question.correctChoice ??
+        question.correct_choice ??
+        question.correctAnswerIndex ??
+        question.correct_answer_index ??
+        question.answerIndex ??
+        question.answer_index ??
+        question.correctOptionIndex ??
+        question.correct_option_index,
+      options
+    );
   const correctAnswerReading =
     typeof question.correctAnswerReading === "string"
       ? question.correctAnswerReading.trim()
@@ -539,24 +630,28 @@ function parseGeneratedSenseiQuiz(raw: string): {
     ? quizRecord.questions
     : Array.isArray(quizRecord.items)
       ? quizRecord.items
+      : Array.isArray(quizRecord.quizQuestions)
+        ? quizRecord.quizQuestions
+        : Array.isArray(quizRecord.quiz_questions)
+          ? quizRecord.quiz_questions
       : null;
 
-  if (!title || !rawQuestions || rawQuestions.length === 0) {
+  if (!rawQuestions || rawQuestions.length === 0) {
     return null;
   }
 
   const questions = rawQuestions
     .map((question, index) => parseQuizQuestion(question, index))
     .filter((question): question is QuizQuestion => Boolean(question))
-    .slice(0, 5);
+    .slice(0, MAX_SENSEI_QUIZ_QUESTIONS);
 
-  if (questions.length === 0) {
+  if (questions.length < MIN_SENSEI_QUIZ_QUESTIONS) {
     return null;
   }
 
   return {
     introMessage,
-    title,
+    title: title || "Practice Drill",
     titleReading: titleReading || undefined,
     instructions,
     instructionsReading: instructionsReading || undefined,
@@ -602,9 +697,12 @@ Output schema:
 
 Rules:
 - The student's current preferred response language is ${preferredLanguage}. If ambiguous, fall back to ${fallbackLanguage}.
-- Create 2 to 5 questions only.
+- Create ${MIN_SENSEI_QUIZ_QUESTIONS} to ${MAX_SENSEI_QUIZ_QUESTIONS} questions.
 - Focus tightly on the student's request and recent struggles.
 - Prefer multiple_choice when possible because it is the easiest format to render and complete.
+- Use Japanese only for the quiz content itself.
+- Write the title, instructions, prompts, options, correct answers, explanations, and reply in natural Japanese only.
+- Do not include English, Spanish, romaji, translations, glosses, or parenthetical explanations anywhere in the quiz content.
 - Only include "options" for multiple_choice and dropdown questions.
 - Include the titleReading, instructionsReading, promptReading, optionReadings, correctAnswerReading, and explanationReading fields whenever the paired text contains Japanese.
 - Every reading field must be written only in hiragana.
@@ -624,6 +722,17 @@ CURRENT VIEW CONTEXT:
 ${formatViewContext(context.view)}`;
 }
 
+function buildSenseiQuizRepairPrompt(context: SenseiRequestContext, thread: SenseiThread, accountSummary: string): string {
+  return `${buildSenseiQuizPrompt(context, thread, accountSummary)}
+
+If the provided draft uses a close-but-invalid shape, repair it into the exact schema instead of changing the lesson.
+- Preserve the original learning goal and questions whenever possible.
+- Convert answer letters or indexes into the exact option string for correctAnswer.
+- If options are objects, flatten them into plain strings.
+- If the title is missing, create a short one.
+- Return ONLY valid JSON.`;
+}
+
 async function generateSenseiQuiz(
   request: string,
   context: SenseiRequestContext,
@@ -636,10 +745,31 @@ async function generateSenseiQuiz(
     [{ id: "sensei-quiz-request", role: "user", content: userMessage, timestamp: new Date().toISOString() }],
     systemPrompt
   );
-  const parsed = parseGeneratedSenseiQuiz(rawResponse);
+  let parsed = parseGeneratedSenseiQuiz(rawResponse);
 
   if (!parsed) {
-    throw new Error("Failed to generate a valid quiz.");
+    console.warn("Invalid Sensei quiz response:", rawResponse);
+
+    const repairedRawResponse = await sendMessage(
+      [
+        {
+          id: "sensei-quiz-repair-request",
+          role: "user",
+          content:
+            `Repair this quiz response into valid JSON for the original request.\n\n` +
+            `ORIGINAL REQUEST:\n${request}\n\n` +
+            `INVALID QUIZ RESPONSE:\n${rawResponse}`,
+          timestamp: new Date().toISOString(),
+        },
+      ],
+      buildSenseiQuizRepairPrompt(context, thread, accountSummary)
+    );
+    parsed = parseGeneratedSenseiQuiz(repairedRawResponse);
+
+    if (!parsed) {
+      console.warn("Failed to repair Sensei quiz response:", repairedRawResponse);
+      throw new Error("Failed to generate a valid quiz.");
+    }
   }
 
   const now = new Date().toISOString();

@@ -288,6 +288,10 @@ export function HomeScreen({
   }, []);
 
   const handlePlanTaskAction = (task: StudyPlanTask) => {
+    if (!task.completedAt) {
+      handlePlanTaskCompletionChange(task, true);
+    }
+
     switch (task.target.screen) {
       case "flashcards":
         onFlashcards();
