@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import tamaDarkIcon from "@/assets/tama-white.svg";
 import tamaLightIcon from "@/assets/tama.svg";
-import tamaPurpleIcon from "@/assets/tama-purple.svg";
 import { AppStatusDot } from "@/components/AppStatusDot";
 import {
   Sidebar,
@@ -101,19 +100,15 @@ export function AppSidebar({ currentScreen, onNavigate, senseiOpen, onToggleSens
             <SidebarMenu className="gap-1">
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  isActive={isSenseiFullMode}
+                  isActive={senseiOpen || isSenseiFullMode}
                   onClick={handleToggleSensei}
                   tooltip={t("sensei.openChat")}
                   className={labelFadeClass}
                 >
-                  {senseiOpen ? (
-                    <img src={tamaPurpleIcon} alt="" className="h-4 w-4 shrink-0" />
-                  ) : (
-                    <>
-                      <img src={tamaLightIcon} alt="" className="h-4 w-4 shrink-0 dark:hidden" />
-                      <img src={tamaDarkIcon} alt="" className="hidden h-4 w-4 shrink-0 dark:block" />
-                    </>
-                  )}
+                  <>
+                    <img src={tamaLightIcon} alt="" className="h-4 w-4 shrink-0 dark:hidden" />
+                    <img src={tamaDarkIcon} alt="" className="hidden h-4 w-4 shrink-0 dark:block" />
+                  </>
                   <span>{t("sensei.openChat")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
