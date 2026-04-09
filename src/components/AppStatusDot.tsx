@@ -81,6 +81,8 @@ function useStatusInfo() {
       check();
     }).then((fn) => {
       unlistenVoicevox = fn;
+    }).catch(() => {
+      // Ignore event subscription failures so the rest of the shell keeps rendering.
     });
 
     return () => {

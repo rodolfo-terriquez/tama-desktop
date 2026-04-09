@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { SCENARIOS, localizeScenario } from "@/data/scenarios";
 import { getStudyActivityCountsByDate } from "@/services/activity-calendar";
@@ -12,7 +11,7 @@ import { getCustomScenarios, getDueVocabulary, getLastSession, getOngoingChats, 
 import { useI18n } from "@/i18n";
 import { formatRelativeTime, formatWeekdayMonthDay, getWeekdayLabels } from "@/services/locale-format";
 import type { OngoingChat, Scenario, SenseiViewContext, StudyPlan, StudyPlanTask } from "@/types";
-import { addDays, format, getISOWeek, isSameDay, startOfWeek } from "date-fns";
+import { addDays, format, isSameDay, startOfWeek } from "date-fns";
 import { BookOpenText, Check, Mic, Sparkles } from "lucide-react";
 import hanamaruStamp from "@/assets/hanamaru.svg";
 
@@ -31,11 +30,9 @@ function useWeeklyActivity() {
   const [data, setData] = useState<{
     weekDays: Date[];
     completedDays: Set<string>;
-    weekNumber: number;
   }>({
     weekDays: Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(now, { weekStartsOn: 1 }), i)),
     completedDays: new Set(),
-    weekNumber: getISOWeek(now),
   });
 
   useEffect(() => {
@@ -56,7 +53,6 @@ function useWeeklyActivity() {
       setData({
         weekDays,
         completedDays,
-        weekNumber: getISOWeek(now),
       });
     }
     load();
@@ -69,16 +65,13 @@ function useWeeklyActivity() {
 
 function ActivityGrid() {
   const { locale, t } = useI18n();
-  const { weekDays, completedDays, weekNumber } = useWeeklyActivity();
+  const { weekDays, completedDays } = useWeeklyActivity();
 
   const today = new Date();
 
   return (
     <Card className="py-0 gap-0">
       <CardContent className="py-3 px-4">
-        <div className="flex items-baseline justify-between mb-2">
-          <span className="text-xs font-medium">{t("home.week", { weekNumber })}</span>
-        </div>
         <div className="grid grid-cols-7 gap-2">
           {getWeekdayLabels(locale).map((d, i) => (
             <div key={i} className="text-[9px] text-center text-muted-foreground/60 leading-none mb-0.5">
@@ -181,7 +174,7 @@ function TodayPlanCard({
                     <Button
                       type="button"
                       size="sm"
-                      variant={task.kind === "flashcards" ? "outline" : "default"}
+                      variant="outline"
                       className="h-8 px-3"
                       onClick={() => onTaskAction(task)}
                     >
@@ -434,9 +427,7 @@ export function HomeScreen({
 
           {/* Overdue cards */}
           <Card
-            className={`cursor-pointer transition-colors hover:border-primary/50 py-0 gap-0 ${
-              dueCount > 0 ? "border-review-due/45" : ""
-            }`}
+            className="cursor-pointer transition-colors hover:border-primary/50 py-0 gap-0"
             onClick={onFlashcards}
           >
             <CardContent className="py-4 px-4 h-full">
@@ -448,17 +439,6 @@ export function HomeScreen({
                     : t("home.multipleOverdueCards", { count: dueCount })
                   : t("home.noOverdueCards")}
               </p>
-              <div className="text-2xl font-bold mt-2">
-                {dueCount}
-                {dueCount > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="ml-1.5 border border-review-due/20 bg-review-due-soft px-1.5 py-0 text-[10px] align-top text-review-due-soft-foreground"
-                  >
-                    {t("common.due")}
-                  </Badge>
-                )}
-              </div>
             </CardContent>
           </Card>
         </div>
