@@ -46,11 +46,9 @@ const frostedButtonClass =
 
 function SenseiMessageBubble({
   message,
-  mode,
   onOpenQuiz,
 }: {
   message: Message;
-  mode: "sidebar" | "full";
   onOpenQuiz?: (quizId: string) => void;
 }) {
   const { t } = useI18n();
@@ -90,9 +88,7 @@ function SenseiMessageBubble({
           "group relative rounded-xl px-3 py-2 text-sm leading-relaxed",
           message.role === "user"
             ? "max-w-[88%]"
-            : mode === "full"
-              ? "w-full"
-              : "max-w-[88%]",
+            : "w-full",
           message.role === "user"
             ? "bg-primary text-primary-foreground"
             : "bg-card text-card-foreground",
@@ -281,7 +277,6 @@ function SenseiConversation({
               <SenseiMessageBubble
                 key={message.id}
                 message={message}
-                mode={mode}
                 onOpenQuiz={onOpenQuiz}
               />
             ))
