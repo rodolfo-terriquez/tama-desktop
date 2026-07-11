@@ -405,7 +405,7 @@ export function SenseiSidebar({
     };
   }, [dataVersion, refreshThreads]);
 
-  const handleSend = async (text: string) => {
+  const handleSend = useCallback(async (text: string) => {
     setError(null);
     setIsLoading(true);
     setHistoryOpen(false);
@@ -421,7 +421,7 @@ export function SenseiSidebar({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentViewContext, upsertThread]);
 
   const handleCreateNewChat = async () => {
     try {
@@ -470,7 +470,7 @@ export function SenseiSidebar({
     lastAutoPromptIdRef.current = pendingPromptRequest.id;
     onPendingPromptHandled?.(pendingPromptRequest.id);
     void handleSend(pendingPromptRequest.prompt);
-  }, [isLoading, onPendingPromptHandled, open, pendingPromptRequest]);
+  }, [handleSend, isLoading, onPendingPromptHandled, open, pendingPromptRequest]);
 
   if (mode === "full") {
     return (

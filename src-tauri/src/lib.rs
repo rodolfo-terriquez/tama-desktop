@@ -208,7 +208,7 @@ fn build_app_menu<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>) -> tauri:
 
         let help_menu = Submenu::with_id_and_items(app_handle, HELP_SUBMENU_ID, "Help", true, &[])?;
 
-        return Menu::with_items(
+        Menu::with_items(
             app_handle,
             &[
                 &Submenu::with_items(
@@ -259,7 +259,7 @@ fn build_app_menu<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>) -> tauri:
                 &window_menu,
                 &help_menu,
             ],
-        );
+        )
     }
 
     #[cfg(not(target_os = "macos"))]

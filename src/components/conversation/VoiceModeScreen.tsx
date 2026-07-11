@@ -286,7 +286,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
         setIsLoading(false);
       }
     },
-    [scenario, userProfile]
+    [scenario, t, userProfile]
   );
 
   // --- Voice transcription handler ---

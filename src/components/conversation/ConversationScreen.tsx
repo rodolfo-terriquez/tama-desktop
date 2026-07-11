@@ -133,7 +133,7 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
         setIsLoading(false);
       }
     },
-    [messages, scenario, ttsStatus.available, userProfile]
+    [messages, scenario, t, ttsStatus.available, userProfile]
   );
 
   const startSession = useCallback(async () => {
@@ -187,7 +187,7 @@ export function ConversationScreen({ scenario, onEndSession, onModeChange }: Con
     } finally {
       setIsLoading(false);
     }
-  }, [scenario, ttsStatus.available, userProfile]);
+  }, [scenario, t, ttsStatus.available, userProfile]);
 
   const endSession = useCallback(() => {
     if (onEndSession) {

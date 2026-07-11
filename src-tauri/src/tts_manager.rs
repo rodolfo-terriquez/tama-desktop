@@ -69,13 +69,6 @@ pub fn shutdown(state: &TTSProcessState) {
             let _ = kill_pid(pid);
         }
     }
-    // Also kill anything still listening on the VOICEVOX port
-    // in case the tracked PID was stale (e.g. launched via `open -a`)
-    if let Some(pid) = find_pid_on_port(VOICEVOX_PORT) {
-        log::info!("Killing leftover process on VOICEVOX port (pid {})", pid);
-        let _ = kill_pid(pid);
-    }
-
     if let Ok(mut pid_lock) = state.sbv2_pid.lock() {
         if let Some(pid) = pid_lock.take() {
             log::info!("Shutting down managed SBV2 (pid {})", pid);
@@ -258,14 +251,18 @@ pub async fn auto_start_voicevox(app: &AppHandle) {
 
     match child {
         Ok(child) => {
+            let launcher_pid = child.id();
             let state = app.state::<TTSProcessState>();
             if let Ok(mut pid_lock) = state.voicevox_pid.lock() {
-                *pid_lock = Some(child.id());
+                *pid_lock = Some(launcher_pid);
             }
 
             for _ in 0..60 {
                 tokio::time::sleep(Duration::from_millis(500)).await;
                 if is_voicevox_running().await {
+                    if let Ok(mut pid_lock) = state.voicevox_pid.lock() {
+                        *pid_lock = find_pid_on_port(VOICEVOX_PORT).or(Some(launcher_pid));
+                    }
                     eprintln!("[tama] VOICEVOX auto-started successfully");
                     let _ = app.emit("voicevox-status-changed", true);
                     return;
@@ -498,15 +495,18 @@ pub async fn start_voicevox(
             .map_err(|e| format!("Failed to launch VOICEVOX: {e}"))?
     };
 
+    let launcher_pid = child.id();
     {
         let mut pid_lock = state.voicevox_pid.lock().map_err(|e| e.to_string())?;
-        *pid_lock = Some(child.id());
+        *pid_lock = Some(launcher_pid);
     }
 
     // Wait for VOICEVOX to become responsive (up to 30s)
     for _ in 0..60 {
         tokio::time::sleep(Duration::from_millis(500)).await;
         if is_voicevox_running().await {
+            let mut pid_lock = state.voicevox_pid.lock().map_err(|e| e.to_string())?;
+            *pid_lock = find_pid_on_port(VOICEVOX_PORT).or(Some(launcher_pid));
             log::info!("VOICEVOX started successfully");
             let _ = app.emit("voicevox-status-changed", true);
             return Ok(());
@@ -521,15 +521,12 @@ pub async fn stop_voicevox(
     app: AppHandle,
     state: State<'_, TTSProcessState>,
 ) -> Result<(), String> {
-    let pid = find_pid_on_port(VOICEVOX_PORT);
+    let pid = state.voicevox_pid.lock().map_err(|e| e.to_string())?.take();
     if let Some(pid) = pid {
         tokio::task::spawn_blocking(move || kill_pid(pid))
             .await
             .map_err(|e| format!("Task error: {e}"))??;
     }
-
-    let mut pid_lock = state.voicevox_pid.lock().map_err(|e| e.to_string())?;
-    *pid_lock = None;
 
     log::info!("VOICEVOX stopped");
     let _ = app.emit("voicevox-status-changed", false);
@@ -797,15 +794,12 @@ pub async fn start_sbv2(
 pub async fn stop_sbv2(port: Option<u16>, state: State<'_, TTSProcessState>) -> Result<(), String> {
     let port = port.unwrap_or(5001);
 
-    let pid = find_listening_pid_on_port(port);
+    let pid = state.sbv2_pid.lock().map_err(|e| e.to_string())?.take();
     if let Some(pid) = pid {
         tokio::task::spawn_blocking(move || kill_pid(pid))
             .await
             .map_err(|e| format!("Task error: {e}"))??;
     }
-
-    let mut pid_lock = state.sbv2_pid.lock().map_err(|e| e.to_string())?;
-    *pid_lock = None;
 
     log::info!("SBV2 stopped on port {port}");
     Ok(())

@@ -10,6 +10,7 @@ import { ensureDailyStudyPlan, setStudyPlanTaskCompleted } from "@/services/stud
 import { getCustomScenarios, getDueVocabulary, getLastSession, getOngoingChats, getUserProfile } from "@/services/storage";
 import { useI18n } from "@/i18n";
 import { formatRelativeTime, formatWeekdayMonthDay, getWeekdayLabels } from "@/services/locale-format";
+import { formatLocalDate } from "@/services/local-date";
 import type { OngoingChat, Scenario, SenseiViewContext, StudyPlan, StudyPlanTask } from "@/types";
 import { addDays, format, isSameDay, startOfWeek } from "date-fns";
 import { BookOpenText, Check, Mic, Sparkles } from "lucide-react";
@@ -219,6 +220,7 @@ export function HomeScreen({
   const [studyPlanLoading, setStudyPlanLoading] = useState(true);
   const [availableScenarios, setAvailableScenarios] = useState<Scenario[]>(SCENARIOS);
   const greeting = getGreeting(now, profileName);
+  const todayKey = formatLocalDate(now);
 
   useEffect(() => {
     const loadHomeData = () => {
@@ -255,7 +257,7 @@ export function HomeScreen({
     loadHomeData();
     window.addEventListener("tama-data-changed", loadHomeData);
     return () => window.removeEventListener("tama-data-changed", loadHomeData);
-  }, []);
+  }, [todayKey]);
 
   useEffect(() => {
     onContextChange?.(buildHomeSenseiViewContext(studyPlan));

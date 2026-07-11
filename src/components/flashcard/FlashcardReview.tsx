@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Flashcard } from "@/components/flashcard/Flashcard";
 import { useI18n } from "@/i18n";
+import { formatLocalDate } from "@/services/local-date";
 import { buildFlashcardSenseiViewContext } from "@/services/sensei-context";
 import { generateDailyStudyPlan, setStudyPlanTaskCompleted } from "@/services/study-plan";
 import {
@@ -43,11 +44,11 @@ function getMaturity(item: VocabItem): "new" | "learning" | "mature" {
 }
 
 function isDue(item: VocabItem): boolean {
-  return item.next_review <= new Date().toISOString().split("T")[0];
+  return item.next_review <= formatLocalDate();
 }
 
 function formatReviewDate(dateStr: string, t: ReturnType<typeof useI18n>["t"]): string {
-  const today = new Date().toISOString().split("T")[0];
+  const today = formatLocalDate();
   if (dateStr <= today) return t("flashcards.dueNow");
   const diff = Math.round(
     (new Date(dateStr).getTime() - new Date(today).getTime()) / 86_400_000
@@ -196,11 +197,12 @@ function ReviewTab({
   const [results, setResults] = useState<SenseiFlashcardResult[]>([]);
   const [isAnswerVisible, setIsAnswerVisible] = useState(false);
   const [hasRevealedCurrentCard, setHasRevealedCurrentCard] = useState(false);
-  const reviewStartedAtRef = useRef(Date.now());
+  const reviewStartedAtRef = useRef<number | null>(null);
   const sessionSavedRef = useRef(false);
 
   useEffect(() => {
     getDueVocabulary().then((due) => {
+      reviewStartedAtRef.current = Date.now();
       setCards(due);
       setState(due.length === 0 ? "complete" : "reviewing");
     });
@@ -259,7 +261,8 @@ function ReviewTab({
     }
 
     sessionSavedRef.current = true;
-    const durationSeconds = Math.max(1, Math.round((Date.now() - reviewStartedAtRef.current) / 1000));
+    const startedAt = reviewStartedAtRef.current ?? Date.now();
+    const durationSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
 
     void saveFlashcardReviewSession({
       id: crypto.randomUUID(),

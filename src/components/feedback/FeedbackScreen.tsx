@@ -10,6 +10,7 @@ import { useI18n } from "@/i18n";
 import { generateFeedback } from "@/services/claude";
 import { FeedbackParseError, parseFeedbackResponse } from "@/services/feedback-parser";
 import { generateDailyStudyPlan } from "@/services/study-plan";
+import { formatLocalDate } from "@/services/local-date";
 import { addVocabItem, saveSession, getVocabulary, getUserProfile, updateUserProfile } from "@/services/storage";
 import type { Message, Scenario, SessionFeedback, Session } from "@/types";
 
@@ -127,7 +128,7 @@ export function FeedbackScreen({
     return () => {
       cancelled = true;
     };
-  }, [locale, messages, saveSessionData, scenario, t]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [locale, messages, saveSessionData, scenario, t]);
 
   const handleAddToSRS = useCallback(
     async (vocabIndex: number) => {
@@ -149,7 +150,7 @@ export function FeedbackScreen({
         reading: vocab.reading,
         meaning: vocab.meaning,
         example: vocab.example,
-        source_session: vocab.source_session || new Date().toISOString().split("T")[0],
+        source_session: vocab.source_session || formatLocalDate(),
       });
 
       setAddedWords((prev) => new Set(prev).add(vocab.word));

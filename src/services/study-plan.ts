@@ -2,6 +2,7 @@ import { localizeScenario } from "@/data/scenarios";
 import { getAppLocale } from "@/services/app-config";
 import { generateDailyStudyPlanCopy } from "@/services/claude";
 import { emitDataChanged } from "@/services/app-events";
+import { formatLocalDate } from "@/services/local-date";
 import { getRecommendedScenarios } from "@/services/scenarios";
 import {
   getDueVocabulary,
@@ -24,7 +25,7 @@ interface PlanSeed {
 }
 
 function getTodayKey(): string {
-  return new Date().toISOString().split("T")[0];
+  return formatLocalDate();
 }
 
 function getRecentRatedSessions(sessions: Session[]): Session[] {

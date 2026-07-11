@@ -24,6 +24,7 @@ export default defineConfig([
           'useFlashcardReset',
           'buttonVariants',
           'badgeVariants',
+          'useI18n',
         ],
       }],
     },

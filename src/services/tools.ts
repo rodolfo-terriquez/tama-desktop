@@ -1,4 +1,5 @@
 import { emitDataChanged } from "@/services/app-events";
+import { formatLocalDate } from "@/services/local-date";
 import { getActiveStudyPlan, saveStudyPlan } from "@/services/study-plan";
 import {
   addCustomScenario,
@@ -403,7 +404,7 @@ export async function executeTool(tool: ToolCall): Promise<ToolResult> {
       const meaning = String(tool.input.meaning ?? "").trim();
       const example = String(tool.input.example ?? "").trim();
       const sourceSession =
-        String(tool.input.source_session ?? "").trim() || new Date().toISOString().split("T")[0];
+        String(tool.input.source_session ?? "").trim() || formatLocalDate();
 
       if (!word || !reading || !meaning || !example) {
         content = JSON.stringify({

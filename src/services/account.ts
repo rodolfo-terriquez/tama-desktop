@@ -19,10 +19,13 @@ import { getDisplayMode, setDisplayMode } from "@/services/display";
 import { emitConfigChanged, emitDataChanged } from "@/services/app-events";
 import {
   getCustomScenarios,
+  getFlashcardReviewSessions,
   getOngoingChats,
   getQuizzes,
   getSenseiThreads,
   getSessions,
+  getShadowScripts,
+  getStudyPlans,
   getUserProfile,
   getVocabulary,
   replaceAccountBundle,
@@ -40,12 +43,15 @@ import { getTranscriptionEngine, setTranscriptionEngine } from "@/services/trans
 import type {
   AccountBundleV1,
   AccountPreferences,
+  FlashcardReviewSession,
   Message,
   OngoingChat,
   Quiz,
   Scenario,
   SenseiThread,
   Session,
+  ShadowScript,
+  StudyPlan,
   UserProfile,
   VocabItem,
 } from "@/types";
@@ -176,6 +182,73 @@ function isSession(value: unknown): value is Session {
   );
 }
 
+function isFlashcardReviewSession(value: unknown): value is FlashcardReviewSession {
+  if (!isRecord(value)) return false;
+  return (
+    isString(value.id) &&
+    isString(value.date) &&
+    isNumber(value.duration_seconds) &&
+    Array.isArray(value.results) &&
+    value.results.every((result) =>
+      isRecord(result) &&
+      isString(result.word) &&
+      (result.rating === "again" ||
+        result.rating === "hard" ||
+        result.rating === "good" ||
+        result.rating === "easy")
+    )
+  );
+}
+
+function isShadowScript(value: unknown): value is ShadowScript {
+  if (!isRecord(value)) return false;
+  return (
+    isString(value.id) &&
+    isString(value.scenarioId) &&
+    isString(value.generatedAt) &&
+    Array.isArray(value.turns) &&
+    value.turns.every((turn) =>
+      isRecord(turn) &&
+      (turn.speaker === "assistant" || turn.speaker === "user") &&
+      isString(turn.text) &&
+      (turn.reading === undefined || isString(turn.reading)) &&
+      (turn.speakerLabel === undefined || isString(turn.speakerLabel)) &&
+      (turn.cue === undefined || isString(turn.cue))
+    ) &&
+    isStringArray(value.focusPhrases)
+  );
+}
+
+function isStudyPlan(value: unknown): value is StudyPlan {
+  if (!isRecord(value)) return false;
+  return (
+    isString(value.id) &&
+    isString(value.date) &&
+    isString(value.generatedAt) &&
+    isString(value.focusSummary) &&
+    isString(value.reasoningSummary) &&
+    Array.isArray(value.tasks) &&
+    value.tasks.every((task) => {
+      if (!isRecord(task) || !isRecord(task.target)) return false;
+      const validTarget =
+        task.target.screen === "flashcards" ||
+        (task.target.screen === "scenario" && isString(task.target.scenarioId)) ||
+        (task.target.screen === "sensei" &&
+          (task.target.prompt === undefined || isString(task.target.prompt)));
+      return (
+        isString(task.id) &&
+        (task.kind === "flashcards" || task.kind === "scenario" || task.kind === "sensei") &&
+        isString(task.title) &&
+        isString(task.description) &&
+        isString(task.ctaLabel) &&
+        validTarget &&
+        (task.completedAt === undefined || isString(task.completedAt))
+      );
+    }) &&
+    isRecord(value.sourceSignals)
+  );
+}
+
 function isOngoingChat(value: unknown): value is OngoingChat {
   if (!isRecord(value)) return false;
   return (
@@ -280,7 +353,14 @@ export function validateAccountBundle(value: unknown): AccountBundleV1 {
       (!Array.isArray(value.senseiThreads) || !value.senseiThreads.every(isSenseiThread))) ||
     (value.activeSenseiThreadId !== undefined &&
       value.activeSenseiThreadId !== null &&
-      !isString(value.activeSenseiThreadId))
+      !isString(value.activeSenseiThreadId)) ||
+    (value.flashcardReviewSessions !== undefined &&
+      (!Array.isArray(value.flashcardReviewSessions) ||
+        !value.flashcardReviewSessions.every(isFlashcardReviewSession))) ||
+    (value.studyPlans !== undefined &&
+      (!Array.isArray(value.studyPlans) || !value.studyPlans.every(isStudyPlan))) ||
+    (value.shadowScripts !== undefined &&
+      (!Array.isArray(value.shadowScripts) || !value.shadowScripts.every(isShadowScript)))
   ) {
     throw new Error("Backup file is missing required Tama account fields.");
   }
@@ -333,6 +413,9 @@ export async function buildAccountBundle(): Promise<AccountBundleV1> {
     customScenarios,
     quizzes,
     senseiThreads,
+    flashcardReviewSessions,
+    studyPlans,
+    shadowScripts,
   ] = await Promise.all([
     getUserProfile(),
     getSessions(),
@@ -341,6 +424,9 @@ export async function buildAccountBundle(): Promise<AccountBundleV1> {
     getCustomScenarios(),
     getQuizzes(),
     getSenseiThreads(),
+    getFlashcardReviewSessions(),
+    getStudyPlans(),
+    getShadowScripts(),
   ]);
 
   let appVersion = "unknown";
@@ -363,6 +449,9 @@ export async function buildAccountBundle(): Promise<AccountBundleV1> {
     preferences: getAccountPreferences(),
     ...(senseiThreads.length > 0 ? { senseiThreads } : {}),
     activeSenseiThreadId: getActiveSenseiThreadId(),
+    flashcardReviewSessions,
+    studyPlans,
+    shadowScripts,
   };
 }
 

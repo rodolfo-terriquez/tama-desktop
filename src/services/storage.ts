@@ -12,17 +12,29 @@ import type {
   UserProfile,
   VocabItem,
 } from "@/types";
+import { formatLocalDate } from "@/services/local-date";
 
 // ── DB singleton ────────────────────────────────────────────────────
 
 let db: Database | null = null;
+let dbPromise: Promise<Database> | null = null;
 
 async function getDb(): Promise<Database> {
-  if (!db) {
-    db = await Database.load("sqlite:tama.db");
-    await migrateLocalStorage(db);
+  if (db) return db;
+
+  if (!dbPromise) {
+    dbPromise = (async () => {
+      const loaded = await Database.load("sqlite:tama.db");
+      await migrateLocalStorage(loaded);
+      db = loaded;
+      return loaded;
+    })().catch((error) => {
+      dbPromise = null;
+      throw error;
+    });
   }
-  return db;
+
+  return dbPromise;
 }
 
 // ── Defaults ────────────────────────────────────────────────────────
@@ -166,7 +178,7 @@ export async function addVocabItem(
 ): Promise<VocabItem> {
   const d = await getDb();
   const id = crypto.randomUUID();
-  const now = new Date().toISOString().split("T")[0];
+  const now = formatLocalDate();
   await d.execute(
     `INSERT INTO vocab_items (id, word, reading, meaning, example, source_session, interval_days, ease_factor, next_review, times_seen_in_conversation, times_reviewed)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
@@ -215,7 +227,7 @@ export async function deleteVocabItem(id: string): Promise<boolean> {
 
 export async function getDueVocabulary(limit?: number): Promise<VocabItem[]> {
   const d = await getDb();
-  const today = new Date().toISOString().split("T")[0];
+  const today = formatLocalDate();
   let sql = "SELECT * FROM vocab_items WHERE next_review <= $1 ORDER BY next_review ASC";
   const params: unknown[] = [today];
   if (limit) {
@@ -347,6 +359,14 @@ export async function getStudyPlanByDate(date: string): Promise<StudyPlan | null
     [date]
   );
   return rows.length > 0 ? rowToStudyPlan(rows[0]) : null;
+}
+
+export async function getStudyPlans(): Promise<StudyPlan[]> {
+  const d = await getDb();
+  const rows = await d.select<StudyPlanRow[]>(
+    "SELECT * FROM study_plans ORDER BY date DESC, datetime(generated_at) DESC"
+  );
+  return rows.map(rowToStudyPlan);
 }
 
 export async function saveStudyPlan(plan: StudyPlan): Promise<void> {
@@ -508,6 +528,14 @@ export async function getShadowScript(scenarioId: string): Promise<ShadowScript 
     [scenarioId]
   );
   return rows.length > 0 ? rowToShadowScript(rows[0]) : null;
+}
+
+export async function getShadowScripts(): Promise<ShadowScript[]> {
+  const d = await getDb();
+  const rows = await d.select<ShadowScriptRow[]>(
+    "SELECT * FROM shadow_scripts ORDER BY datetime(generated_at) DESC"
+  );
+  return rows.map(rowToShadowScript);
 }
 
 export async function saveShadowScript(script: ShadowScript): Promise<void> {
@@ -700,11 +728,17 @@ export async function replaceAccountBundle(bundle: AccountBundleV1): Promise<voi
 
     await d.execute("DELETE FROM vocab_items");
     await d.execute("DELETE FROM sessions");
-    await d.execute("DELETE FROM flashcard_review_sessions");
-    await d.execute("DELETE FROM study_plans");
+    if (bundle.flashcardReviewSessions !== undefined) {
+      await d.execute("DELETE FROM flashcard_review_sessions");
+    }
+    if (bundle.studyPlans !== undefined) {
+      await d.execute("DELETE FROM study_plans");
+    }
     await d.execute("DELETE FROM quizzes");
     await d.execute("DELETE FROM custom_scenarios");
-    await d.execute("DELETE FROM shadow_scripts");
+    if (bundle.shadowScripts !== undefined) {
+      await d.execute("DELETE FROM shadow_scripts");
+    }
     await d.execute("DELETE FROM ongoing_chats");
     await d.execute("DELETE FROM sensei_threads");
 
@@ -770,6 +804,22 @@ export async function replaceAccountBundle(bundle: AccountBundleV1): Promise<voi
       );
     }
 
+    for (const review of bundle.flashcardReviewSessions ?? []) {
+      await d.execute(
+        `INSERT INTO flashcard_review_sessions (id, date, duration_seconds, results)
+         VALUES ($1, $2, $3, $4)`,
+        [review.id, review.date, review.duration_seconds, JSON.stringify(review.results)]
+      );
+    }
+
+    for (const plan of bundle.studyPlans ?? []) {
+      await d.execute(
+        `INSERT INTO study_plans (id, date, generated_at, plan_json)
+         VALUES ($1, $2, $3, $4)`,
+        [plan.id, plan.date, plan.generatedAt, JSON.stringify(plan)]
+      );
+    }
+
     for (const scenario of bundle.customScenarios) {
       await d.execute(
         `INSERT INTO custom_scenarios (id, title, title_ja, description, setting, character_role, objectives, custom_prompt)
@@ -783,6 +833,20 @@ export async function replaceAccountBundle(bundle: AccountBundleV1): Promise<voi
           scenario.character_role,
           JSON.stringify(scenario.objectives),
           scenario.custom_prompt ?? null,
+        ]
+      );
+    }
+
+    for (const script of bundle.shadowScripts ?? []) {
+      await d.execute(
+        `INSERT INTO shadow_scripts (id, scenario_id, generated_at, turns, focus_phrases)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          script.id,
+          script.scenarioId,
+          script.generatedAt,
+          JSON.stringify(script.turns),
+          JSON.stringify(script.focusPhrases),
         ]
       );
     }
@@ -851,14 +915,31 @@ const OLD_KEYS = {
 
 async function migrateLocalStorage(d: Database): Promise<void> {
   if (localStorage.getItem(LS_MIGRATION_KEY)) return;
+  const hadLegacyData = Object.values(OLD_KEYS).some((key) => localStorage.getItem(key) !== null);
 
-  let migrated = false;
+  async function migrateKey(
+    key: string,
+    migrate: (json: string) => Promise<void>
+  ): Promise<boolean> {
+    const json = localStorage.getItem(key);
+    if (json === null) return true;
 
-  // Profile
-  const profileJson = localStorage.getItem(OLD_KEYS.USER_PROFILE);
-  if (profileJson) {
+    await d.execute("BEGIN");
     try {
-      const p = JSON.parse(profileJson) as UserProfile;
+      await migrate(json);
+      await d.execute("COMMIT");
+      localStorage.removeItem(key);
+      return true;
+    } catch (error) {
+      await d.execute("ROLLBACK").catch(() => undefined);
+      console.error(`Failed to migrate legacy data from ${key}; source data was preserved.`, error);
+      return false;
+    }
+  }
+
+  const results = [
+    await migrateKey(OLD_KEYS.USER_PROFILE, async (json) => {
+      const p = JSON.parse(json) as Partial<UserProfile>;
       await d.execute(
         `UPDATE user_profile SET
           jlpt_level=$1, auto_adjust_level=$2, estimated_level=$3,
@@ -869,23 +950,24 @@ async function migrateLocalStorage(d: Database): Promise<void> {
           voicevox_speaker_id=$13, voicevox_speaker_name=$14
         WHERE id=1`,
         [
-          p.jlpt_level, p.auto_adjust_level ? 1 : 0, p.estimated_level,
-          p.response_length, p.include_flashcard_vocab_in_conversations === false ? 0 : 1,
+          p.jlpt_level ?? DEFAULT_USER_PROFILE.jlpt_level,
+          p.auto_adjust_level ? 1 : 0,
+          p.estimated_level ?? DEFAULT_USER_PROFILE.estimated_level,
+          p.response_length ?? DEFAULT_USER_PROFILE.response_length,
+          p.include_flashcard_vocab_in_conversations === false ? 0 : 1,
           p.name ?? null, p.age ?? null, p.aboutYou ?? null,
-          JSON.stringify(p.interests), JSON.stringify(p.topics_covered), JSON.stringify(p.recent_struggles),
-          p.total_sessions, p.voicevox_speaker_id ?? null,
+          JSON.stringify(p.interests ?? []),
+          JSON.stringify(p.topics_covered ?? []),
+          JSON.stringify(p.recent_struggles ?? []),
+          p.total_sessions ?? 0,
+          p.voicevox_speaker_id ?? null,
           p.voicevox_speaker_name ?? null,
         ]
       );
-      migrated = true;
-    } catch { /* skip bad data */ }
-  }
-
-  // Vocabulary
-  const vocabJson = localStorage.getItem(OLD_KEYS.VOCABULARY);
-  if (vocabJson) {
-    try {
-      const items = JSON.parse(vocabJson) as VocabItem[];
+    }),
+    await migrateKey(OLD_KEYS.VOCABULARY, async (json) => {
+      const items = JSON.parse(json) as VocabItem[];
+      if (!Array.isArray(items)) throw new Error("Legacy vocabulary is not an array");
       for (const v of items) {
         await d.execute(
           `INSERT OR IGNORE INTO vocab_items (id, word, reading, meaning, example, source_session, interval_days, ease_factor, next_review, times_seen_in_conversation, times_reviewed)
@@ -893,15 +975,10 @@ async function migrateLocalStorage(d: Database): Promise<void> {
           [v.id, v.word, v.reading, v.meaning, v.example || "", v.source_session || "", v.interval, v.ease_factor, v.next_review, v.times_seen_in_conversation, v.times_reviewed]
         );
       }
-      migrated = true;
-    } catch { /* skip */ }
-  }
-
-  // Sessions
-  const sessionsJson = localStorage.getItem(OLD_KEYS.SESSIONS);
-  if (sessionsJson) {
-    try {
-      const sessions = JSON.parse(sessionsJson) as Session[];
+    }),
+    await migrateKey(OLD_KEYS.SESSIONS, async (json) => {
+      const sessions = JSON.parse(json) as Session[];
+      if (!Array.isArray(sessions)) throw new Error("Legacy sessions are not an array");
       for (const s of sessions) {
         await d.execute(
           `INSERT OR IGNORE INTO sessions (id, date, scenario, messages, feedback, duration_seconds)
@@ -909,15 +986,10 @@ async function migrateLocalStorage(d: Database): Promise<void> {
           [s.id, s.date, JSON.stringify(s.scenario), JSON.stringify(s.messages), s.feedback ? JSON.stringify(s.feedback) : null, s.duration_seconds]
         );
       }
-      migrated = true;
-    } catch { /* skip */ }
-  }
-
-  // Custom Scenarios
-  const scenariosJson = localStorage.getItem(OLD_KEYS.CUSTOM_SCENARIOS);
-  if (scenariosJson) {
-    try {
-      const scenarios = JSON.parse(scenariosJson) as Scenario[];
+    }),
+    await migrateKey(OLD_KEYS.CUSTOM_SCENARIOS, async (json) => {
+      const scenarios = JSON.parse(json) as Scenario[];
+      if (!Array.isArray(scenarios)) throw new Error("Legacy scenarios are not an array");
       for (const sc of scenarios) {
         await d.execute(
           `INSERT OR IGNORE INTO custom_scenarios (id, title, title_ja, description, setting, character_role, objectives, custom_prompt)
@@ -925,15 +997,10 @@ async function migrateLocalStorage(d: Database): Promise<void> {
           [sc.id, sc.title, sc.title_ja, sc.description, sc.setting, sc.character_role, JSON.stringify(sc.objectives), sc.custom_prompt ?? null]
         );
       }
-      migrated = true;
-    } catch { /* skip */ }
-  }
-
-  // Ongoing Chats
-  const chatsJson = localStorage.getItem(OLD_KEYS.ONGOING_CHATS);
-  if (chatsJson) {
-    try {
-      const chats = JSON.parse(chatsJson) as OngoingChat[];
+    }),
+    await migrateKey(OLD_KEYS.ONGOING_CHATS, async (json) => {
+      const chats = JSON.parse(json) as OngoingChat[];
+      if (!Array.isArray(chats)) throw new Error("Legacy chats are not an array");
       for (const c of chats) {
         await d.execute(
           `INSERT OR IGNORE INTO ongoing_chats (id, name, persona, messages, summary, created_at, last_active_at, total_messages, last_feedback_at_total)
@@ -941,19 +1008,14 @@ async function migrateLocalStorage(d: Database): Promise<void> {
           [c.id, c.name, c.persona, JSON.stringify(c.messages), c.summary, c.createdAt, c.lastActiveAt, c.totalMessages, c.lastFeedbackAtTotal]
         );
       }
-      migrated = true;
-    } catch { /* skip */ }
-  }
+    }),
+  ];
 
-  if (migrated) {
+  if (hadLegacyData && results.every(Boolean)) {
     console.log("Migrated localStorage data to SQLite");
   }
 
-  // Mark migration as complete (even if there was no data — prevents re-checking)
-  localStorage.setItem(LS_MIGRATION_KEY, "1");
-
-  // Clean up old keys
-  for (const key of Object.values(OLD_KEYS)) {
-    localStorage.removeItem(key);
+  if (results.every(Boolean)) {
+    localStorage.setItem(LS_MIGRATION_KEY, "1");
   }
 }

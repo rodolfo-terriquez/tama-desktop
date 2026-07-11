@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAppLocale } from "@/services/app-config";
 import { emitDataChanged } from "@/services/app-events";
+import { formatLocalDate } from "@/services/local-date";
 import { getContextMessages, sendMessage, sendMessageWithTools, summarizeSenseiConversation } from "@/services/claude";
 import { getActiveStudyPlan } from "@/services/study-plan";
 import { SENSEI_TOOLS } from "@/services/tools";
@@ -162,7 +163,7 @@ function getCurrentDateTimeBlock(locale: AppLocale): string {
 function buildAccountSummary(bundle: Pick<AccountBundleV1, "profile" | "sessions" | "vocabulary" | "ongoingChats" | "customScenarios" | "quizzes"> & {
   activeStudyPlan?: Awaited<ReturnType<typeof getActiveStudyPlan>>;
 }): string {
-  const dueCount = bundle.vocabulary.filter((item) => item.next_review <= new Date().toISOString().split("T")[0]).length;
+  const dueCount = bundle.vocabulary.filter((item) => item.next_review <= formatLocalDate()).length;
   const recentSessions = bundle.sessions.slice(0, 3).map((session) => ({
     date: session.date,
     title: session.scenario.title,

@@ -1,5 +1,6 @@
 import type { VocabItem, SRSRating } from "@/types";
 import { updateVocabItem } from "@/services/storage";
+import { addLocalDays } from "@/services/local-date";
 
 /**
  * SM-2 quality scores mapped from our 4-point rating scale.
@@ -59,9 +60,7 @@ export function calculateSM2(
   // Clamp to reasonable bounds
   interval = Math.max(1, Math.min(interval, 365));
 
-  const nextReview = new Date();
-  nextReview.setDate(nextReview.getDate() + interval);
-  const nextReviewStr = nextReview.toISOString().split("T")[0];
+  const nextReviewStr = addLocalDays(new Date(), interval);
 
   return {
     interval,

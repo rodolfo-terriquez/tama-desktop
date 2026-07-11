@@ -18,6 +18,7 @@ import {
   type ToolCall,
   type ToolResult,
 } from "@/services/tools";
+import { formatLocalDate } from "@/services/local-date";
 
 // ── Provider Config ──────────────────────────────────────────────
 
@@ -1280,7 +1281,7 @@ Return your analysis as JSON in exactly this format:
     { "issue": "what the student said wrong", "correction": "correct form", "explanation": "brief explanation in ${targetLanguage}" }
   ],
   "vocabulary": [
-    { "word": "Japanese word", "reading": "hiragana reading", "meaning": "${targetLanguage} meaning", "example": "short natural Japanese-only example sentence using the word", "source_session": "${new Date().toISOString().split("T")[0]}" }
+    { "word": "Japanese word", "reading": "hiragana reading", "meaning": "${targetLanguage} meaning", "example": "short natural Japanese-only example sentence using the word", "source_session": "${formatLocalDate()}" }
   ],
   "fluency_notes": ["observations about natural phrasing, nuance, etc."],
   "summary": {

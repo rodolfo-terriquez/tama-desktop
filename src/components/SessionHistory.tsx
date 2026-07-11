@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import {
   getVocabulary,
 } from "@/services/storage";
 import { formatDateTime, formatRelativeTime, formatTime } from "@/services/locale-format";
+import { formatLocalDate } from "@/services/local-date";
 import type {
   FlashcardReviewSession,
   Message,
@@ -685,7 +686,10 @@ function FeedbackView({
   onVocabularyAdded: () => void;
 }) {
   const { t } = useI18n();
-  const feedback = normalizeSessionFeedback(session?.feedback ?? null);
+  const feedback = useMemo(
+    () => normalizeSessionFeedback(session?.feedback ?? null),
+    [session?.feedback]
+  );
   const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -713,20 +717,9 @@ function FeedbackView({
     };
   }, [feedback]);
 
-  if (!feedback) {
-    return (
-      <p className="text-sm text-muted-foreground text-center py-4">
-        {t("common.none")}
-      </p>
-    );
-  }
-
-  const hasGrammar = feedback.grammar_points.length > 0;
-  const hasVocab = feedback.vocabulary.length > 0;
-  const hasFluency = feedback.fluency_notes.length > 0;
-
   const handleAddToSRS = useCallback(
     async (vocabIndex: number) => {
+      if (!feedback) return;
       const vocab = feedback.vocabulary[vocabIndex];
       if (!vocab) return;
 
@@ -749,24 +742,37 @@ function FeedbackView({
         reading: vocab.reading,
         meaning: vocab.meaning,
         example: vocab.example,
-        source_session: vocab.source_session || new Date().toISOString().split("T")[0],
+        source_session: vocab.source_session || formatLocalDate(),
       });
 
       setAddedWords((prev) => new Set(prev).add(key));
       onVocabularyAdded();
       onShowMessage("success", `${vocab.word} ${t("feedback.added").replace(" ✓", "")}`);
     },
-    [addedWords, feedback.vocabulary, onShowMessage, onVocabularyAdded, t]
+    [addedWords, feedback, onShowMessage, onVocabularyAdded, t]
   );
 
   const handleAddAllToSRS = useCallback(async () => {
+    if (!feedback) return;
     for (let i = 0; i < feedback.vocabulary.length; i++) {
       const vocab = feedback.vocabulary[i];
       const key = getFeedbackVocabKey(vocab.word, vocab.meaning);
       if (addedWords.has(key)) continue;
       await handleAddToSRS(i);
     }
-  }, [addedWords, feedback.vocabulary, handleAddToSRS]);
+  }, [addedWords, feedback, handleAddToSRS]);
+
+  if (!feedback) {
+    return (
+      <p className="text-sm text-muted-foreground text-center py-4">
+        {t("common.none")}
+      </p>
+    );
+  }
+
+  const hasGrammar = feedback.grammar_points.length > 0;
+  const hasVocab = feedback.vocabulary.length > 0;
+  const hasFluency = feedback.fluency_notes.length > 0;
 
   return (
     <div className="space-y-5">

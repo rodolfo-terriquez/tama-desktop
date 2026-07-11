@@ -318,6 +318,9 @@ export interface AccountBundleV1 {
   sensei?: SenseiThread;
   senseiThreads?: SenseiThread[];
   activeSenseiThreadId?: string | null;
+  flashcardReviewSessions?: FlashcardReviewSession[];
+  studyPlans?: StudyPlan[];
+  shadowScripts?: ShadowScript[];
 }
 
 export interface SenseiScenarioSummary {

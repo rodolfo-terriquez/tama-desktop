@@ -16,6 +16,7 @@ import { useI18n } from "@/i18n";
 import { generateFeedback } from "@/services/claude";
 import { FeedbackParseError, parseFeedbackResponse } from "@/services/feedback-parser";
 import { generateDailyStudyPlan } from "@/services/study-plan";
+import { formatLocalDate } from "@/services/local-date";
 import {
   addVocabItem,
   getUserProfile,
@@ -195,7 +196,7 @@ export function OngoingFeedbackDialog({
         reading: vocab.reading,
         meaning: vocab.meaning,
         example: vocab.example,
-        source_session: vocab.source_session || new Date().toISOString().split("T")[0],
+        source_session: vocab.source_session || formatLocalDate(),
       });
 
       setAddedWords((prev) => new Set(prev).add(vocab.word));

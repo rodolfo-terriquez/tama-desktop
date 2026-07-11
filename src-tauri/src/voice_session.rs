@@ -6,7 +6,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{SampleFormat, SampleRate};
+use cpal::{FromSample, SampleFormat, SampleRate, SizedSample};
 use rubato::{FftFixedIn, Resampler};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -201,6 +201,69 @@ fn extend_pre_speech_ring(pre_speech_ring: &mut Vec<f32>, frame: &[f32], pad_fra
     }
 }
 
+fn build_typed_input_stream<T>(
+    device: &cpal::Device,
+    config: &cpal::StreamConfig,
+    channels: usize,
+    tx: mpsc::Sender<Vec<f32>>,
+) -> Result<cpal::Stream, cpal::BuildStreamError>
+where
+    T: SizedSample,
+    f32: FromSample<T>,
+{
+    device.build_input_stream(
+        config,
+        move |data: &[T], _: &cpal::InputCallbackInfo| {
+            let _ = tx.send(downmix_samples(data, channels));
+        },
+        |err| log::error!("Audio stream error: {}", err),
+        None,
+    )
+}
+
+fn downmix_samples<T>(data: &[T], channels: usize) -> Vec<f32>
+where
+    T: SizedSample,
+    f32: FromSample<T>,
+{
+    if channels == 1 {
+        return data
+            .iter()
+            .map(|sample| sample.to_sample::<f32>())
+            .collect();
+    }
+
+    data.chunks_exact(channels)
+        .map(|frame| {
+            frame
+                .iter()
+                .map(|sample| sample.to_sample::<f32>())
+                .sum::<f32>()
+                / channels as f32
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::downmix_samples;
+
+    #[test]
+    fn converts_i16_mono_to_f32() {
+        let converted = downmix_samples(&[i16::MIN, 0, i16::MAX], 1);
+        assert_eq!(converted.len(), 3);
+        assert!((converted[0] + 1.0).abs() < 0.0001);
+        assert_eq!(converted[1], 0.0);
+        assert!((converted[2] - 1.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn downmixes_stereo_samples() {
+        let converted = downmix_samples(&[1.0_f32, -1.0, 0.5, 0.5], 2);
+        assert_eq!(converted, vec![0.0, 0.5]);
+    }
+}
+
 // ── Worker: owns the cpal stream + runs VAD pipeline ────────────────────────
 
 fn run_worker(
@@ -230,6 +293,7 @@ fn run_worker(
 
     let sample_rate = supported_config.sample_rate().0;
     let channels = supported_config.channels() as usize;
+    let sample_format = supported_config.sample_format();
 
     let dev_info = format!(
         "Audio device: {:?}, rate: {}, channels: {}, format: {:?}",
@@ -244,21 +308,26 @@ fn run_worker(
     let (tx, rx) = mpsc::channel::<Vec<f32>>();
     let config: cpal::StreamConfig = supported_config.into();
 
-    let stream = match device.build_input_stream(
-        &config,
-        move |data: &[f32], _: &cpal::InputCallbackInfo| {
-            let mono: Vec<f32> = if channels == 1 {
-                data.to_vec()
-            } else {
-                data.chunks_exact(channels)
-                    .map(|frame| frame.iter().sum::<f32>() / channels as f32)
-                    .collect()
-            };
-            let _ = tx.send(mono);
-        },
-        |err| log::error!("Audio stream error: {}", err),
-        None,
-    ) {
+    let stream_result = match sample_format {
+        SampleFormat::I8 => build_typed_input_stream::<i8>(&device, &config, channels, tx),
+        SampleFormat::I16 => build_typed_input_stream::<i16>(&device, &config, channels, tx),
+        SampleFormat::I32 => build_typed_input_stream::<i32>(&device, &config, channels, tx),
+        SampleFormat::I64 => build_typed_input_stream::<i64>(&device, &config, channels, tx),
+        SampleFormat::U8 => build_typed_input_stream::<u8>(&device, &config, channels, tx),
+        SampleFormat::U16 => build_typed_input_stream::<u16>(&device, &config, channels, tx),
+        SampleFormat::U32 => build_typed_input_stream::<u32>(&device, &config, channels, tx),
+        SampleFormat::U64 => build_typed_input_stream::<u64>(&device, &config, channels, tx),
+        SampleFormat::F32 => build_typed_input_stream::<f32>(&device, &config, channels, tx),
+        SampleFormat::F64 => build_typed_input_stream::<f64>(&device, &config, channels, tx),
+        _ => {
+            let _ = ready_tx.send(Err(format!(
+                "Unsupported microphone sample format: {sample_format}"
+            )));
+            return;
+        }
+    };
+
+    let stream = match stream_result {
         Ok(s) => s,
         Err(e) => {
             let _ = ready_tx.send(Err(format!("Failed to build input stream: {e}")));
