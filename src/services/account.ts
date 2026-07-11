@@ -5,7 +5,16 @@ import {
   setApiOnboardingDismissed,
   setAppLocale,
 } from "@/services/app-config";
-import { getLLMProvider, getOpenRouterModel, setLLMProvider, setOpenRouterModel } from "@/services/claude";
+import {
+  getLLMProvider,
+  getOpenRouterModel,
+  setLLMProvider,
+  setOpenRouterModel,
+  getLocalBaseUrl,
+  setLocalBaseUrl,
+  getLocalModel,
+  setLocalModel,
+} from "@/services/claude";
 import { getDisplayMode, setDisplayMode } from "@/services/display";
 import { emitConfigChanged, emitDataChanged } from "@/services/app-events";
 import {
@@ -229,8 +238,12 @@ function isAccountPreferences(value: unknown): value is AccountPreferences {
   return (
     (value.appLocale === "en" || value.appLocale === "es") &&
     typeof value.apiOnboardingDismissed === "boolean" &&
-    (value.llmProvider === "anthropic" || value.llmProvider === "openrouter") &&
+    (value.llmProvider === "anthropic" ||
+      value.llmProvider === "openrouter" ||
+      value.llmProvider === "local") &&
     isString(value.openRouterModel) &&
+    (value.localBaseUrl === undefined || isString(value.localBaseUrl)) &&
+    (value.localModel === undefined || isString(value.localModel)) &&
     (value.displayMode === "light" || value.displayMode === "dark" || value.displayMode === "system") &&
     (value.ttsEngine === "voicevox" || value.ttsEngine === "sbv2") &&
     (value.ttsVoiceId === null || isString(value.ttsVoiceId)) &&
@@ -281,6 +294,8 @@ export function getAccountPreferences(): AccountPreferences {
     apiOnboardingDismissed: isApiOnboardingDismissed(),
     llmProvider: getLLMProvider(),
     openRouterModel: getOpenRouterModel(),
+    localBaseUrl: getLocalBaseUrl(),
+    localModel: getLocalModel(),
     displayMode: getDisplayMode(),
     ttsEngine: getStoredEngineType(),
     ttsVoiceId: getStoredVoiceId(),
@@ -294,6 +309,8 @@ export function applyAccountPreferences(preferences: AccountPreferences): void {
   setApiOnboardingDismissed(preferences.apiOnboardingDismissed);
   setLLMProvider(preferences.llmProvider);
   setOpenRouterModel(preferences.openRouterModel);
+  if (preferences.localBaseUrl) setLocalBaseUrl(preferences.localBaseUrl);
+  if (preferences.localModel) setLocalModel(preferences.localModel);
   setDisplayMode(preferences.displayMode);
   setStoredEngineType(preferences.ttsEngine);
 

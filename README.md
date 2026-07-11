@@ -176,16 +176,17 @@ Current app capabilities include:
 
 ### What You Need Before First Launch
 
-You will need at least one AI provider key for the main conversation features:
+For the main conversation features, configure one of these AI providers:
 
 - Anthropic API key, or
-- OpenRouter API key
+- OpenRouter API key, or
+- a local OpenAI-compatible server such as Ollama, LM Studio, or llama.cpp
 
 Optional:
 
 - OpenAI API key if you want to use OpenAI Whisper for speech transcription
 
-You can still choose local speech tools for some voice features if you prefer.
+The default local-model configuration expects Ollama at `http://127.0.0.1:11434/v1` with the `llama3.2` model. See [Use A Local AI Model](#use-a-local-ai-model) for setup instructions and other supported servers.
 
 ## Download And Install
 
@@ -249,10 +250,98 @@ sudo dnf install ./Tama-*.x86_64.rpm
 When you open Tama for the first time:
 
 1. Choose your interface language.
-2. Add your Anthropic or OpenRouter key.
+2. Choose Anthropic, OpenRouter, or a local model server for conversation AI.
 3. Optionally add an OpenAI key for Whisper API transcription.
 4. In Settings, choose your speech transcription option and voice engine.
 5. If you want local speech recognition, download the Whisper model from Settings.
+
+## Use A Local AI Model
+
+Tama can connect to any server that implements the OpenAI-compatible `/v1/chat/completions` API. This keeps conversation generation on your own computer when the server and model are local.
+
+In Tama:
+
+1. Open `Settings`.
+2. Under `LLM Provider`, choose `Local`.
+3. Enter the server endpoint. You can use either the base `/v1` URL or the full `/v1/chat/completions` URL.
+4. Enter the exact model name exposed by the server.
+5. Leave the API key empty unless your server requires authentication.
+6. Click `Save`, then start a conversation to confirm the connection.
+
+### Ollama
+
+Install [Ollama](https://ollama.com/download), then download the default model:
+
+```bash
+ollama pull llama3.2
+```
+
+Ollama normally starts its server automatically. If it is not running, start it with:
+
+```bash
+ollama serve
+```
+
+Use these Tama settings:
+
+```text
+Server endpoint: http://127.0.0.1:11434/v1
+Model: llama3.2
+API key: leave empty
+```
+
+Ollama documents its OpenAI-compatible endpoint and supported request fields in its [OpenAI compatibility guide](https://docs.ollama.com/api/openai-compatibility).
+
+### LM Studio
+
+1. Download and load a chat model in [LM Studio](https://lmstudio.ai/).
+2. Open LM Studio's `Developer` tab and switch on `Start server`.
+3. Copy the loaded model identifier shown by LM Studio.
+
+You can also start the server from LM Studio's CLI:
+
+```bash
+lms server start
+```
+
+Use these Tama settings:
+
+```text
+Server endpoint: http://127.0.0.1:1234/v1
+Model: the loaded model identifier from LM Studio
+API key: leave empty unless authentication is enabled
+```
+
+See LM Studio's [local server documentation](https://lmstudio.ai/docs/developer/core/server) for model loading, authentication, and local-network options.
+
+### llama.cpp
+
+Start `llama-server` with a chat-compatible GGUF model. The `--jinja` option enables template-based tool calling for models that support it:
+
+```bash
+llama-server -m /path/to/model.gguf --port 8080 --jinja
+```
+
+Use these Tama settings:
+
+```text
+Server endpoint: http://127.0.0.1:8080/v1
+Model: the model identifier returned by http://127.0.0.1:8080/v1/models
+API key: leave empty
+```
+
+More server options are available in the official [llama.cpp server documentation](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).
+
+### Troubleshooting
+
+- `Network request failed`: make sure the local server is running and that the endpoint and port are correct.
+- `404 Not Found`: use the server's OpenAI-compatible `/v1` endpoint, not its native API endpoint.
+- `Model not found`: use the exact identifier returned by the server's `/v1/models` endpoint.
+- Slow or incomplete responses: try a smaller model or increase the server's context size.
+- Missing Sensei actions: choose a model with tool-calling support. Tama retries ordinary conversation without tools when a local model rejects them, but tool-driven app actions still require a capable model.
+- Connecting to another computer: use that computer's LAN address, configure the server to listen on the network, and enable authentication. Do not expose an unauthenticated local-model server directly to the internet.
+
+Selecting a local LLM does not automatically make speech features local. Choose Local Whisper for speech recognition and a local TTS engine if you want the full voice pipeline to remain on-device.
 
 ## Data, Privacy, And Backups
 
@@ -277,7 +366,7 @@ Important:
 
 ## Current User-Facing Capabilities
 
-As of April 2026, the app includes:
+As of July 2026, the app includes:
 
 - guided scenario conversations with voice or text
 - shadow speaking practice with line-by-line scoring
@@ -290,6 +379,7 @@ As of April 2026, the app includes:
 - daily study plans on the home screen
 - study history and monthly activity tracking
 - account backup and restore
+- local conversation AI through OpenAI-compatible model servers
 - optional in-app update checks for production builds
 
 ## Build From Source

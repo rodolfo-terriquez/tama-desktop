@@ -2,7 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { listen } from "@tauri-apps/api/event";
-import { getLLMProvider, getOpenRouterModel, hasApiKey } from "@/services/claude";
+import {
+  getLLMProvider,
+  getOpenRouterModel,
+  getLocalModel,
+  hasApiKey,
+} from "@/services/claude";
 import { hasOpenAIApiKey } from "@/services/openai";
 import { getTranscriptionEngine } from "@/services/transcription";
 import { getStoredEngineType, getEngine, getDefaultVoiceId, getAllVoiceOptions } from "@/services/tts";
@@ -94,7 +99,12 @@ function useStatusInfo() {
   }, [check]);
 
   const llmProvider = getLLMProvider();
-  const llmModel = llmProvider === "openrouter" ? getOpenRouterModel() : "Claude (Anthropic)";
+  const llmModel =
+    llmProvider === "openrouter"
+      ? getOpenRouterModel()
+      : llmProvider === "local"
+        ? `${getLocalModel()} (Local)`
+        : "Claude (Anthropic)";
   const ttsLabel = ENGINE_LABELS[engineType];
   const sttLabel = transcriptionEngine === "local" ? "Local Whisper" : "OpenAI Whisper";
 

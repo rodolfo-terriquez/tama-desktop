@@ -293,8 +293,10 @@ export interface SenseiThread {
 export interface AccountPreferences {
   appLocale: AppLocale;
   apiOnboardingDismissed: boolean;
-  llmProvider: "anthropic" | "openrouter";
+  llmProvider: "anthropic" | "openrouter" | "local";
   openRouterModel: string;
+  localBaseUrl?: string;
+  localModel?: string;
   displayMode: "light" | "dark" | "system";
   ttsEngine: "voicevox" | "sbv2";
   ttsVoiceId: string | null;

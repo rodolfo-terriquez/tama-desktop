@@ -17,6 +17,11 @@ import {
   setLLMProvider,
   setOpenRouterApiKey,
   setOpenRouterModel,
+  setLocalBaseUrl,
+  setLocalModel,
+  setLocalApiKey,
+  DEFAULT_LOCAL_BASE_URL,
+  DEFAULT_LOCAL_MODEL,
   type LLMProvider,
 } from "@/services/claude";
 import { setOpenAIApiKey } from "@/services/openai";
@@ -36,6 +41,9 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openrouterKey, setOpenrouterKey] = useState("");
   const [openrouterModel, setOpenrouterModelState] = useState("anthropic/claude-sonnet-4-6");
+  const [localBaseUrl, setLocalBaseUrlState] = useState(DEFAULT_LOCAL_BASE_URL);
+  const [localModel, setLocalModelState] = useState(DEFAULT_LOCAL_MODEL);
+  const [localApiKey, setLocalApiKeyState] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +64,7 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
         return;
       }
       setApiKey(trimmed);
-    } else {
+    } else if (provider === "openrouter") {
       const trimmed = openrouterKey.trim();
       if (!trimmed) {
         setError(t("api.errorOpenRouterMissing"));
@@ -69,6 +77,23 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
       setOpenRouterApiKey(trimmed);
       const model = openrouterModel.trim();
       if (model) setOpenRouterModel(model);
+    } else {
+      const baseUrl = localBaseUrl.trim().replace(/\/+$/, "");
+      const model = localModel.trim();
+      try {
+        const parsed = new URL(baseUrl);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error();
+      } catch {
+        setError(t("api.errorLocalEndpoint"));
+        return;
+      }
+      if (!model) {
+        setError(t("api.errorLocalModel"));
+        return;
+      }
+      setLocalBaseUrl(baseUrl);
+      setLocalModel(model);
+      setLocalApiKey(localApiKey);
     }
 
     // OpenAI key is optional (needed only for OpenAI transcription engine)
@@ -146,6 +171,16 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
               >
                 OpenRouter
               </button>
+              <button
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                  provider === "local"
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-muted"
+                }`}
+                onClick={() => { setProvider("local"); setError(null); }}
+              >
+                Local
+              </button>
             </div>
           </div>
 
@@ -171,7 +206,7 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
                 </a>
               </p>
             </div>
-          ) : (
+          ) : provider === "openrouter" ? (
             <>
               <div className="space-y-2">
                 <label className="text-sm font-medium">{t("api.openrouterKey")}</label>
@@ -211,6 +246,37 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
                     openrouter.ai/models
                   </a>
                 </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("api.localEndpoint")}</label>
+                <Input
+                  placeholder={DEFAULT_LOCAL_BASE_URL}
+                  value={localBaseUrl}
+                  onChange={(e) => { setLocalBaseUrlState(e.target.value); setError(null); }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("api.localHelp")}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("api.model")}</label>
+                <Input
+                  placeholder={DEFAULT_LOCAL_MODEL}
+                  value={localModel}
+                  onChange={(e) => { setLocalModelState(e.target.value); setError(null); }}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("api.localApiKey")}</label>
+                <Input
+                  type="password"
+                  placeholder={t("api.optional")}
+                  value={localApiKey}
+                  onChange={(e) => { setLocalApiKeyState(e.target.value); setError(null); }}
+                />
               </div>
             </>
           )}

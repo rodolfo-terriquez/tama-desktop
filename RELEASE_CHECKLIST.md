@@ -23,7 +23,9 @@ Use this checklist when publishing a new GitHub release and auto-update artifact
 ## Per-release checklist
 
 1. Update version in:
+   - `package.json` and `package-lock.json`
    - `src-tauri/Cargo.toml` (`[package].version`)
+   - `src-tauri/Cargo.lock` (`tama-desktop` package version)
    - `src-tauri/tauri.conf.json` (`version`)
 2. Run local checks:
    ```bash

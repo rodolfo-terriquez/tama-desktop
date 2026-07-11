@@ -21,7 +21,7 @@ import {
 
 // ── Provider Config ──────────────────────────────────────────────
 
-export type LLMProvider = "anthropic" | "openrouter";
+export type LLMProvider = "anthropic" | "openrouter" | "local";
 
 export interface GeneratedCustomScenarioDetails {
   title_ja: string;
@@ -67,10 +67,15 @@ const STORAGE_KEYS = {
   LLM_PROVIDER: "tama_llm_provider",
   OPENROUTER_API_KEY: "tama_openrouter_api_key",
   OPENROUTER_MODEL: "tama_openrouter_model",
+  LOCAL_BASE_URL: "tama_local_llm_base_url",
+  LOCAL_MODEL: "tama_local_llm_model",
+  LOCAL_API_KEY: "tama_local_llm_api_key",
 } as const;
 
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
 const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-4-6";
+export const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:11434/v1";
+export const DEFAULT_LOCAL_MODEL = "llama3.2";
 const MAX_TOOL_ROUNDS = 3;
 const MAX_INVALID_JSON_RETRIES = 1;
 
@@ -121,12 +126,41 @@ export function setOpenRouterModel(model: string): void {
   emitConfigChanged();
 }
 
+// Local OpenAI-compatible server (Ollama, LM Studio, llama.cpp, etc.)
+export function getLocalBaseUrl(): string {
+  return localStorage.getItem(STORAGE_KEYS.LOCAL_BASE_URL) || DEFAULT_LOCAL_BASE_URL;
+}
+export function setLocalBaseUrl(url: string): void {
+  localStorage.setItem(STORAGE_KEYS.LOCAL_BASE_URL, url.trim().replace(/\/+$/, ""));
+  emitConfigChanged();
+}
+export function getLocalModel(): string {
+  return localStorage.getItem(STORAGE_KEYS.LOCAL_MODEL) || DEFAULT_LOCAL_MODEL;
+}
+export function setLocalModel(model: string): void {
+  localStorage.setItem(STORAGE_KEYS.LOCAL_MODEL, model.trim());
+  emitConfigChanged();
+}
+export function getLocalApiKey(): string | null {
+  return localStorage.getItem(STORAGE_KEYS.LOCAL_API_KEY);
+}
+export function setLocalApiKey(key: string): void {
+  const trimmed = key.trim();
+  if (trimmed) {
+    localStorage.setItem(STORAGE_KEYS.LOCAL_API_KEY, trimmed);
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.LOCAL_API_KEY);
+  }
+  emitConfigChanged();
+}
+
 /**
  * Check if the active LLM provider has an API key configured.
  */
 export function hasApiKey(): boolean {
   const provider = getLLMProvider();
   if (provider === "openrouter") return getOpenRouterApiKey() !== null;
+  if (provider === "local") return Boolean(getLocalBaseUrl() && getLocalModel());
   return getApiKey() !== null;
 }
 
@@ -169,7 +203,9 @@ function extractApiErrorMessage(errorText: string): string | null {
   return trimmed.length > 240 ? `${trimmed.slice(0, 240)}...` : trimmed;
 }
 
-function buildApiFailureMessage(provider: "Anthropic" | "OpenRouter", response: Response, errorText: string): string {
+type ProviderLabel = "Anthropic" | "OpenRouter" | "Local model";
+
+function buildApiFailureMessage(provider: ProviderLabel, response: Response, errorText: string): string {
   const statusLabel = response.statusText
     ? `${response.status} ${response.statusText}`
     : `${response.status}`;
@@ -179,12 +215,12 @@ function buildApiFailureMessage(provider: "Anthropic" | "OpenRouter", response: 
     : `${provider} API request failed (HTTP ${statusLabel})`;
 }
 
-function buildNetworkFailureMessage(provider: "Anthropic" | "OpenRouter", err: unknown): string {
+function buildNetworkFailureMessage(provider: ProviderLabel, err: unknown): string {
   const detail = err instanceof Error ? err.message : String(err);
   return `${provider} API network request failed: ${detail}`;
 }
 
-function buildInvalidJsonMessage(provider: "Anthropic" | "OpenRouter", err: unknown): string {
+function buildInvalidJsonMessage(provider: ProviderLabel, err: unknown): string {
   const detail = err instanceof Error ? err.message : String(err);
   return `${provider} returned an invalid JSON response: ${detail}`;
 }
@@ -365,46 +401,96 @@ async function callAnthropic(
   throw new ClaudeError("Anthropic returned an invalid JSON response");
 }
 
-async function callOpenRouter(
+interface OpenAICompatibleConfig {
+  label: ProviderLabel;
+  url: string;
+  model: string;
+  apiKey: string | null;
+  allowToolFallback?: boolean;
+}
+
+function getLocalChatCompletionsUrl(): string {
+  const baseUrl = getLocalBaseUrl().trim().replace(/\/+$/, "");
+  return baseUrl.endsWith("/chat/completions")
+    ? baseUrl
+    : `${baseUrl}/chat/completions`;
+}
+
+async function callOpenAICompatible(
+  config: OpenAICompatibleConfig,
   systemPrompt: string,
   messages: OpenRouterMessage[],
   options?: { tools?: ToolDefinition[]; maxTokens?: number }
 ): Promise<{ text: string; toolCalls: ToolCall[]; isToolUse: boolean; rawMessage: OpenRouterMessage }> {
-  const apiKey = getOpenRouterApiKey();
-  if (!apiKey) throw new ClaudeError("OpenRouter API key not set");
+  try {
+    const parsedUrl = new URL(config.url);
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      throw new Error("Only HTTP and HTTPS endpoints are supported");
+    }
+  } catch (err) {
+    throw new ClaudeError(
+      `${config.label} endpoint is invalid: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 
   for (let attempt = 0; attempt <= MAX_INVALID_JSON_RETRIES; attempt += 1) {
-    const model = getOpenRouterModel();
     const allMessages: OpenRouterMessage[] = [
       { role: "system", content: systemPrompt },
       ...messages,
     ];
 
     const body: Record<string, unknown> = {
-      model,
+      model: config.model,
       max_tokens: options?.maxTokens ?? 1024,
       messages: allMessages,
     };
     if (options?.tools) body.tools = anthropicToolsToOpenRouter(options.tools);
 
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+
     let response: Response;
     try {
-      response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      response = await fetch(config.url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
+        headers,
         body: JSON.stringify(body),
       });
     } catch (err) {
-      throw new ClaudeError(buildNetworkFailureMessage("OpenRouter", err));
+      throw new ClaudeError(buildNetworkFailureMessage(config.label, err));
     }
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("OpenRouter API error:", errorText);
-      throw new ClaudeError(buildApiFailureMessage("OpenRouter", response, errorText), response.status);
+      const canRetryWithoutTools =
+        config.allowToolFallback &&
+        Boolean(body.tools) &&
+        (response.status === 400 || response.status === 422);
+
+      if (canRetryWithoutTools) {
+        delete body.tools;
+        try {
+          response = await fetch(config.url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+          });
+        } catch (err) {
+          throw new ClaudeError(buildNetworkFailureMessage(config.label, err));
+        }
+
+        if (!response.ok) {
+          const fallbackErrorText = await response.text();
+          console.error(`${config.label} API error:`, fallbackErrorText);
+          throw new ClaudeError(
+            buildApiFailureMessage(config.label, response, fallbackErrorText),
+            response.status
+          );
+        }
+      } else {
+        console.error(`${config.label} API error:`, errorText);
+        throw new ClaudeError(buildApiFailureMessage(config.label, response, errorText), response.status);
+      }
     }
 
     const responseText = await response.text();
@@ -412,14 +498,17 @@ async function callOpenRouter(
     try {
       data = JSON.parse(responseText) as OpenRouterResponse;
     } catch (err) {
-      console.error("OpenRouter API invalid JSON:", responseText);
+      console.error(`${config.label} API invalid JSON:`, responseText);
       if (attempt < MAX_INVALID_JSON_RETRIES) {
         continue;
       }
-      throw new ClaudeError(buildInvalidJsonMessage("OpenRouter", err));
+      throw new ClaudeError(buildInvalidJsonMessage(config.label, err));
     }
 
     const choice = data.choices[0];
+    if (!choice?.message) {
+      throw new ClaudeError(`${config.label} returned a response without a message`);
+    }
     const toolCalls = (choice.message.tool_calls ?? []).map((tc) => ({
       id: tc.id,
       name: tc.function.name,
@@ -429,7 +518,7 @@ async function callOpenRouter(
     return {
       text: choice.message.content ?? "",
       toolCalls,
-      isToolUse: choice.finish_reason === "tool_calls",
+      isToolUse: choice.finish_reason === "tool_calls" || toolCalls.length > 0,
       rawMessage: {
         role: "assistant",
         content: choice.message.content,
@@ -438,7 +527,56 @@ async function callOpenRouter(
     };
   }
 
-  throw new ClaudeError("OpenRouter returned an invalid JSON response");
+  throw new ClaudeError(`${config.label} returned an invalid JSON response`);
+}
+
+async function callOpenRouter(
+  systemPrompt: string,
+  messages: OpenRouterMessage[],
+  options?: { tools?: ToolDefinition[]; maxTokens?: number }
+) {
+  const apiKey = getOpenRouterApiKey();
+  if (!apiKey) throw new ClaudeError("OpenRouter API key not set");
+  return callOpenAICompatible(
+    {
+      label: "OpenRouter",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      model: getOpenRouterModel(),
+      apiKey,
+    },
+    systemPrompt,
+    messages,
+    options
+  );
+}
+
+async function callLocalModel(
+  systemPrompt: string,
+  messages: OpenRouterMessage[],
+  options?: { tools?: ToolDefinition[]; maxTokens?: number }
+) {
+  return callOpenAICompatible(
+    {
+      label: "Local model",
+      url: getLocalChatCompletionsUrl(),
+      model: getLocalModel(),
+      apiKey: getLocalApiKey(),
+      allowToolFallback: true,
+    },
+    systemPrompt,
+    messages,
+    options
+  );
+}
+
+function callConfiguredOpenAICompatible(
+  systemPrompt: string,
+  messages: OpenRouterMessage[],
+  options?: { tools?: ToolDefinition[]; maxTokens?: number }
+) {
+  return getLLMProvider() === "local"
+    ? callLocalModel(systemPrompt, messages, options)
+    : callOpenRouter(systemPrompt, messages, options);
 }
 
 // ── Public API ───────────────────────────────────────────────────
@@ -460,12 +598,12 @@ export async function sendMessage(
 ): Promise<string> {
   const provider = getLLMProvider();
 
-  if (provider === "openrouter") {
+  if (provider !== "anthropic") {
     let orMessages = toOpenRouterMessages(messages);
     if (orMessages.length === 0) {
       orMessages = [{ role: "user", content: "会話を始めてください。" }];
     }
-    const result = await callOpenRouter(systemPrompt, orMessages);
+    const result = await callConfiguredOpenAICompatible(systemPrompt, orMessages);
     if (!result.text) throw new ClaudeError("No text content in response");
     return result.text;
   }
@@ -492,7 +630,7 @@ export async function sendMessageWithTools(
   const tools = options?.tools ?? CONVERSATION_TOOLS;
   const shouldTrackVocabulary = options?.trackVocabularyUsage ?? true;
   const provider = getLLMProvider();
-  if (provider === "openrouter") {
+  if (provider !== "anthropic") {
     return sendMessageWithToolsOR(messages, systemPrompt, tools, shouldTrackVocabulary);
   }
   return sendMessageWithToolsAnthropic(messages, systemPrompt, tools, shouldTrackVocabulary);
@@ -545,7 +683,7 @@ async function sendMessageWithToolsOR(
   }
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-    const result = await callOpenRouter(systemPrompt, orMessages, {
+    const result = await callConfiguredOpenAICompatible(systemPrompt, orMessages, {
       tools,
     });
 
@@ -805,8 +943,8 @@ Objectives: ${scenario.objectives.join(", ")}${customBlock}${personalContextBloc
 
   const provider = getLLMProvider();
   const responseText =
-    provider === "openrouter"
-      ? (await callOpenRouter(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 2400 })).text
+    provider !== "anthropic"
+      ? (await callConfiguredOpenAICompatible(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 2400 })).text
       : (await callAnthropic(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 2400 })).text;
 
   if (!responseText) {
@@ -936,8 +1074,8 @@ Description: ${description.trim()}`;
 
   const provider = getLLMProvider();
   const responseText =
-    provider === "openrouter"
-      ? (await callOpenRouter(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1400 })).text
+    provider !== "anthropic"
+      ? (await callConfiguredOpenAICompatible(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1400 })).text
       : (await callAnthropic(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1400 })).text;
 
   if (!responseText) {
@@ -1014,8 +1152,8 @@ ${JSON.stringify(request, null, 2)}`;
 
   const provider = getLLMProvider();
   const responseText =
-    provider === "openrouter"
-      ? (await callOpenRouter(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1200 })).text
+    provider !== "anthropic"
+      ? (await callConfiguredOpenAICompatible(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1200 })).text
       : (await callAnthropic(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1200 })).text;
 
   if (!responseText) {
@@ -1090,8 +1228,8 @@ export async function translateJapaneseText(
     `You are a Japanese translator. Translate the given Japanese text to natural ${targetLanguage}. Only output the translation, nothing else.`;
   const provider = getLLMProvider();
 
-  if (provider === "openrouter") {
-    const result = await callOpenRouter(systemPrompt, [
+  if (provider !== "anthropic") {
+    const result = await callConfiguredOpenAICompatible(systemPrompt, [
       { role: "user", content: japaneseText },
     ]);
     if (!result.text) throw new ClaudeError("No text content in translation response");
@@ -1167,8 +1305,8 @@ Be encouraging but honest.`;
 
   const provider = getLLMProvider();
 
-  if (provider === "openrouter") {
-    const result = await callOpenRouter(
+  if (provider !== "anthropic") {
+    const result = await callConfiguredOpenAICompatible(
       systemPrompt,
       [{ role: "user", content: userMessage }],
       { maxTokens: 4096 }
@@ -1274,8 +1412,8 @@ Return ONLY the summary text, no headers or formatting. Keep it under 500 words.
 
   const provider = getLLMProvider();
 
-  if (provider === "openrouter") {
-    const result = await callOpenRouter(
+  if (provider !== "anthropic") {
+    const result = await callConfiguredOpenAICompatible(
       systemPrompt,
       [{ role: "user", content: userMessage }],
       { maxTokens: 1024 }
@@ -1317,8 +1455,8 @@ Return ONLY the summary text, no headers or markdown. Keep it under 500 words an
 
   const provider = getLLMProvider();
 
-  if (provider === "openrouter") {
-    const result = await callOpenRouter(
+  if (provider !== "anthropic") {
+    const result = await callConfiguredOpenAICompatible(
       systemPrompt,
       [{ role: "user", content: userMessage }],
       { maxTokens: 1024 }

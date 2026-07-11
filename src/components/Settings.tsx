@@ -21,6 +21,12 @@ import {
   clearOpenRouterApiKey,
   getOpenRouterModel,
   setOpenRouterModel,
+  getLocalBaseUrl,
+  setLocalBaseUrl,
+  getLocalModel,
+  setLocalModel,
+  getLocalApiKey,
+  setLocalApiKey,
   type LLMProvider as LLMProviderType,
 } from "@/services/claude";
 import {
@@ -193,9 +199,13 @@ export function Settings() {
   const [openaiKey, setOpenaiKeyState] = useState("");
   const [openrouterKey, setOpenrouterKeyState] = useState("");
   const [openrouterModel, setOpenrouterModelState] = useState("");
+  const [localBaseUrl, setLocalBaseUrlState] = useState("");
+  const [localModel, setLocalModelState] = useState("");
+  const [localApiKey, setLocalApiKeyState] = useState("");
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
+  const [showLocalApiKey, setShowLocalApiKey] = useState(false);
   const [llmProvider, setLlmProviderState] = useState<LLMProviderType>(getLLMProvider());
   const [jlptLevel, setJlptLevel] = useState<JLPTLevel>("N5");
   const [autoAdjust, setAutoAdjust] = useState(false);
@@ -281,6 +291,9 @@ export function Settings() {
     if (existingOpenaiKey) setOpenaiKeyState(existingOpenaiKey);
     if (existingOpenrouterKey) setOpenrouterKeyState(existingOpenrouterKey);
     setOpenrouterModelState(getOpenRouterModel());
+    setLocalBaseUrlState(getLocalBaseUrl());
+    setLocalModelState(getLocalModel());
+    setLocalApiKeyState(getLocalApiKey() ?? "");
     setLlmProviderState(getLLMProvider());
     setSelectedVoiceId(getDefaultVoiceId());
     setTtsEngine(getStoredEngineType());
@@ -555,7 +568,12 @@ export function Settings() {
     setMessage({
       type: "success",
       text: t("settings.llmProviderSet", {
-        provider: provider === "anthropic" ? "Anthropic (direct)" : "OpenRouter",
+        provider:
+          provider === "anthropic"
+            ? "Anthropic (direct)"
+            : provider === "openrouter"
+              ? "OpenRouter"
+              : "Local model",
       }),
     });
     setTimeout(() => setMessage(null), 3000);
@@ -605,6 +623,32 @@ export function Settings() {
     }
     setOpenRouterModel(trimmed);
     setMessage({ type: "success", text: t("settings.modelSet", { name: trimmed }) });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const handleSaveLocalConfig = () => {
+    const baseUrl = localBaseUrl.trim().replace(/\/+$/, "");
+    const model = localModel.trim();
+    if (!baseUrl) {
+      setMessage({ type: "error", text: t("settings.enterLocalEndpoint") });
+      return;
+    }
+    try {
+      const parsed = new URL(baseUrl);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error();
+    } catch {
+      setMessage({ type: "error", text: t("settings.invalidLocalEndpoint") });
+      return;
+    }
+    if (!model) {
+      setMessage({ type: "error", text: t("settings.enterModelName") });
+      return;
+    }
+    setLocalBaseUrl(baseUrl);
+    setLocalModel(model);
+    setLocalApiKey(localApiKey);
+    setLocalBaseUrlState(baseUrl);
+    setMessage({ type: "success", text: t("settings.localConfigSaved") });
     setTimeout(() => setMessage(null), 3000);
   };
 
@@ -1107,6 +1151,16 @@ export function Settings() {
                     >
                       OpenRouter
                     </button>
+                    <button
+                      className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                        llmProvider === "local"
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-muted"
+                      }`}
+                      onClick={() => handleLLMProviderChange("local")}
+                    >
+                      Local
+                    </button>
                   </div>
                 }
               />
@@ -1146,7 +1200,7 @@ export function Settings() {
                   }
                 />
               </div>
-            ) : (
+            ) : llmProvider === "openrouter" ? (
               <div className="space-y-3 border-t border-border pt-3">
                 <SettingRow
                   label="OpenRouter API key"
@@ -1206,6 +1260,54 @@ export function Settings() {
                       />
                       <Button onClick={handleSaveOpenrouterModel}>{t("common.save")}</Button>
                     </div>
+                  }
+                />
+              </div>
+            ) : (
+              <div className="space-y-3 border-t border-border pt-3">
+                <SettingRow
+                  label={t("settings.localEndpoint")}
+                  description={t("settings.localDescription")}
+                  controlClassName="lg:min-w-[320px] lg:max-w-[420px]"
+                  control={
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="http://127.0.0.1:11434/v1"
+                        value={localBaseUrl}
+                        onChange={(e) => setLocalBaseUrlState(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button onClick={handleSaveLocalConfig}>{t("common.save")}</Button>
+                    </div>
+                  }
+                />
+
+                <SettingRow
+                  label={t("api.model")}
+                  description={t("settings.localModelHelp")}
+                  controlClassName="lg:min-w-[320px] lg:max-w-[420px]"
+                  control={
+                    <Input
+                      placeholder="llama3.2"
+                      value={localModel}
+                      onChange={(e) => setLocalModelState(e.target.value)}
+                    />
+                  }
+                />
+
+                <SettingRow
+                  label={t("settings.localApiKey")}
+                  description={t("settings.localApiKeyHelp")}
+                  controlClassName="lg:min-w-[320px] lg:max-w-[420px]"
+                  control={
+                    <Input
+                      type={showLocalApiKey ? "text" : "password"}
+                      placeholder={t("settings.optional")}
+                      value={showLocalApiKey ? localApiKey : maskKey(localApiKey)}
+                      onChange={(e) => setLocalApiKeyState(e.target.value)}
+                      onFocus={() => setShowLocalApiKey(true)}
+                      onBlur={() => setShowLocalApiKey(false)}
+                    />
                   }
                 />
               </div>
