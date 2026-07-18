@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, RefreshCw } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { getAppLocale } from "@/services/app-config";
 import {
@@ -20,6 +20,7 @@ import {
   setLocalBaseUrl,
   setLocalModel,
   setLocalApiKey,
+  listLocalModels,
   DEFAULT_LOCAL_BASE_URL,
   DEFAULT_LOCAL_MODEL,
   type LLMProvider,
@@ -44,12 +45,43 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
   const [localBaseUrl, setLocalBaseUrlState] = useState(DEFAULT_LOCAL_BASE_URL);
   const [localModel, setLocalModelState] = useState(DEFAULT_LOCAL_MODEL);
   const [localApiKey, setLocalApiKeyState] = useState("");
+  const [localModels, setLocalModels] = useState<string[]>([]);
+  const [loadingLocalModels, setLoadingLocalModels] = useState(false);
   const [openaiKey, setOpenaiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setLocale(getAppLocale());
   }, [setLocale]);
+
+  const handleLoadLocalModels = async () => {
+    if (!localBaseUrl.trim()) {
+      setError(t("api.errorLocalEndpoint"));
+      return;
+    }
+
+    setLoadingLocalModels(true);
+    try {
+      const models = await listLocalModels(localBaseUrl, localApiKey || null);
+      setLocalModels(models);
+      if (models.length === 0) {
+        setError(t("api.errorLocalNoModels"));
+        return;
+      }
+      if (!models.includes(localModel)) {
+        setLocalModelState(models[0]);
+      }
+      setError(null);
+    } catch (err) {
+      setError(
+        t("api.errorLocalModelsFailed", {
+          message: err instanceof Error ? err.message : String(err),
+        })
+      );
+    } finally {
+      setLoadingLocalModels(false);
+    }
+  };
 
   const handleSubmit = () => {
     // Validate LLM key based on provider
@@ -263,11 +295,30 @@ export function ApiKeyDialog({ open, onComplete, onSkip }: ApiKeyDialogProps) {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">{t("api.model")}</label>
-                <Input
-                  placeholder={DEFAULT_LOCAL_MODEL}
-                  value={localModel}
-                  onChange={(e) => { setLocalModelState(e.target.value); setError(null); }}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    list="onboarding-local-llm-models"
+                    placeholder={DEFAULT_LOCAL_MODEL}
+                    value={localModel}
+                    onChange={(e) => { setLocalModelState(e.target.value); setError(null); }}
+                  />
+                  <datalist id="onboarding-local-llm-models">
+                    {localModels.map((model) => (
+                      <option key={model} value={model} />
+                    ))}
+                  </datalist>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => void handleLoadLocalModels()}
+                    disabled={loadingLocalModels}
+                    title={t("settings.loadLocalModels")}
+                    aria-label={t("settings.loadLocalModels")}
+                  >
+                    <RefreshCw className={`size-4 ${loadingLocalModels ? "animate-spin" : ""}`} />
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">{t("api.localApiKey")}</label>

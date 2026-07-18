@@ -257,14 +257,14 @@ When you open Tama for the first time:
 
 ## Use A Local AI Model
 
-Tama can connect to any server that implements the OpenAI-compatible `/v1/chat/completions` API. This keeps conversation generation on your own computer when the server and model are local.
+Tama can connect to any server that implements the OpenAI-compatible `/v1/chat/completions` API. Every request includes the selected `model` and the conversation `messages`. This keeps conversation generation on your own computer when the server and model are local.
 
 In Tama:
 
 1. Open `Settings`.
 2. Under `LLM Provider`, choose `Local`.
 3. Enter the server endpoint. You can use either the base `/v1` URL or the full `/v1/chat/completions` URL.
-4. Enter the exact model name exposed by the server.
+4. Refresh the model list and select the model Tama should use. You can also enter an exact model identifier manually.
 5. Leave the API key empty unless your server requires authentication.
 6. Click `Save`, then start a conversation to confirm the connection.
 
@@ -296,7 +296,7 @@ Ollama documents its OpenAI-compatible endpoint and supported request fields in 
 
 1. Download and load a chat model in [LM Studio](https://lmstudio.ai/).
 2. Open LM Studio's `Developer` tab and switch on `Start server`.
-3. Copy the loaded model identifier shown by LM Studio.
+3. In Tama, refresh the model list and choose the loaded LM Studio model.
 
 You can also start the server from LM Studio's CLI:
 

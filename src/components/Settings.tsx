@@ -27,6 +27,7 @@ import {
   setLocalModel,
   getLocalApiKey,
   setLocalApiKey,
+  listLocalModels,
   type LLMProvider as LLMProviderType,
 } from "@/services/claude";
 import {
@@ -202,6 +203,8 @@ export function Settings() {
   const [localBaseUrl, setLocalBaseUrlState] = useState("");
   const [localModel, setLocalModelState] = useState("");
   const [localApiKey, setLocalApiKeyState] = useState("");
+  const [localModels, setLocalModels] = useState<string[]>([]);
+  const [loadingLocalModels, setLoadingLocalModels] = useState(false);
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
@@ -624,6 +627,41 @@ export function Settings() {
     setOpenRouterModel(trimmed);
     setMessage({ type: "success", text: t("settings.modelSet", { name: trimmed }) });
     setTimeout(() => setMessage(null), 3000);
+  };
+
+  const handleLoadLocalModels = async () => {
+    const baseUrl = localBaseUrl.trim();
+    if (!baseUrl) {
+      setMessage({ type: "error", text: t("settings.enterLocalEndpoint") });
+      return;
+    }
+
+    setLoadingLocalModels(true);
+    try {
+      const models = await listLocalModels(baseUrl, localApiKey || null);
+      setLocalModels(models);
+      if (models.length === 0) {
+        setMessage({ type: "error", text: t("settings.noLocalModels") });
+        return;
+      }
+      if (!models.includes(localModel)) {
+        setLocalModelState(models[0]);
+      }
+      setMessage({
+        type: "success",
+        text: t("settings.localModelsLoaded", { count: models.length }),
+      });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: t("settings.localModelsFailed", {
+          message: err instanceof Error ? err.message : String(err),
+        }),
+      });
+    } finally {
+      setLoadingLocalModels(false);
+    }
   };
 
   const handleSaveLocalConfig = () => {
@@ -1270,15 +1308,11 @@ export function Settings() {
                   description={t("settings.localDescription")}
                   controlClassName="lg:min-w-[320px] lg:max-w-[420px]"
                   control={
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="http://127.0.0.1:11434/v1"
-                        value={localBaseUrl}
-                        onChange={(e) => setLocalBaseUrlState(e.target.value)}
-                        className="flex-1"
-                      />
-                      <Button onClick={handleSaveLocalConfig}>{t("common.save")}</Button>
-                    </div>
+                    <Input
+                      placeholder="http://127.0.0.1:11434/v1"
+                      value={localBaseUrl}
+                      onChange={(e) => setLocalBaseUrlState(e.target.value)}
+                    />
                   }
                 />
 
@@ -1287,11 +1321,31 @@ export function Settings() {
                   description={t("settings.localModelHelp")}
                   controlClassName="lg:min-w-[320px] lg:max-w-[420px]"
                   control={
-                    <Input
-                      placeholder="llama3.2"
-                      value={localModel}
-                      onChange={(e) => setLocalModelState(e.target.value)}
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        list="local-llm-models"
+                        placeholder="llama3.2"
+                        value={localModel}
+                        onChange={(e) => setLocalModelState(e.target.value)}
+                        className="flex-1"
+                      />
+                      <datalist id="local-llm-models">
+                        {localModels.map((model) => (
+                          <option key={model} value={model} />
+                        ))}
+                      </datalist>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => void handleLoadLocalModels()}
+                        disabled={loadingLocalModels}
+                        title={t("settings.loadLocalModels")}
+                        aria-label={t("settings.loadLocalModels")}
+                      >
+                        <RefreshCw className={`size-4 ${loadingLocalModels ? "animate-spin" : ""}`} />
+                      </Button>
+                      <Button onClick={handleSaveLocalConfig}>{t("common.save")}</Button>
+                    </div>
                   }
                 />
 

@@ -417,6 +417,64 @@ function getLocalChatCompletionsUrl(): string {
     : `${baseUrl}/chat/completions`;
 }
 
+function getLocalModelsUrl(baseUrl: string): string {
+  const normalized = baseUrl.trim().replace(/\/+$/, "");
+  return normalized.endsWith("/chat/completions")
+    ? `${normalized.slice(0, -"/chat/completions".length)}/models`
+    : `${normalized}/models`;
+}
+
+export async function listLocalModels(
+  baseUrl: string = getLocalBaseUrl(),
+  apiKey: string | null = getLocalApiKey()
+): Promise<string[]> {
+  const url = getLocalModelsUrl(baseUrl);
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      throw new Error("Only HTTP and HTTPS endpoints are supported");
+    }
+  } catch (err) {
+    throw new ClaudeError(
+      `Local model endpoint is invalid: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
+  const headers: Record<string, string> = {};
+  if (apiKey?.trim()) headers.Authorization = `Bearer ${apiKey.trim()}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, { method: "GET", headers });
+  } catch (err) {
+    throw new ClaudeError(buildNetworkFailureMessage("Local model", err));
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new ClaudeError(
+      buildApiFailureMessage("Local model", response, errorText),
+      response.status
+    );
+  }
+
+  const responseText = await response.text();
+  let data: unknown;
+  try {
+    data = JSON.parse(responseText) as unknown;
+  } catch (err) {
+    throw new ClaudeError(buildInvalidJsonMessage("Local model", err));
+  }
+
+  if (!data || typeof data !== "object" || !Array.isArray((data as { data?: unknown }).data)) {
+    throw new ClaudeError("Local model server returned an invalid model list");
+  }
+
+  return (data as { data: Array<{ id?: unknown }> }).data
+    .map((model) => model.id)
+    .filter((id): id is string => typeof id === "string" && id.trim().length > 0);
+}
+
 async function callOpenAICompatible(
   config: OpenAICompatibleConfig,
   systemPrompt: string,
