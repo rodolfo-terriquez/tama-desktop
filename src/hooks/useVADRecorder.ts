@@ -3,8 +3,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { base64ToFloat32PCM } from "@/services/audio-utils";
 import { transcribeAudio, getTranscriptionEngine } from "@/services/transcription";
+import type { VoiceInputMode } from "@/services/voice-input";
 
 interface UseVADRecorderOptions {
+  recordingMode?: VoiceInputMode;
   onSpeechStart?: () => void;
   onSpeechEnd?: () => void;
   onTranscription?: (text: string) => void;
@@ -22,6 +24,10 @@ interface UseVADRecorderReturn {
   stop: () => Promise<void>;
   pause: () => void;
   resume: () => void;
+  isPushToTalkActive: boolean;
+  isPushToTalkFinalizing: boolean;
+  beginPushToTalk: () => Promise<void>;
+  endPushToTalk: () => Promise<void>;
 }
 
 interface AudioSegmentPayload {
@@ -38,13 +44,19 @@ export function useVADRecorder(
 ): UseVADRecorderReturn {
   const { onSpeechStart, onSpeechEnd, onTranscription, onAmplitude, onError } =
     options;
+  const recordingMode = options.recordingMode ?? "automatic";
 
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
+  const [isPushToTalkFinalizing, setIsPushToTalkFinalizing] = useState(false);
 
   const isPausedRef = useRef(false);
+  const isPushToTalkActiveRef = useRef(false);
+  const pushToTalkCommandRef = useRef<Promise<void>>(Promise.resolve());
+  const pushToTalkFinalizingTimeoutRef = useRef<number | null>(null);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
 
   const onSpeechStartRef = useRef(onSpeechStart);
@@ -60,6 +72,14 @@ export function useVADRecorder(
     onAmplitudeRef.current = onAmplitude;
     onErrorRef.current = onError;
   }, [onSpeechStart, onSpeechEnd, onTranscription, onAmplitude, onError]);
+
+  const clearPushToTalkFinalizing = useCallback(() => {
+    if (pushToTalkFinalizingTimeoutRef.current !== null) {
+      window.clearTimeout(pushToTalkFinalizingTimeoutRef.current);
+      pushToTalkFinalizingTimeoutRef.current = null;
+    }
+    setIsPushToTalkFinalizing(false);
+  }, []);
 
   const removeListeners = useCallback(async () => {
     for (const unlisten of unlistenersRef.current) {
@@ -88,9 +108,18 @@ export function useVADRecorder(
       unlisteners.push(
         await listen("voice-speech-end", () => {
           setIsSpeaking(false);
+          clearPushToTalkFinalizing();
           if (!isPausedRef.current) {
             onSpeechEndRef.current?.();
           }
+        })
+      );
+
+      unlisteners.push(
+        await listen("voice-speech-cancelled", () => {
+          setIsSpeaking(false);
+          clearPushToTalkFinalizing();
+          onAmplitudeRef.current?.(0);
         })
       );
 
@@ -133,7 +162,10 @@ export function useVADRecorder(
       const requireWhisperLoaded =
         options?.requireWhisperLoaded ??
         getTranscriptionEngine() === "local";
-      await invoke("start_voice_session", { requireWhisperLoaded });
+      await invoke("start_voice_session", {
+        requireWhisperLoaded,
+        recordingMode,
+      });
 
       isPausedRef.current = false;
       setIsListening(true);
@@ -145,7 +177,61 @@ export function useVADRecorder(
     } finally {
       setIsLoading(false);
     }
-  }, [isListening, removeListeners]);
+  }, [clearPushToTalkFinalizing, isListening, recordingMode, removeListeners]);
+
+  const queuePushToTalkCommand = useCallback((command: string) => {
+    const queued = pushToTalkCommandRef.current.then(() => invoke<void>(command));
+    pushToTalkCommandRef.current = queued.catch(() => {});
+    return queued;
+  }, []);
+
+  const beginPushToTalk = useCallback(async () => {
+    if (
+      recordingMode !== "push-to-talk" ||
+      !isListening ||
+      isPushToTalkActiveRef.current ||
+      isPushToTalkFinalizing
+    ) {
+      return;
+    }
+
+    isPushToTalkActiveRef.current = true;
+    setIsPushToTalkActive(true);
+    setError(null);
+
+    try {
+      await queuePushToTalkCommand("begin_push_to_talk");
+    } catch (err) {
+      isPushToTalkActiveRef.current = false;
+      setIsPushToTalkActive(false);
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      onErrorRef.current?.(message);
+    }
+  }, [isListening, isPushToTalkFinalizing, queuePushToTalkCommand, recordingMode]);
+
+  const endPushToTalk = useCallback(async () => {
+    if (recordingMode !== "push-to-talk" || !isPushToTalkActiveRef.current) {
+      return;
+    }
+
+    isPushToTalkActiveRef.current = false;
+    setIsPushToTalkActive(false);
+    setIsPushToTalkFinalizing(true);
+    pushToTalkFinalizingTimeoutRef.current = window.setTimeout(() => {
+      pushToTalkFinalizingTimeoutRef.current = null;
+      setIsPushToTalkFinalizing(false);
+    }, 1500);
+
+    try {
+      await queuePushToTalkCommand("end_push_to_talk");
+    } catch (err) {
+      clearPushToTalkFinalizing();
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      onErrorRef.current?.(message);
+    }
+  }, [clearPushToTalkFinalizing, queuePushToTalkCommand, recordingMode]);
 
   const stop = useCallback(async () => {
     try {
@@ -155,18 +241,24 @@ export function useVADRecorder(
     }
     await removeListeners();
     isPausedRef.current = false;
+    isPushToTalkActiveRef.current = false;
+    setIsPushToTalkActive(false);
+    clearPushToTalkFinalizing();
     setIsListening(false);
     setIsSpeaking(false);
-  }, [removeListeners]);
+  }, [clearPushToTalkFinalizing, removeListeners]);
 
   const pause = useCallback(() => {
     isPausedRef.current = true;
+    isPushToTalkActiveRef.current = false;
+    setIsPushToTalkActive(false);
+    clearPushToTalkFinalizing();
     setIsSpeaking(false);
     onAmplitudeRef.current?.(0);
     // Tell Rust to discard all audio — the only reliable way to prevent
     // TTS audio feedback from being captured and transcribed
     invoke("pause_voice_session").catch(() => {});
-  }, []);
+  }, [clearPushToTalkFinalizing]);
 
   const resume = useCallback(() => {
     isPausedRef.current = false;
@@ -175,6 +267,9 @@ export function useVADRecorder(
 
   useEffect(() => {
     return () => {
+      if (pushToTalkFinalizingTimeoutRef.current !== null) {
+        window.clearTimeout(pushToTalkFinalizingTimeoutRef.current);
+      }
       for (const unlisten of unlistenersRef.current) {
         unlisten();
       }
@@ -192,5 +287,9 @@ export function useVADRecorder(
     stop,
     pause,
     resume,
+    isPushToTalkActive,
+    isPushToTalkFinalizing,
+    beginPushToTalk,
+    endPushToTalk,
   };
 }

@@ -322,6 +322,8 @@ pub fn run() {
             voice_session::stop_voice_session,
             voice_session::pause_voice_session,
             voice_session::resume_voice_session,
+            voice_session::begin_push_to_talk,
+            voice_session::end_push_to_talk,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

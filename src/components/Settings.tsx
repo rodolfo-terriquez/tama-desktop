@@ -52,6 +52,11 @@ import {
   setTranscriptionEngine,
 } from "@/services/transcription";
 import {
+  type VoiceInputMode,
+  getVoiceInputMode,
+  setVoiceInputMode,
+} from "@/services/voice-input";
+import {
   getWhisperModelStatus,
   loadWhisperModel,
   deleteWhisperModel,
@@ -233,6 +238,7 @@ export function Settings() {
   const [testingVoice, setTestingVoice] = useState(false);
 
   // Transcription engine state
+  const [voiceInputMode, setVoiceInputModeState] = useState<VoiceInputMode>(getVoiceInputMode());
   const [transcriptionEngine, setTranscriptionEngineState] = useState<TranscriptionEngine>(getTranscriptionEngine());
   const [whisperStatus, setWhisperStatus] = useState<WhisperModelStatus | null>(null);
   const [whisperDownloading, setWhisperDownloading] = useState(false);
@@ -353,6 +359,21 @@ export function Settings() {
       type: "success",
       text: t("settings.speechRecognitionSet", {
         engine: engine === "local" ? "Local Whisper" : "OpenAI API",
+      }),
+    });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const handleVoiceInputModeChange = (mode: VoiceInputMode) => {
+    setVoiceInputModeState(mode);
+    setVoiceInputMode(mode);
+    setMessage({
+      type: "success",
+      text: t("settings.voiceInputSet", {
+        mode:
+          mode === "push-to-talk"
+            ? t("settings.voiceInputPushToTalk")
+            : t("settings.voiceInputAutomatic"),
       }),
     });
     setTimeout(() => setMessage(null), 3000);
@@ -1501,6 +1522,39 @@ export function Settings() {
         <Card className={SETTINGS_CARD_CLASSNAME}>
           <CardContent className={`${SETTINGS_CARD_CONTENT_CLASSNAME} space-y-3`}>
             <div className="divide-y divide-border">
+              <SettingRow
+                label={t("settings.voiceInput")}
+                description={t("settings.voiceInputDescription")}
+                controlClassName="lg:min-w-[280px] lg:max-w-[420px]"
+                control={
+                  <div className="flex overflow-hidden rounded-lg border">
+                    <button
+                      type="button"
+                      aria-pressed={voiceInputMode === "automatic"}
+                      className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                        voiceInputMode === "automatic"
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-muted"
+                      }`}
+                      onClick={() => handleVoiceInputModeChange("automatic")}
+                    >
+                      {t("settings.voiceInputAutomatic")}
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={voiceInputMode === "push-to-talk"}
+                      className={`flex-1 border-l py-2.5 text-sm font-medium transition-colors ${
+                        voiceInputMode === "push-to-talk"
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-muted"
+                      }`}
+                      onClick={() => handleVoiceInputModeChange("push-to-talk")}
+                    >
+                      {t("settings.voiceInputPushToTalk")}
+                    </button>
+                  </div>
+                }
+              />
               <SettingRow
                 label={t("settings.speechRecognition")}
                 description={t("settings.speechRecognitionDescription")}

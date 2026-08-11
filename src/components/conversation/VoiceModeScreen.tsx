@@ -6,11 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { ShadowModeScreen } from "@/components/conversation/ShadowModeScreen";
+import { PushToTalkControl } from "@/components/conversation/PushToTalkControl";
 import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
 import { TranscriptBubbles } from "@/components/conversation/TranscriptBubbles";
 import { MessageBubble } from "@/components/conversation/MessageBubble";
 import { localizeScenario } from "@/data/scenarios";
 import { useVADRecorder } from "@/hooks/useVADRecorder";
+import { usePushToTalkHotkey } from "@/hooks/usePushToTalkHotkey";
 import { useI18n } from "@/i18n";
 import {
   buildShadowPreviewSenseiViewContext,
@@ -26,6 +28,7 @@ import {
   getStoredEngineType,
 } from "@/services/tts";
 import { getTranscriptionEngine } from "@/services/transcription";
+import { getVoiceInputMode } from "@/services/voice-input";
 import { buildScenarioPrompt, generateShadowScript, sendMessage, sendMessageWithTools } from "@/services/claude";
 import { getShadowScript, getUserProfile, saveShadowScript } from "@/services/storage";
 import type { Message, Scenario, ScenarioRunMode, SenseiViewContext, ShadowScript, UserProfile } from "@/types";
@@ -54,6 +57,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   const [started, setStarted] = useState(false);
   const [runMode, setRunMode] = useState<ScenarioRunMode>("conversation");
   const [inputMode, setInputMode] = useState<InputMode>("voice");
+  const [voiceInputMode] = useState(getVoiceInputMode);
   const [conversationState, setConversationState] = useState<ConversationState>("idle");
   const [amplitude, setAmplitude] = useState(0);
   const [ttsStatus, setTtsStatus] = useState<{
@@ -360,7 +364,12 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     stop: stopVAD,
     pause: pauseVAD,
     resume: resumeVAD,
+    isPushToTalkActive,
+    isPushToTalkFinalizing,
+    beginPushToTalk,
+    endPushToTalk,
   } = useVADRecorder({
+    recordingMode: voiceInputMode,
     onSpeechStart: () => {
       if (conversationState === "speaking") {
         stopCurrentAudio();
@@ -372,6 +381,16 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     },
     onTranscription: handleVoiceTranscription,
     onAmplitude: setAmplitude,
+  });
+
+  const pushToTalkDisabled =
+    conversationState !== "listening" || !isListening || isPushToTalkFinalizing;
+
+  usePushToTalkHotkey({
+    enabled: inputMode === "voice" && started && voiceInputMode === "push-to-talk",
+    disabled: pushToTalkDisabled,
+    onPressStart: () => void beginPushToTalk(),
+    onPressEnd: () => void endPushToTalk(),
   });
 
   // Keep refs in sync so handlers can call pause/resume synchronously
@@ -684,7 +703,11 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
               <VoiceVisualizer
                 amplitude={amplitude}
                 isSpeaking={conversationState === "speaking"}
-                isListening={conversationState === "listening" && isListening}
+                isListening={
+                  conversationState === "listening" &&
+                  isListening &&
+                  (voiceInputMode === "automatic" || isPushToTalkActive)
+                }
                 isUserSpeaking={userIsSpeaking}
                 isProcessing={conversationState === "transcribing" || conversationState === "thinking"}
                 size={hasTranscript ? 168 : 120}
@@ -703,6 +726,16 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
             </div>
           </div>
         </div>
+
+        {voiceInputMode === "push-to-talk" && (
+          <PushToTalkControl
+            active={isPushToTalkActive}
+            finalizing={isPushToTalkFinalizing}
+            disabled={pushToTalkDisabled}
+            onPressStart={() => void beginPushToTalk()}
+            onPressEnd={() => void endPushToTalk()}
+          />
+        )}
 
         <div className="flex-shrink-0 flex justify-center gap-3 py-3 px-4">
           <Button variant="ghost" size="sm" onClick={() => setShowCaptions(!showCaptions)}>

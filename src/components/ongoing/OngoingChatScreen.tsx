@@ -6,7 +6,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { MessageBubble } from "@/components/conversation/MessageBubble";
 import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
 import { TranscriptBubbles } from "@/components/conversation/TranscriptBubbles";
+import { PushToTalkControl } from "@/components/conversation/PushToTalkControl";
 import { useVADRecorder } from "@/hooks/useVADRecorder";
+import { usePushToTalkHotkey } from "@/hooks/usePushToTalkHotkey";
+import { useI18n } from "@/i18n";
 import { buildOngoingChatSenseiViewContext } from "@/services/sensei-context";
 import {
   sendMessage,
@@ -17,6 +20,7 @@ import {
   ONGOING_CHAT_KEEP_AFTER_SUMMARIZE,
 } from "@/services/claude";
 import { initializeTTS, speak, stopCurrentAudio } from "@/services/tts";
+import { getVoiceInputMode } from "@/services/voice-input";
 import { getOngoingChat, saveOngoingChat, getUserProfile } from "@/services/storage";
 import type { Message, OngoingChat, SenseiViewContext, UserProfile } from "@/types";
 import { v4 as uuidv4 } from "uuid";
@@ -32,6 +36,7 @@ interface OngoingChatScreenProps {
 }
 
 export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingChatScreenProps) {
+  const { t } = useI18n();
   const [chat, setChat] = useState<OngoingChat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -41,6 +46,7 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
   const [ttsAvailable, setTtsAvailable] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [inputMode, setInputMode] = useState<InputMode>("text");
+  const [voiceInputMode] = useState(getVoiceInputMode);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [draftMessage, setDraftMessage] = useState("");
 
@@ -226,7 +232,12 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
     stop: stopVAD,
     pause: pauseVAD,
     resume: resumeVAD,
+    isPushToTalkActive,
+    isPushToTalkFinalizing,
+    beginPushToTalk,
+    endPushToTalk,
   } = useVADRecorder({
+    recordingMode: voiceInputMode,
     onSpeechStart: () => {
       if (voiceConvState === "speaking") {
         stopCurrentAudio();
@@ -238,6 +249,16 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
     },
     onTranscription: handleVoiceTranscription,
     onAmplitude: setAmplitude,
+  });
+
+  const pushToTalkDisabled =
+    voiceConvState !== "listening" || !isListening || isPushToTalkFinalizing;
+
+  usePushToTalkHotkey({
+    enabled: inputMode === "voice" && voiceInputMode === "push-to-talk",
+    disabled: pushToTalkDisabled,
+    onPressStart: () => void beginPushToTalk(),
+    onPressEnd: () => void endPushToTalk(),
   });
 
   useEffect(() => {
@@ -356,7 +377,11 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
               <VoiceVisualizer
                 amplitude={amplitude}
                 isSpeaking={voiceConvState === "speaking"}
-                isListening={voiceConvState === "listening" && isListening}
+                isListening={
+                  voiceConvState === "listening" &&
+                  isListening &&
+                  (voiceInputMode === "automatic" || isPushToTalkActive)
+                }
                 isUserSpeaking={userIsSpeaking}
                 isProcessing={voiceConvState === "transcribing" || voiceConvState === "thinking"}
                 size={hasTranscript ? 168 : 120}
@@ -376,16 +401,26 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
           </div>
         </div>
 
+        {voiceInputMode === "push-to-talk" && (
+          <PushToTalkControl
+            active={isPushToTalkActive}
+            finalizing={isPushToTalkFinalizing}
+            disabled={pushToTalkDisabled}
+            onPressStart={() => void beginPushToTalk()}
+            onPressEnd={() => void endPushToTalk()}
+          />
+        )}
+
         <div className="flex-shrink-0 flex justify-center gap-3 py-3 px-4">
           <Button variant="ghost" size="sm" onClick={() => setShowCaptions(!showCaptions)}>
-            {showCaptions ? "Hide Transcript" : "Show Transcript"}
+            {showCaptions ? t("scenario.hideTranscript") : t("scenario.showTranscript")}
           </Button>
           <Button variant="ghost" size="sm" onClick={handleSwitchToText}>
             <Keyboard className="size-4 mr-1" />
-            Text
+            {t("scenario.textMode")}
           </Button>
           <Button variant="outline" size="sm" onClick={handleEndSession}>
-            End Session
+            {t("scenario.endSession")}
           </Button>
         </div>
       </div>

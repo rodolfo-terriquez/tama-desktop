@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SampleRate, SizedSample};
 use rubato::{FftFixedIn, Resampler};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::whisper::WhisperModelState;
@@ -37,6 +37,14 @@ const MIN_SPEECH_RATIO: f32 = 0.15;
 const RESAMPLER_CHUNK: usize = 1024;
 const AMPLITUDE_INTERVAL_MS: u64 = 50;
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum RecordingMode {
+    #[default]
+    Automatic,
+    PushToTalk,
+}
+
 #[derive(Clone, Serialize)]
 struct EmptyPayload {}
 
@@ -57,6 +65,7 @@ struct AmplitudePayload {
 pub struct VoiceSessionState {
     handle: Mutex<Option<SessionHandle>>,
     paused: Arc<AtomicBool>,
+    push_to_talk_active: Arc<AtomicBool>,
 }
 
 impl VoiceSessionState {
@@ -64,11 +73,13 @@ impl VoiceSessionState {
         Self {
             handle: Mutex::new(None),
             paused: Arc::new(AtomicBool::new(false)),
+            push_to_talk_active: Arc::new(AtomicBool::new(false)),
         }
     }
 
     /// Stop any running voice session. Called on app exit.
     pub fn shutdown(&self) {
+        self.push_to_talk_active.store(false, Ordering::SeqCst);
         if let Ok(mut lock) = self.handle.lock() {
             if let Some(mut handle) = lock.take() {
                 handle.shutdown.store(true, Ordering::SeqCst);
@@ -158,6 +169,7 @@ impl FrameResampler {
                 if let Ok(out) = resampler.process(&[&self.in_buf[..]], None) {
                     self.emit_frames(&out[0], &mut emit);
                 }
+                self.in_buf.clear();
             }
         }
         if !self.pending.is_empty() {
@@ -246,7 +258,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::downmix_samples;
+    use super::{downmix_samples, segment_has_enough_speech, RecordingMode};
 
     #[test]
     fn converts_i16_mono_to_f32() {
@@ -262,6 +274,26 @@ mod tests {
         let converted = downmix_samples(&[1.0_f32, -1.0, 0.5, 0.5], 2);
         assert_eq!(converted, vec![0.0, 0.5]);
     }
+
+    #[test]
+    fn automatic_segments_require_a_minimum_speech_ratio() {
+        assert!(!segment_has_enough_speech(
+            RecordingMode::Automatic,
+            10,
+            100
+        ));
+        assert!(segment_has_enough_speech(RecordingMode::Automatic, 15, 100));
+    }
+
+    #[test]
+    fn push_to_talk_allows_pauses_but_rejects_silent_press() {
+        assert!(segment_has_enough_speech(RecordingMode::PushToTalk, 3, 100));
+        assert!(!segment_has_enough_speech(
+            RecordingMode::PushToTalk,
+            2,
+            100
+        ));
+    }
 }
 
 // ── Worker: owns the cpal stream + runs VAD pipeline ────────────────────────
@@ -270,6 +302,8 @@ fn run_worker(
     app: AppHandle,
     shutdown: Arc<AtomicBool>,
     paused: Arc<AtomicBool>,
+    push_to_talk_active: Arc<AtomicBool>,
+    recording_mode: RecordingMode,
     vad_model_path: String,
     ready_tx: mpsc::SyncSender<Result<(), String>>,
 ) {
@@ -393,6 +427,7 @@ fn run_worker(
         // While paused (AI is speaking via TTS), discard all audio and reset VAD
         // state so the AI's voice is never captured or transcribed.
         if paused.load(Ordering::Relaxed) {
+            push_to_talk_active.store(false, Ordering::Relaxed);
             if is_speech {
                 is_speech = false;
                 speech_buf.clear();
@@ -428,8 +463,69 @@ fn run_worker(
         }
 
         if last_amplitude_emit.elapsed() >= Duration::from_millis(AMPLITUDE_INTERVAL_MS) {
-            let _ = app.emit("voice-amplitude", AmplitudePayload { level: rms });
+            let should_emit_level = recording_mode == RecordingMode::Automatic
+                || push_to_talk_active.load(Ordering::Relaxed);
+            let _ = app.emit(
+                "voice-amplitude",
+                AmplitudePayload {
+                    level: if should_emit_level { rms } else { 0.0 },
+                },
+            );
             last_amplitude_emit = Instant::now();
+        }
+
+        if recording_mode == RecordingMode::PushToTalk {
+            if push_to_talk_active.load(Ordering::Relaxed) {
+                if !is_speech {
+                    diag_log("Push-to-talk recording started");
+                    is_speech = true;
+                    speech_start = Some(Instant::now());
+                    last_speech_time = None;
+                    speech_frame_count = 0;
+                    total_frame_count = 0;
+                    speech_buf.clear();
+                    pre_speech_ring.clear();
+                    vad.reset();
+                    let _ = app.emit("voice-speech-start", EmptyPayload {});
+                }
+
+                resampler.push(&raw, |frame: &[f32]| {
+                    speech_buf.extend_from_slice(frame);
+                    total_frame_count += 1;
+
+                    let frame_rms = (frame.iter().map(|sample| sample * sample).sum::<f32>()
+                        / frame.len() as f32)
+                        .sqrt();
+                    if frame_rms >= ENERGY_GATE {
+                        match vad.compute(frame) {
+                            Ok(result) if result.prob > SPEECH_THRESHOLD => {
+                                speech_frame_count += 1;
+                            }
+                            Ok(_) => {}
+                            Err(err) => diag_log(&format!("VAD compute error: {err:?}")),
+                        }
+                    }
+                });
+            } else if is_speech {
+                resampler.flush(|frame: &[f32]| {
+                    speech_buf.extend_from_slice(frame);
+                });
+                finalize_speech(
+                    &app,
+                    &mut is_speech,
+                    &mut speech_buf,
+                    &mut speech_start,
+                    &mut vad,
+                    &mut pre_speech_ring,
+                    speech_frame_count,
+                    total_frame_count,
+                    recording_mode,
+                );
+                speech_frame_count = 0;
+                total_frame_count = 0;
+            }
+
+            continue;
         }
 
         resampler.push(&raw, |frame: &[f32]| {
@@ -462,6 +558,7 @@ fn run_worker(
                             &mut pre_speech_ring,
                             speech_frame_count,
                             total_frame_count,
+                            recording_mode,
                         );
                         speech_frame_count = 0;
                         total_frame_count = 0;
@@ -534,6 +631,7 @@ fn run_worker(
                             &mut pre_speech_ring,
                             speech_frame_count,
                             total_frame_count,
+                            recording_mode,
                         );
                         speech_frame_count = 0;
                         total_frame_count = 0;
@@ -559,6 +657,7 @@ fn run_worker(
             &mut pre_speech_ring,
             speech_frame_count,
             total_frame_count,
+            recording_mode,
         );
     }
 
@@ -579,9 +678,9 @@ fn finalize_speech(
     pre_speech_ring: &mut Vec<f32>,
     speech_frame_count: u32,
     total_frame_count: u32,
+    recording_mode: RecordingMode,
 ) {
     *is_speech = false;
-    let _ = app.emit("voice-speech-end", EmptyPayload {});
 
     let speech_dur = speech_start
         .map(|t| t.elapsed().as_millis() as u64)
@@ -603,18 +702,22 @@ fn finalize_speech(
     log::info!("{}", seg_msg);
     diag_log(&seg_msg);
 
-    if speech_dur >= MIN_SPEECH_MS && !speech_buf.is_empty() && speech_ratio >= MIN_SPEECH_RATIO {
+    let has_enough_speech =
+        segment_has_enough_speech(recording_mode, speech_frame_count, total_frame_count);
+
+    if speech_dur >= MIN_SPEECH_MS && !speech_buf.is_empty() && has_enough_speech {
+        let _ = app.emit("voice-speech-end", EmptyPayload {});
         let audio = std::mem::take(speech_buf);
         let app2 = app.clone();
         std::thread::spawn(move || {
             emit_audio_segment(app2, audio);
         });
     } else {
-        if speech_ratio < MIN_SPEECH_RATIO && total_frame_count > 0 {
+        let _ = app.emit("voice-speech-cancelled", EmptyPayload {});
+        if !has_enough_speech && total_frame_count > 0 {
             log::info!(
-                "Discarding segment: speech ratio {:.0}% below threshold {:.0}%",
+                "Discarding segment: insufficient speech ({:.0}% speech frames)",
                 speech_ratio * 100.0,
-                MIN_SPEECH_RATIO * 100.0
             );
         }
         speech_buf.clear();
@@ -623,6 +726,20 @@ fn finalize_speech(
     vad.reset();
     pre_speech_ring.clear();
     *speech_start = None;
+}
+
+fn segment_has_enough_speech(
+    recording_mode: RecordingMode,
+    speech_frame_count: u32,
+    total_frame_count: u32,
+) -> bool {
+    match recording_mode {
+        RecordingMode::Automatic => {
+            total_frame_count > 0
+                && speech_frame_count as f32 / total_frame_count as f32 >= MIN_SPEECH_RATIO
+        }
+        RecordingMode::PushToTalk => speech_frame_count >= ONSET_FRAMES,
+    }
 }
 
 fn emit_audio_segment(app: AppHandle, audio: Vec<f32>) {
@@ -658,6 +775,7 @@ pub async fn start_voice_session(
     app: AppHandle,
     voice_state: State<'_, VoiceSessionState>,
     require_whisper_loaded: Option<bool>,
+    recording_mode: Option<RecordingMode>,
     whisper_state: State<'_, WhisperModelState>,
 ) -> Result<(), String> {
     {
@@ -668,6 +786,7 @@ pub async fn start_voice_session(
     }
 
     let require_whisper_loaded = require_whisper_loaded.unwrap_or(true);
+    let recording_mode = recording_mode.unwrap_or_default();
     if require_whisper_loaded {
         let whisper_loaded = {
             let lock = whisper_state.context.lock().map_err(|e| e.to_string())?;
@@ -703,15 +822,21 @@ pub async fn start_voice_session(
 
     // Reset paused state on session start
     voice_state.paused.store(false, Ordering::SeqCst);
+    voice_state
+        .push_to_talk_active
+        .store(false, Ordering::SeqCst);
 
     let worker_shutdown = shutdown.clone();
     let worker_paused = voice_state.paused.clone();
+    let worker_push_to_talk_active = voice_state.push_to_talk_active.clone();
     let worker_app = app.clone();
     let worker = std::thread::spawn(move || {
         run_worker(
             worker_app,
             worker_shutdown,
             worker_paused,
+            worker_push_to_talk_active,
+            recording_mode,
             vad_path_str,
             ready_tx,
         );
@@ -737,6 +862,9 @@ pub async fn start_voice_session(
 #[tauri::command]
 pub async fn stop_voice_session(voice_state: State<'_, VoiceSessionState>) -> Result<(), String> {
     voice_state.paused.store(false, Ordering::SeqCst);
+    voice_state
+        .push_to_talk_active
+        .store(false, Ordering::SeqCst);
     let mut lock = voice_state.handle.lock().map_err(|e| e.to_string())?;
     if let Some(mut handle) = lock.take() {
         handle.shutdown.store(true, Ordering::SeqCst);
@@ -751,6 +879,9 @@ pub async fn stop_voice_session(voice_state: State<'_, VoiceSessionState>) -> Re
 #[tauri::command]
 pub async fn pause_voice_session(voice_state: State<'_, VoiceSessionState>) -> Result<(), String> {
     voice_state.paused.store(true, Ordering::SeqCst);
+    voice_state
+        .push_to_talk_active
+        .store(false, Ordering::SeqCst);
     log::info!("Voice session paused");
     Ok(())
 }
@@ -759,6 +890,35 @@ pub async fn pause_voice_session(voice_state: State<'_, VoiceSessionState>) -> R
 pub async fn resume_voice_session(voice_state: State<'_, VoiceSessionState>) -> Result<(), String> {
     voice_state.paused.store(false, Ordering::SeqCst);
     log::info!("Voice session resumed");
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn begin_push_to_talk(voice_state: State<'_, VoiceSessionState>) -> Result<(), String> {
+    let is_running = voice_state
+        .handle
+        .lock()
+        .map_err(|error| error.to_string())?
+        .is_some();
+    if !is_running {
+        return Err("Voice session is not running".into());
+    }
+
+    if voice_state.paused.load(Ordering::SeqCst) {
+        return Err("Voice session is paused".into());
+    }
+
+    voice_state
+        .push_to_talk_active
+        .store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn end_push_to_talk(voice_state: State<'_, VoiceSessionState>) -> Result<(), String> {
+    voice_state
+        .push_to_talk_active
+        .store(false, Ordering::SeqCst);
     Ok(())
 }
 
