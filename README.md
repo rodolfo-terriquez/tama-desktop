@@ -218,6 +218,12 @@ xattr -dr com.apple.quarantine "/Applications/Tama Desktop.app"
 
 ### Windows
 
+**Code signing policy:** Free code signing provided by
+[SignPath.io](https://signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/). The application is pending, so
+current Windows installers are not yet Authenticode-signed. See the full
+[Code Signing Policy](./CODE_SIGNING_POLICY.md).
+
 1. Run the installer.
 2. If SmartScreen appears, click `More info` and then `Run anyway`.
 3. Open Tama Desktop from the Start Menu.
@@ -364,6 +370,10 @@ Important:
 - API keys are currently stored in local storage, not in the OS keychain
 - account backups do not include secret API keys
 
+Tama does not include analytics or a developer-operated backend. Configured AI
+providers, optional downloads, and update checks make the network requests
+described in the full [Privacy Policy](./PRIVACY.md).
+
 ## Current User-Facing Capabilities
 
 As of July 2026, the app includes:
@@ -467,6 +477,8 @@ server/sbv2_api.py   Optional SBV2 bridge
 ## Release Notes
 
 For release and updater signing steps, see [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md).
+
+Windows releases follow the project's [Code Signing Policy](./CODE_SIGNING_POLICY.md).
 
 ## License
 

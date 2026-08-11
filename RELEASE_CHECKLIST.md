@@ -20,6 +20,21 @@ Use this checklist when publishing a new GitHub release and auto-update artifact
    ```
 5. Confirm updater public key in [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json) matches your private key.
 
+### Windows Authenticode signing
+
+Windows publisher signing is separate from the Tauri updater signature above.
+The project is preparing to use the free SignPath Foundation program described in
+[`CODE_SIGNING_POLICY.md`](./CODE_SIGNING_POLICY.md).
+
+Before enabling Windows signing in the release workflow:
+
+1. Obtain approval for the Tama project from SignPath Foundation.
+2. Configure the public GitHub repository as a SignPath trusted build system.
+3. Create the SignPath project, artifact configuration, and release-signing policy.
+4. Store the SignPath API token as a GitHub Actions repository secret. Never commit it.
+5. Add the issued organization ID, project slug, signing-policy slug, and artifact-configuration slug to the release workflow.
+6. Verify that Authenticode signing happens before the final Tauri updater signatures are generated or regenerated, because signing changes the installer bytes.
+
 ## Per-release checklist
 
 1. Update version in:
@@ -38,6 +53,8 @@ Use this checklist when publishing a new GitHub release and auto-update artifact
 5. Create and publish a GitHub Release for that tag (not draft).
 6. Wait for `.github/workflows/release.yml` to finish for all platforms.
 7. Verify release assets include updater artifacts (including `latest.json` and signatures).
+8. Verify Windows executables and installers have a valid Authenticode signature from SignPath Foundation.
+9. Include a link to [`CODE_SIGNING_POLICY.md`](./CODE_SIGNING_POLICY.md) in the GitHub Release notes.
 
 ## Preflight builds (recommended before publishing a release)
 
