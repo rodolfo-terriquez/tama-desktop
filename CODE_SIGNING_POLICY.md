@@ -1,11 +1,13 @@
 # Code Signing Policy
 
-Free code signing provided by [SignPath.io](https://signpath.io/), certificate
-by [SignPath Foundation](https://signpath.org/).
+Tama's current Windows installers are not Authenticode-signed. The project has
+evaluated [SignPath.io](https://signpath.io/) and the free
+[SignPath Foundation](https://signpath.org/) program as a possible signing path.
 
-> **Status:** The SignPath Foundation application is pending. Current Windows
-> installers are not yet Authenticode-signed. This notice will be updated when
-> signing is active.
+> **Status:** SignPath Foundation declined the free application on 2026-08-12
+> because the project does not yet have enough public adoption and visibility
+> signals. The project may reapply after broader recognition or consider a paid
+> subscription. No signing service is currently active.
 
 ## Scope
 
@@ -28,7 +30,8 @@ public GitHub Actions release workflow on GitHub-hosted runners.
 
 Contributions from people without commit access must be reviewed by a project
 reviewer before they are merged. Project members with source-code or signing
-access must use multi-factor authentication for GitHub and SignPath.
+access must use multi-factor authentication for GitHub and any future signing
+provider.
 
 Each release-signing request requires approval from the signing approver.
 

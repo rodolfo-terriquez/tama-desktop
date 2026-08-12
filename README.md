@@ -218,14 +218,15 @@ xattr -dr com.apple.quarantine "/Applications/Tama Desktop.app"
 
 ### Windows
 
-**Code signing policy:** Free code signing provided by
-[SignPath.io](https://signpath.io/), certificate by
-[SignPath Foundation](https://signpath.org/). The application is pending, so
-current Windows installers are not yet Authenticode-signed. See the full
+**Code signing status:** Current Windows installers are not Authenticode-signed.
+The project's free SignPath Foundation application was not approved at its
+current level of public adoption. See the full
 [Code Signing Policy](./CODE_SIGNING_POLICY.md).
 
 1. Run the installer.
-2. If SmartScreen appears, click `More info` and then `Run anyway`.
+2. Windows may show an unknown-publisher warning because the installer is
+   unsigned. If Defender reports a malware detection, do not bypass it; stop
+   and report the exact detection on the repository's Issues page.
 3. Open Tama Desktop from the Start Menu.
 
 ### Linux

@@ -10,8 +10,9 @@ changing the project, and update it when the facts below change.
 - Latest public release: `v1.3.3`.
 - Push-to-talk is available and avoids the aggressive silence detection that
   interrupted natural pauses.
-- Current Windows releases are not Authenticode-signed. The project has applied
-  for free SignPath Foundation code signing and is waiting for a response.
+- Current Windows releases are not Authenticode-signed. SignPath Foundation
+  declined the project's free code-signing application on 2026-08-12 because
+  Tama does not yet have enough external adoption and visibility signals.
 - Microsoft Defender flagged the official `Tama_1.3.2_x64-setup.exe` as
   `Trojan:Win32/Wacatac.C!ml`. A false-positive submission was filed with
   Microsoft under submission ID `260c5851-4cc1-4813-ba05-16d785ab49fd` and was
@@ -53,7 +54,7 @@ Local validation completed before the Windows build:
 - `cargo check`
 - visual verification in the desktop app
 
-### Private Windows test build
+### Windows test build
 
 - Successful workflow run:
   <https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/31551046349>
@@ -98,8 +99,7 @@ release configuration was not changed.
    - copied Settings diagnostics
    - approximate transcription time
    - peak Tama CPU percentage in Task Manager
-2. SignPath's response to the free code-signing application.
-3. Microsoft's determination on the Defender false-positive submission.
+2. Microsoft's determination on the Defender false-positive submission.
 
 ## Next decisions
 
@@ -114,9 +114,19 @@ When Josje replies:
 5. If it remains slow, investigate an optional alternative local
    transcription backend/model. Handy's Parakeet models are the leading
    candidate, but no integration decision has been made.
-6. If Defender blocks the private executable, collect the exact detection name
+6. If Defender blocks the test executable, collect the exact detection name
    and screenshot. Do not advise the user to bypass Defender.
 
-When SignPath responds, verify its repository/build requirements before changing
-the release workflow. Tauri updater signatures and Windows Authenticode signing
-are separate mechanisms.
+## Code-signing status
+
+SignPath Foundation declined the free application on 2026-08-12. The reasons
+given were insufficient public trust and visibility signals, including GitHub
+stars, forks, contributors, independent references or discussions, and evidence
+of sustained activity and engagement. This was not a technical or security
+finding about Tama.
+
+The available future paths are to reapply after Tama gains broader public
+recognition or use a regular paid SignPath subscription. No paid subscription
+decision has been made. Do not configure SignPath or change the release workflow
+without explicit approval. Tauri updater signatures and Windows Authenticode
+signing remain separate mechanisms.
