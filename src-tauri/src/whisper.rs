@@ -1,6 +1,8 @@
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -8,10 +10,12 @@ use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextPar
 
 const MODEL_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin";
 const MODEL_FILENAME: &str = "ggml-small.bin";
+const MAX_DIAGNOSTIC_ENTRIES: usize = 25;
 
 pub struct WhisperModelState {
     pub context: Mutex<Option<Arc<WhisperContext>>>,
     pub is_downloading: AtomicBool,
+    diagnostics: Mutex<VecDeque<WhisperDiagnosticEntry>>,
 }
 
 impl WhisperModelState {
@@ -19,7 +23,14 @@ impl WhisperModelState {
         Self {
             context: Mutex::new(None),
             is_downloading: AtomicBool::new(false),
+            diagnostics: Mutex::new(VecDeque::new()),
         }
+    }
+
+    fn record_diagnostic(&self, entry: WhisperDiagnosticEntry) {
+        let mut diagnostics = self.diagnostics.lock().unwrap_or_else(|e| e.into_inner());
+        diagnostics.push_front(entry);
+        diagnostics.truncate(MAX_DIAGNOSTIC_ENTRIES);
     }
 }
 
@@ -37,6 +48,54 @@ struct DownloadProgress {
     downloaded: u64,
     total: u64,
     percent: u32,
+}
+
+#[derive(Clone, Serialize)]
+pub struct WhisperDiagnosticEntry {
+    pub timestamp_ms: u64,
+    pub audio_duration_ms: u64,
+    pub processing_duration_ms: u64,
+    pub thread_count: i32,
+    pub logical_processor_count: usize,
+    pub backend: String,
+    pub language: String,
+    pub status: String,
+    pub error: Option<String>,
+}
+
+fn logical_processor_count() -> usize {
+    std::thread::available_parallelism()
+        .map(|count| count.get())
+        .unwrap_or(4)
+}
+
+fn adaptive_thread_count_for(logical_processors: usize) -> i32 {
+    let logical_processors = logical_processors.max(1);
+    if logical_processors <= 4 {
+        return logical_processors as i32;
+    }
+
+    // Use roughly 75% of the machine while leaving capacity for the UI, audio,
+    // TTS, and the operating system. Beyond 12 threads, Whisper's small model
+    // tends to see diminishing returns from CPU parallelism.
+    ((logical_processors * 3 + 3) / 4).clamp(4, 12) as i32
+}
+
+#[cfg(target_os = "macos")]
+fn whisper_backend() -> &'static str {
+    "Metal"
+}
+
+#[cfg(not(target_os = "macos"))]
+fn whisper_backend() -> &'static str {
+    "CPU"
+}
+
+fn current_timestamp_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 fn models_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -271,17 +330,24 @@ pub async fn transcribe_audio(
         .collect();
 
     let lang = language.unwrap_or_else(|| "ja".to_string());
+    let logical_processors = logical_processor_count();
+    let thread_count = adaptive_thread_count_for(logical_processors);
+    let audio_duration_ms = (audio_data.len() as u64 * 1000) / 16000;
     log::info!(
-        "Transcribing {} samples ({:.1}s) with language={}",
+        "Transcribing {} samples ({:.1}s) with language={} using {}/{} threads",
         audio_data.len(),
         audio_data.len() as f64 / 16000.0,
-        lang
+        lang,
+        thread_count,
+        logical_processors
     );
 
-    tokio::task::spawn_blocking(move || {
+    let diagnostic_language = lang.clone();
+    let started_at = Instant::now();
+    let transcription_result = match tokio::task::spawn_blocking(move || {
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_language(Some(&lang));
-        params.set_n_threads(4);
+        params.set_n_threads(thread_count);
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
@@ -309,7 +375,43 @@ pub async fn transcribe_audio(
         Ok(result)
     })
     .await
-    .map_err(|e| format!("Task join error: {e}"))?
+    {
+        Ok(result) => result,
+        Err(error) => Err(format!("Task join error: {error}")),
+    };
+
+    let processing_duration_ms = started_at.elapsed().as_millis() as u64;
+    state.record_diagnostic(WhisperDiagnosticEntry {
+        timestamp_ms: current_timestamp_ms(),
+        audio_duration_ms,
+        processing_duration_ms,
+        thread_count,
+        logical_processor_count: logical_processors,
+        backend: whisper_backend().to_string(),
+        language: diagnostic_language,
+        status: if transcription_result.is_ok() {
+            "success".to_string()
+        } else {
+            "error".to_string()
+        },
+        error: transcription_result.as_ref().err().cloned(),
+    });
+
+    transcription_result
+}
+
+#[tauri::command]
+pub fn get_whisper_diagnostics(
+    state: State<'_, WhisperModelState>,
+) -> Result<Vec<WhisperDiagnosticEntry>, String> {
+    let diagnostics = state.diagnostics.lock().map_err(|e| e.to_string())?;
+    Ok(diagnostics.iter().cloned().collect())
+}
+
+#[tauri::command]
+pub fn clear_whisper_diagnostics(state: State<'_, WhisperModelState>) -> Result<(), String> {
+    state.diagnostics.lock().map_err(|e| e.to_string())?.clear();
+    Ok(())
 }
 
 #[tauri::command]
@@ -331,4 +433,46 @@ pub async fn delete_whisper_model(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn diagnostic(timestamp_ms: u64) -> WhisperDiagnosticEntry {
+        WhisperDiagnosticEntry {
+            timestamp_ms,
+            audio_duration_ms: 1000,
+            processing_duration_ms: 500,
+            thread_count: 4,
+            logical_processor_count: 4,
+            backend: "CPU".to_string(),
+            language: "ja".to_string(),
+            status: "success".to_string(),
+            error: None,
+        }
+    }
+
+    #[test]
+    fn adaptive_threads_use_three_quarters_with_a_twelve_thread_cap() {
+        assert_eq!(adaptive_thread_count_for(1), 1);
+        assert_eq!(adaptive_thread_count_for(2), 2);
+        assert_eq!(adaptive_thread_count_for(4), 4);
+        assert_eq!(adaptive_thread_count_for(8), 6);
+        assert_eq!(adaptive_thread_count_for(16), 12);
+        assert_eq!(adaptive_thread_count_for(32), 12);
+    }
+
+    #[test]
+    fn diagnostics_are_newest_first_and_bounded() {
+        let state = WhisperModelState::new();
+        for timestamp in 0..(MAX_DIAGNOSTIC_ENTRIES as u64 + 3) {
+            state.record_diagnostic(diagnostic(timestamp));
+        }
+
+        let diagnostics = state.diagnostics.lock().unwrap();
+        assert_eq!(diagnostics.len(), MAX_DIAGNOSTIC_ENTRIES);
+        assert_eq!(diagnostics.front().unwrap().timestamp_ms, 27);
+        assert_eq!(diagnostics.back().unwrap().timestamp_ms, 3);
+    }
 }

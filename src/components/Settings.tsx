@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Toast } from "@/components/ui/toast";
 import { useI18n } from "@/i18n";
-import { ChevronDown, RefreshCw } from "lucide-react";
+import { ChevronDown, Copy, RefreshCw, Trash2 } from "lucide-react";
 import {
   getApiKey,
   setApiKey,
@@ -60,8 +60,11 @@ import {
   getWhisperModelStatus,
   loadWhisperModel,
   deleteWhisperModel,
+  getWhisperDiagnostics,
+  clearWhisperDiagnostics,
   type WhisperModelStatus,
   type DownloadProgress,
+  type WhisperDiagnosticEntry,
 } from "@/services/whisper-local";
 import { VoicevoxControl } from "@/components/VoicevoxControl";
 import { SBV2Control } from "@/components/SBV2Control";
@@ -244,6 +247,9 @@ export function Settings() {
   const [whisperDownloading, setWhisperDownloading] = useState(false);
   const [whisperProgress, setWhisperProgress] = useState<DownloadProgress | null>(null);
   const [whisperDeleting, setWhisperDeleting] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [whisperDiagnostics, setWhisperDiagnostics] = useState<WhisperDiagnosticEntry[]>([]);
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
   const [appVersion, setAppVersion] = useState("");
   const [availableUpdateVersion, setAvailableUpdateVersion] = useState<string | null>(null);
   const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
@@ -411,6 +417,77 @@ export function Settings() {
       setTimeout(() => setMessage(null), 5000);
     } finally {
       setWhisperDeleting(false);
+    }
+  };
+
+  const refreshWhisperDiagnostics = useCallback(async () => {
+    setDiagnosticsLoading(true);
+    try {
+      setWhisperDiagnostics(await getWhisperDiagnostics());
+    } catch (err) {
+      console.error("Failed to load Whisper diagnostics:", err);
+      setMessage({ type: "error", text: t("settings.diagnosticsLoadFailed") });
+      setTimeout(() => setMessage(null), 5000);
+    } finally {
+      setDiagnosticsLoading(false);
+    }
+  }, [t]);
+
+  const handleDiagnosticsToggle = () => {
+    const nextOpen = !diagnosticsOpen;
+    setDiagnosticsOpen(nextOpen);
+    if (nextOpen) {
+      void refreshWhisperDiagnostics();
+    }
+  };
+
+  const formatDiagnosticEntry = useCallback(
+    (entry: WhisperDiagnosticEntry) => {
+      const audioSeconds = (entry.audio_duration_ms / 1000).toFixed(2);
+      const processingSeconds = (entry.processing_duration_ms / 1000).toFixed(2);
+      const realTimeFactor = entry.audio_duration_ms > 0
+        ? (entry.processing_duration_ms / entry.audio_duration_ms).toFixed(2)
+        : "n/a";
+      const parts = [
+        new Date(entry.timestamp_ms).toLocaleString(locale),
+        entry.status,
+        entry.backend,
+        `threads=${entry.thread_count}/${entry.logical_processor_count}`,
+        `audio=${audioSeconds}s`,
+        `processing=${processingSeconds}s`,
+        `processing/audio=${realTimeFactor}x`,
+        `language=${entry.language}`,
+      ];
+      if (entry.error) parts.push(`error=${entry.error}`);
+      return parts.join(" | ");
+    },
+    [locale]
+  );
+
+  const handleCopyDiagnostics = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        whisperDiagnostics.map(formatDiagnosticEntry).join("\n")
+      );
+      setMessage({ type: "success", text: t("settings.diagnosticsCopied") });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err) {
+      console.error("Failed to copy Whisper diagnostics:", err);
+      setMessage({ type: "error", text: t("settings.diagnosticsCopyFailed") });
+      setTimeout(() => setMessage(null), 5000);
+    }
+  };
+
+  const handleClearDiagnostics = async () => {
+    try {
+      await clearWhisperDiagnostics();
+      setWhisperDiagnostics([]);
+      setMessage({ type: "success", text: t("settings.diagnosticsCleared") });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err) {
+      console.error("Failed to clear Whisper diagnostics:", err);
+      setMessage({ type: "error", text: t("settings.diagnosticsClearFailed") });
+      setTimeout(() => setMessage(null), 5000);
     }
   };
 
@@ -1729,6 +1806,91 @@ export function Settings() {
                 }
               />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Local-only performance diagnostics — intentionally kept out of the main UI. */}
+        <Card className={SETTINGS_CARD_CLASSNAME}>
+          <CardContent className={SETTINGS_CARD_CONTENT_CLASSNAME}>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-4 py-3 text-left"
+              aria-expanded={diagnosticsOpen}
+              aria-controls="whisper-diagnostics-log"
+              onClick={handleDiagnosticsToggle}
+            >
+              <span className="min-w-0 space-y-1">
+                <span className="block text-sm font-medium">{t("settings.diagnostics")}</span>
+                <span className="block text-sm text-muted-foreground">
+                  {t("settings.diagnosticsDescription")}
+                </span>
+              </span>
+              <ChevronDown
+                className={`size-4 shrink-0 text-muted-foreground transition-transform ${
+                  diagnosticsOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {diagnosticsOpen && (
+              <div id="whisper-diagnostics-log" className="space-y-3 border-t border-border pt-3">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void refreshWhisperDiagnostics()}
+                    disabled={diagnosticsLoading}
+                  >
+                    <RefreshCw className={`size-4 ${diagnosticsLoading ? "animate-spin" : ""}`} />
+                    {t("common.refresh")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleCopyDiagnostics()}
+                    disabled={whisperDiagnostics.length === 0}
+                  >
+                    <Copy className="size-4" />
+                    {t("common.copy")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleClearDiagnostics()}
+                    disabled={whisperDiagnostics.length === 0}
+                  >
+                    <Trash2 className="size-4" />
+                    {t("settings.clearDiagnostics")}
+                  </Button>
+                </div>
+
+                <div
+                  role="log"
+                  aria-label={t("settings.diagnostics")}
+                  className="max-h-64 overflow-y-auto rounded-lg border bg-muted/30 p-3 font-mono text-xs leading-relaxed"
+                >
+                  {diagnosticsLoading && whisperDiagnostics.length === 0 ? (
+                    <p className="text-muted-foreground">{t("app.loading")}</p>
+                  ) : whisperDiagnostics.length === 0 ? (
+                    <p className="text-muted-foreground">{t("settings.diagnosticsEmpty")}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {whisperDiagnostics.map((entry, index) => (
+                        <p
+                          key={`${entry.timestamp_ms}-${index}`}
+                          className="break-words border-b border-border/60 pb-2 last:border-0 last:pb-0"
+                        >
+                          {formatDiagnosticEntry(entry)}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

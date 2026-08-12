@@ -310,6 +310,8 @@ pub fn run() {
             whisper::get_whisper_model_status,
             whisper::load_whisper_model,
             whisper::transcribe_audio,
+            whisper::get_whisper_diagnostics,
+            whisper::clear_whisper_diagnostics,
             whisper::delete_whisper_model,
             tts_manager::voicevox_status,
             tts_manager::start_voicevox,
