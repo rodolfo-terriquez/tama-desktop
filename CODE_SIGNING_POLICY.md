@@ -6,8 +6,9 @@ evaluated [SignPath.io](https://signpath.io/) and the free
 
 > **Status:** SignPath Foundation declined the free application on 2026-08-12
 > because the project does not yet have enough public adoption and visibility
-> signals. The project may reapply after broader recognition or consider a paid
-> subscription. No signing service is currently active.
+> signals. The project may reapply after broader recognition. The owner has
+> decided not to purchase paid signing while Tama is free and noncommercial. No
+> signing service is currently active.
 
 ## Scope
 

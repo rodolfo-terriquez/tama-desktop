@@ -18,6 +18,20 @@ changing the project, and update it when the facts below change.
   Microsoft under submission ID `260c5851-4cc1-4813-ba05-16d785ab49fd` and was
   pending at the last check.
 
+The exact v1.3.2 installer currently published on GitHub was downloaded and
+verified on 2026-08-12:
+
+```text
+Size: 13,577,122 bytes
+SHA-256: 1f1c24040bea5b640ec625b8c0effceb202d0e53097efa479e5dfbe84eecb051
+```
+
+One report is not enough to conclude either that the installer is malicious or
+that the user's computer is infected. A different hash for the user's detected
+file would support local modification or corruption, while a matching hash
+would show that Defender evaluated the same bytes published by GitHub. Do not
+ask the user to restore or run a quarantined file merely to obtain the hash.
+
 ## Active Windows Whisper investigation
 
 A Windows 11 user, Josje, reported that local Whisper transcription takes about
@@ -116,6 +130,11 @@ When Josje replies:
    candidate, but no integration decision has been made.
 6. If Defender blocks the test executable, collect the exact detection name
    and screenshot. Do not advise the user to bypass Defender.
+7. If the user is concerned about a wider infection, recommend updating
+   Defender security intelligence and running a full scan as a precaution. An
+   offline scan is reasonable if there are additional signs of compromise or
+   the concern persists. Do not present a scan recommendation as proof that the
+   machine is infected.
 
 ## Code-signing status
 
@@ -126,7 +145,10 @@ of sustained activity and engagement. This was not a technical or security
 finding about Tama.
 
 The available future paths are to reapply after Tama gains broader public
-recognition or use a regular paid SignPath subscription. No paid subscription
-decision has been made. Do not configure SignPath or change the release workflow
-without explicit approval. Tauri updater signatures and Windows Authenticode
-signing remain separate mechanisms.
+recognition or use a regular paid SignPath subscription. On 2026-08-12, the
+project owner decided not to purchase paid code signing while Tama is free and
+noncommercial. Reconsider paid signing only if the project's circumstances
+change; otherwise, reapplication after broader adoption remains available. Do
+not configure SignPath or change the release workflow without explicit
+approval. Tauri updater signatures and Windows Authenticode signing remain
+separate mechanisms.
