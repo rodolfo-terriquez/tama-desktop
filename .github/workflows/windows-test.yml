@@ -45,7 +45,7 @@ jobs:
         run: npm ci
 
       - name: Build Tama
-        run: npm run tauri build
+        run: npm run tauri build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - name: Upload private test build
         uses: actions/upload-artifact@v4
