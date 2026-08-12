@@ -1,6 +1,6 @@
 # Tama Project Status
 
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 This is the handoff document for active work. Read it before investigating or
 changing the project, and update it when the facts below change.
@@ -34,7 +34,8 @@ not currently available in Tama's Windows Whisper build.
 - Branch: `codex/windows-whisper-test`
 - Feature commit: `01b31c4` (`Improve local Whisper performance`)
 - CI fix commit: `95a43cf` (`Fix Windows test artifact signing`)
-- No pull request, merge, or public release has been created for this work.
+- No pull request, merge, or stable release has been created for this work. An
+  explicitly labeled unsigned pre-release is available for the external test.
 
 The branch changes local Whisper to use approximately 75% of logical CPUs,
 capped at 12 threads. On Josje's 16-logical-processor machine this should use 12
@@ -63,9 +64,22 @@ Local validation completed before the Windows build:
 - GitHub retention deadline: 2026-08-19
 
 The artifact contains a portable x64 `tama-desktop.exe` and an NSIS installer.
-The portable executable was separately packaged and sent to Josje for testing.
-This private build is unsigned and may still be blocked by Defender; testers
-must not be instructed to disable or bypass security software.
+The portable executable was separately packaged for Josje and published as an
+unsigned GitHub pre-release:
+
+- Pre-release page:
+  <https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/windows-whisper-test-2026-08-12>
+- Direct ZIP download:
+  <https://github.com/rodolfo-terriquez/tama-desktop/releases/download/windows-whisper-test-2026-08-12/Tama-Windows-Whisper-Test-95a43cf.zip>
+- ZIP SHA-256:
+  `c67378b1b2bb82692a9b6030c3ee515feea185cf89f15f5c5c29eaecfd97780d`
+
+The public download was verified without GitHub authentication on 2026-08-12;
+its checksum matched the local package and its archive integrity test passed.
+This test build is unsigned and may still be blocked by Defender; testers must
+not be instructed to disable or bypass security software. The pre-release does
+not replace `v1.3.3` as the latest stable release and does not contain updater
+artifacts.
 
 Verified artifact checksums:
 
