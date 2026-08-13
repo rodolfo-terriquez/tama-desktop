@@ -49,6 +49,7 @@ not currently available in Tama's Windows Whisper build.
 - Branch: `codex/windows-whisper-test`
 - Feature commit: `01b31c4` (`Improve local Whisper performance`)
 - CI fix commit: `95a43cf` (`Fix Windows test artifact signing`)
+- Portable voice fix: `d2d0e52` (`Fix Windows portable voice startup`)
 - No pull request, merge, or stable release has been created for this work. An
   explicitly labeled unsigned pre-release is available for the external test.
 
@@ -71,26 +72,27 @@ Local validation completed before the Windows build:
 ### Windows test build
 
 - Successful workflow run:
-  <https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/31551046349>
-- Run ID: `31551046349`
-- Commit: `95a43cf3903282d48e7cb074827fbee07d7b08e3`
+  <https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/31717431952>
+- Run ID: `31717431952`
+- Commit: `d2d0e521400d66104dd408f8d276ce7b588af73e`
 - Artifact name:
-  `tama-windows-whisper-test-95a43cf3903282d48e7cb074827fbee07d7b08e3`
-- GitHub retention deadline: 2026-08-19
+  `tama-windows-whisper-test-d2d0e521400d66104dd408f8d276ce7b588af73e`
+- GitHub retention deadline: 2026-08-20
 
-The artifact contains a portable x64 `tama-desktop.exe` and an NSIS installer.
-The portable executable was separately packaged for Josje and published as an
-unsigned GitHub pre-release:
+The artifact contains a portable x64 ZIP and an NSIS installer. The corrected
+portable ZIP was published as an unsigned GitHub pre-release:
 
 - Pre-release page:
   <https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/windows-whisper-test-2026-08-12>
 - Direct ZIP download:
-  <https://github.com/rodolfo-terriquez/tama-desktop/releases/download/windows-whisper-test-2026-08-12/Tama-Windows-Whisper-Test-95a43cf.zip>
+  <https://github.com/rodolfo-terriquez/tama-desktop/releases/download/windows-whisper-test-2026-08-12/Tama-Windows-Whisper-Test-d2d0e52.zip>
 - ZIP SHA-256:
-  `c67378b1b2bb82692a9b6030c3ee515feea185cf89f15f5c5c29eaecfd97780d`
+  `c625c571d19d7fe8a3fe8c8d32bd65bbf845a888bc72e1d6aa9e4cc20e656841`
 
-The public download was verified without GitHub authentication on 2026-08-12;
-its checksum matched the local package and its archive integrity test passed.
+The public download was verified without GitHub authentication on 2026-08-13;
+it matched the CI package byte-for-byte, its checksum matched, and archive
+integrity passed. It contains both `tama-desktop.exe` and
+`resources/silero_vad.onnx` in the path expected by Windows.
 This test build is unsigned and may still be blocked by Defender; testers must
 not be instructed to disable or bypass security software. The pre-release does
 not replace `v1.3.3` as the latest stable release and does not contain updater
@@ -103,17 +105,19 @@ expects `resources/silero_vad.onnx` beside the executable, so native voice-sessi
 startup fails. The frontend also swallowed that startup error and continued into
 the session, which explains the disabled control and missing error message.
 
-A local, uncommitted fix packages the executable with the required resource and
-returns voice-start failures to both conversation UIs instead of entering a dead
-session. `npm run build`, `npm run lint`, workflow YAML parsing, and
-`git diff --check` pass. No corrected Windows artifact has been built or
-published yet.
+The defective `Tama-Windows-Whisper-Test-95a43cf.zip` asset was removed only
+after the corrected public asset was downloaded and verified. The release notes
+now identify commit `d2d0e52`, the required folder layout, and the corrected
+checksum. The code also returns voice-start failures to both conversation UIs
+instead of entering a dead session.
 
 Verified artifact checksums:
 
 ```text
-17079ef8bfab58fb3d4f0f5a8a7518e8b40e8eb392bc4116ca415871892d122b  tama-desktop.exe
-dd8c0c0bb145c487b9700fe70daaf734e27e935884f4e629d6471804d6e00f74  Tama_1.3.3_x64-setup.exe
+c625c571d19d7fe8a3fe8c8d32bd65bbf845a888bc72e1d6aa9e4cc20e656841  Tama-Windows-Whisper-Test-d2d0e52.zip
+5821911a42a85b489d56fba872ce1d34668c461c4cdce3700403cbb45f63e549  tama-desktop.exe
+a35ebf52fd3ce5f1469b2a36158dba761bc47b973ea3382b3186ca15b1f5af28  resources/silero_vad.onnx
+5e4e0f78b6a5bfcbfa3e9297192430f0ee5d69f8d983a42fcaec8f88a486b6d1  Tama_1.3.3_x64-setup.exe
 ```
 
 The workflow disables Tauri updater-artifact creation only for this private CI
@@ -122,35 +126,32 @@ release configuration was not changed.
 
 ## What we are waiting for
 
-1. Owner approval to commit/push the portable-package fix, run Windows CI, and
-   replace the defective pre-release asset.
-2. Josje's results from three comparable recordings using the corrected build:
+1. Josje's results from three comparable recordings using the corrected build:
    - copied Settings diagnostics
    - approximate transcription time
    - peak Tama CPU percentage in Task Manager
-3. Microsoft's determination on the Defender false-positive submission.
+2. Microsoft's determination on the Defender false-positive submission.
 
 ## Next decisions
 
+1. Send Josje the corrected `d2d0e52` download link and tell them to keep the
+   extracted `resources` folder beside `tama-desktop.exe`; external messaging
+   still requires the owner's explicit instruction.
+
 When Josje replies:
 
-1. Do not interpret the current disabled button as a push-to-talk logic failure;
-   the published portable ZIP is missing its VAD resource.
-2. After explicit approval, commit and push the local fix, verify the Windows CI
-   archive contains `tama-desktop.exe` and `resources/silero_vad.onnx`, and only
-   then replace the pre-release asset.
-3. Compare first-run warm-up time with the following two recordings.
-4. Confirm from diagnostics that the Windows build selected 12 threads.
-5. Compare elapsed transcription time and CPU utilization with the original
+2. Compare first-run warm-up time with the following two recordings.
+3. Confirm from diagnostics that the Windows build selected 12 threads.
+4. Compare elapsed transcription time and CPU utilization with the original
    roughly 30-second / 25% result.
-6. If the test is substantially faster and stable, prepare the branch for
+5. If the test is substantially faster and stable, prepare the branch for
    review and release only after explicit approval.
-7. If it remains slow, investigate an optional alternative local
+6. If it remains slow, investigate an optional alternative local
    transcription backend/model. Handy's Parakeet models are the leading
    candidate, but no integration decision has been made.
-8. If Defender blocks the test executable, collect the exact detection name
+7. If Defender blocks the test executable, collect the exact detection name
    and screenshot. Do not advise the user to bypass Defender.
-9. If the user is concerned about a wider infection, recommend updating
+8. If the user is concerned about a wider infection, recommend updating
    Defender security intelligence and running a full scan as a precaution. An
    offline scan is reasonable if there are additional signs of compromise or
    the concern persists. Do not present a scan recommendation as proof that the
