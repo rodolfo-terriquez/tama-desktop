@@ -5,6 +5,17 @@ Last updated: 2026-08-13
 This is the handoff document for active work. Read it before investigating or
 changing the project, and update it when the facts below change.
 
+## Privacy boundary
+
+- This repository is public. Treat every tracked note and GitHub-generated
+  source archive as public material.
+- Record external feedback anonymously. Do not include names, email addresses,
+  direct message quotes, or other unnecessary identifying details.
+- Project notes are not part of the compiled app. Tauri packages the generated
+  `dist` frontend, native app binary and icons, and the explicitly configured
+  `resources/silero_vad.onnx` file. Do not add handoff notes or correspondence
+  to bundle resources or compile-time includes.
+
 ## Current production state
 
 - Latest public release: [`v1.3.4`](https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/v1.3.4),
@@ -36,11 +47,10 @@ ask the user to restore or run a quarantined file merely to obtain the hash.
 
 ## Windows Whisper v1.3.4 outcome
 
-A Windows 11 user, Josje, reported that local Whisper transcription takes about
-30 seconds after every recording while Tama uses exactly 25% CPU. Their machine
-has an AMD Ryzen 7 5700X3D with 8 cores / 16 logical processors and an AMD Radeon
-GPU. Silence detection was also too aggressive, which led to the push-to-talk
-work released in `v1.3.3`.
+An external Windows 11 tester reported that local Whisper transcription takes
+about 30 seconds after every recording while Tama uses exactly 25% CPU. The
+machine has 16 logical processors and an AMD Radeon GPU. Silence detection was
+also too aggressive, which led to the push-to-talk work released in `v1.3.3`.
 
 The likely explanation for the 25% ceiling is that the current Windows
 `whisper-rs` path is CPU-only and was using too few threads. AMD GPU offload is
@@ -56,8 +66,8 @@ not currently available in Tama's Windows Whisper build.
 - Preflight-signing fix: `4feea59` (`Fix release preflight signing`)
 
 The branch changes local Whisper to use approximately 75% of logical CPUs,
-capped at 12 threads. On Josje's 16-logical-processor machine this should use 12
-threads. It also adds a bounded in-memory diagnostics log at the bottom of
+capped at 12 threads. On the tester's 16-logical-processor machine this should
+use 12 threads. It also adds a bounded in-memory diagnostics log at the bottom of
 Settings. The log is collapsed by default and supports Refresh, Copy, and Clear.
 It records backend, thread count, language, timing, outcome, and errors, but
 never audio or transcript text.
@@ -111,12 +121,13 @@ not be instructed to disable or bypass security software. The pre-release does
 not replace `v1.3.3` as the latest stable release and does not contain updater
 artifacts.
 
-Josje reported on 2026-08-13 that Defender did not flag the portable test, but
-push-to-talk stayed disabled. The published ZIP was downloaded again and found
-to contain only `tama-desktop.exe`. It is not a complete portable build: Windows
-expects `resources/silero_vad.onnx` beside the executable, so native voice-session
-startup fails. The frontend also swallowed that startup error and continued into
-the session, which explains the disabled control and missing error message.
+The tester reported on 2026-08-13 that Defender did not flag the portable test,
+but push-to-talk stayed disabled. The published ZIP was downloaded again and
+found to contain only `tama-desktop.exe`. It is not a complete portable build:
+Windows expects `resources/silero_vad.onnx` beside the executable, so native
+voice-session startup fails. The frontend also swallowed that startup error and
+continued into the session, which explains the disabled control and missing
+error message.
 
 The defective `Tama-Windows-Whisper-Test-95a43cf.zip` asset was removed only
 after the corrected public asset was downloaded and verified. The release notes
@@ -124,10 +135,10 @@ now identify commit `d2d0e52`, the required folder layout, and the corrected
 checksum. The code also returns voice-start failures to both conversation UIs
 instead of entering a dead session.
 
-The owner emailed Josje the corrected `d2d0e52` ZIP on 2026-08-13. No tester
-runtime result had arrived at that point.
+The corrected `d2d0e52` ZIP was sent to the tester on 2026-08-13. No runtime
+result had arrived at that point.
 
-Josje then confirmed that push-to-talk worked. Three comparable Japanese
+The tester then confirmed that push-to-talk worked. Three comparable Japanese
 recordings all completed successfully with 12 of 16 logical processors and
 about 74% peak CPU usage:
 
@@ -139,7 +150,7 @@ audio=5.41s  processing=24.32s  processing/audio=4.50x
 
 Average processing time was 24.30 seconds, about 19% faster than the original
 approximate 30 seconds. There was no meaningful first-run warm-up difference,
-and Josje reported that it felt faster while still leaving room for other
+and the tester reported that it felt faster while still leaving room for other
 programs. This validates the adaptive 12-thread behavior for the reported
 machine, though local CPU Whisper remains about 4.87 times slower than the
 recorded audio duration.
@@ -168,6 +179,17 @@ Post-release delivery verification confirmed:
 
 VoiceVox speaking-speed and pitch controls are a separate future improvement
 requested for beginner learners and are intentionally outside this release.
+Additional anonymous feedback after `v1.3.4` reinforced two future ideas:
+
+- Add Tama-owned VoiceVox speech controls, starting with speaking rate and
+  potentially including pitch and other synthesis parameters.
+- Explore an optional Windows Whisper GPU experiment, with Vulkan as the most
+  plausible cross-vendor route for AMD hardware. Benchmark it against the
+  adaptive CPU path, detect unsupported hardware or drivers, and always retain
+  CPU fallback. This is an experiment, not a committed next-release feature.
+
+The external tester volunteered to help with future Windows test builds. Ask
+for the exact GPU model only when a scoped GPU experiment is ready.
 
 Verified artifact checksums:
 
@@ -192,9 +214,10 @@ release artifacts use the production updater key and were verified above.
 ## Next decisions
 
 1. Keep VoiceVox speed/pitch controls in the backlog rather than expanding the
-   current release.
-2. If Windows CPU Whisper needs a larger future improvement, evaluate an
-   alternative backend/model such as Parakeet as a separate experiment.
+   current release; speaking rate is the first useful control.
+2. If Windows transcription needs a larger future improvement, evaluate the
+   optional Vulkan GPU path described above with CPU fallback. Alternative
+   backends or models such as Parakeet remain separate experiments.
 3. If Defender blocks a future executable, collect the exact detection name
    and screenshot. Do not advise users to bypass Defender.
 4. Update `actions/checkout` and `actions/setup-node` when suitable to remove
