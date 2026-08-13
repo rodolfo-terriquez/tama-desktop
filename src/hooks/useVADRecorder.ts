@@ -174,6 +174,7 @@ export function useVADRecorder(
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
       await removeListeners();
+      throw err instanceof Error ? err : new Error(msg);
     } finally {
       setIsLoading(false);
     }

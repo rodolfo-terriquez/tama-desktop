@@ -1,6 +1,6 @@
 # Tama Project Status
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 This is the handoff document for active work. Read it before investigating or
 changing the project, and update it when the facts below change.
@@ -96,6 +96,19 @@ not be instructed to disable or bypass security software. The pre-release does
 not replace `v1.3.3` as the latest stable release and does not contain updater
 artifacts.
 
+Josje reported on 2026-08-13 that Defender did not flag the portable test, but
+push-to-talk stayed disabled. The published ZIP was downloaded again and found
+to contain only `tama-desktop.exe`. It is not a complete portable build: Windows
+expects `resources/silero_vad.onnx` beside the executable, so native voice-session
+startup fails. The frontend also swallowed that startup error and continued into
+the session, which explains the disabled control and missing error message.
+
+A local, uncommitted fix packages the executable with the required resource and
+returns voice-start failures to both conversation UIs instead of entering a dead
+session. `npm run build`, `npm run lint`, workflow YAML parsing, and
+`git diff --check` pass. No corrected Windows artifact has been built or
+published yet.
+
 Verified artifact checksums:
 
 ```text
@@ -109,28 +122,35 @@ release configuration was not changed.
 
 ## What we are waiting for
 
-1. Josje's results from three comparable recordings:
+1. Owner approval to commit/push the portable-package fix, run Windows CI, and
+   replace the defective pre-release asset.
+2. Josje's results from three comparable recordings using the corrected build:
    - copied Settings diagnostics
    - approximate transcription time
    - peak Tama CPU percentage in Task Manager
-2. Microsoft's determination on the Defender false-positive submission.
+3. Microsoft's determination on the Defender false-positive submission.
 
 ## Next decisions
 
 When Josje replies:
 
-1. Compare first-run warm-up time with the following two recordings.
-2. Confirm from diagnostics that the Windows build selected 12 threads.
-3. Compare elapsed transcription time and CPU utilization with the original
+1. Do not interpret the current disabled button as a push-to-talk logic failure;
+   the published portable ZIP is missing its VAD resource.
+2. After explicit approval, commit and push the local fix, verify the Windows CI
+   archive contains `tama-desktop.exe` and `resources/silero_vad.onnx`, and only
+   then replace the pre-release asset.
+3. Compare first-run warm-up time with the following two recordings.
+4. Confirm from diagnostics that the Windows build selected 12 threads.
+5. Compare elapsed transcription time and CPU utilization with the original
    roughly 30-second / 25% result.
-4. If the test is substantially faster and stable, prepare the branch for
+6. If the test is substantially faster and stable, prepare the branch for
    review and release only after explicit approval.
-5. If it remains slow, investigate an optional alternative local
+7. If it remains slow, investigate an optional alternative local
    transcription backend/model. Handy's Parakeet models are the leading
    candidate, but no integration decision has been made.
-6. If Defender blocks the test executable, collect the exact detection name
+8. If Defender blocks the test executable, collect the exact detection name
    and screenshot. Do not advise the user to bypass Defender.
-7. If the user is concerned about a wider infection, recommend updating
+9. If the user is concerned about a wider infection, recommend updating
    Defender security intelligence and running a full scan as a precaution. An
    offline scan is reasonable if there are additional signs of compromise or
    the concern persists. Do not present a scan recommendation as proof that the

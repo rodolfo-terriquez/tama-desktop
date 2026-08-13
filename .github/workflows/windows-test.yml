@@ -47,12 +47,22 @@ jobs:
       - name: Build Tama
         run: npm run tauri build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
+      - name: Package portable test build
+        shell: pwsh
+        run: |
+          $portableDir = "src-tauri/target/release/tama-windows-portable"
+          $portableZip = "src-tauri/target/release/Tama-Windows-Whisper-Test-$($env:GITHUB_SHA.Substring(0, 7)).zip"
+          New-Item -ItemType Directory -Force "$portableDir/resources"
+          Copy-Item "src-tauri/target/release/tama-desktop.exe" "$portableDir/tama-desktop.exe"
+          Copy-Item "src-tauri/resources/silero_vad.onnx" "$portableDir/resources/silero_vad.onnx"
+          Compress-Archive -Path "$portableDir/*" -DestinationPath "$portableZip" -Force
+
       - name: Upload private test build
         uses: actions/upload-artifact@v4
         with:
           name: tama-windows-whisper-test-${{ github.sha }}
           path: |
-            src-tauri/target/release/tama-desktop.exe
+            src-tauri/target/release/Tama-Windows-Whisper-Test-*.zip
             src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
           retention-days: 7

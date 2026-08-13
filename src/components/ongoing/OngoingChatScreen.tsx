@@ -271,10 +271,17 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
   }, [voiceConvState, inputMode, isListening, pauseVAD, resumeVAD]);
 
   const handleSwitchToVoice = useCallback(async () => {
+    setError(null);
     setInputMode("voice");
     setVoiceConvState("listening");
-    await startVAD();
-  }, [startVAD]);
+    try {
+      await startVAD();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("scenario.failedToStart"));
+      setInputMode("text");
+      setVoiceConvState("idle");
+    }
+  }, [startVAD, t]);
 
   const handleSwitchToText = useCallback(() => {
     stopVAD();

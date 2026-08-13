@@ -460,6 +460,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     } catch (err) {
       console.error("Error starting session:", err);
       setError(err instanceof Error ? err.message : t("scenario.failedToStart"));
+      setStarted(false);
       setConversationState("idle");
     }
   }, [getStartVADOptions, scenario, t, ttsStatus.available, startVAD, userProfile]);
@@ -474,14 +475,21 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   }, [pauseVAD]);
 
   const handleSwitchToVoice = useCallback(async () => {
+    setError(null);
     setInputMode("voice");
     setConversationState("listening");
-    if (!isListening) {
-      await startVAD(getStartVADOptions());
-    } else {
-      resumeVAD();
+    try {
+      if (!isListening) {
+        await startVAD(getStartVADOptions());
+      } else {
+        resumeVAD();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("scenario.failedToStart"));
+      setInputMode("text");
+      setConversationState("idle");
     }
-  }, [getStartVADOptions, isListening, startVAD, resumeVAD]);
+  }, [getStartVADOptions, isListening, startVAD, resumeVAD, t]);
 
   // --- End session ---
   const endSession = useCallback(() => {
