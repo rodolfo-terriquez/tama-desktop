@@ -111,6 +111,10 @@ now identify commit `d2d0e52`, the required folder layout, and the corrected
 checksum. The code also returns voice-start failures to both conversation UIs
 instead of entering a dead session.
 
+The owner emailed Josje the corrected `d2d0e52` ZIP on 2026-08-13. No tester
+runtime result has arrived yet, so no further implementation change is planned
+until Josje replies.
+
 Verified artifact checksums:
 
 ```text
@@ -134,24 +138,20 @@ release configuration was not changed.
 
 ## Next decisions
 
-1. Send Josje the corrected `d2d0e52` download link and tell them to keep the
-   extracted `resources` folder beside `tama-desktop.exe`; external messaging
-   still requires the owner's explicit instruction.
-
 When Josje replies:
 
-2. Compare first-run warm-up time with the following two recordings.
-3. Confirm from diagnostics that the Windows build selected 12 threads.
-4. Compare elapsed transcription time and CPU utilization with the original
+1. Compare first-run warm-up time with the following two recordings.
+2. Confirm from diagnostics that the Windows build selected 12 threads.
+3. Compare elapsed transcription time and CPU utilization with the original
    roughly 30-second / 25% result.
-5. If the test is substantially faster and stable, prepare the branch for
+4. If the test is substantially faster and stable, prepare the branch for
    review and release only after explicit approval.
-6. If it remains slow, investigate an optional alternative local
+5. If it remains slow, investigate an optional alternative local
    transcription backend/model. Handy's Parakeet models are the leading
    candidate, but no integration decision has been made.
-7. If Defender blocks the test executable, collect the exact detection name
+6. If Defender blocks the test executable, collect the exact detection name
    and screenshot. Do not advise the user to bypass Defender.
-8. If the user is concerned about a wider infection, recommend updating
+7. If the user is concerned about a wider infection, recommend updating
    Defender security intelligence and running a full scan as a precaution. An
    offline scan is reasonable if there are additional signs of compromise or
    the concern persists. Do not present a scan recommendation as proof that the
