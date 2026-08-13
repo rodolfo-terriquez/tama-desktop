@@ -112,8 +112,29 @@ checksum. The code also returns voice-start failures to both conversation UIs
 instead of entering a dead session.
 
 The owner emailed Josje the corrected `d2d0e52` ZIP on 2026-08-13. No tester
-runtime result has arrived yet, so no further implementation change is planned
-until Josje replies.
+runtime result had arrived at that point.
+
+Josje then confirmed that push-to-talk worked. Three comparable Japanese
+recordings all completed successfully with 12 of 16 logical processors and
+about 74% peak CPU usage:
+
+```text
+audio=4.58s  processing=24.25s  processing/audio=5.30x
+audio=5.06s  processing=24.34s  processing/audio=4.81x
+audio=5.41s  processing=24.32s  processing/audio=4.50x
+```
+
+Average processing time was 24.30 seconds, about 19% faster than the original
+approximate 30 seconds. There was no meaningful first-run warm-up difference,
+and Josje reported that it felt faster while still leaving room for other
+programs. This validates the adaptive 12-thread behavior for the reported
+machine, though local CPU Whisper remains about 4.87 times slower than the
+recorded audio duration.
+
+The owner approved merging the experiment and publishing stable `v1.3.4` on
+2026-08-13. VoiceVox speaking-speed and pitch controls are a separate future
+improvement requested for beginner learners and are intentionally outside this
+release.
 
 Verified artifact checksums:
 
@@ -130,32 +151,19 @@ release configuration was not changed.
 
 ## What we are waiting for
 
-1. Josje's results from three comparable recordings using the corrected build:
-   - copied Settings diagnostics
-   - approximate transcription time
-   - peak Tama CPU percentage in Task Manager
+1. Successful local validation and three-platform release preflight for
+   `v1.3.4`.
 2. Microsoft's determination on the Defender false-positive submission.
 
 ## Next decisions
 
-When Josje replies:
-
-1. Compare first-run warm-up time with the following two recordings.
-2. Confirm from diagnostics that the Windows build selected 12 threads.
-3. Compare elapsed transcription time and CPU utilization with the original
-   roughly 30-second / 25% result.
-4. If the test is substantially faster and stable, prepare the branch for
-   review and release only after explicit approval.
-5. If it remains slow, investigate an optional alternative local
-   transcription backend/model. Handy's Parakeet models are the leading
-   candidate, but no integration decision has been made.
-6. If Defender blocks the test executable, collect the exact detection name
-   and screenshot. Do not advise the user to bypass Defender.
-7. If the user is concerned about a wider infection, recommend updating
-   Defender security intelligence and running a full scan as a precaution. An
-   offline scan is reasonable if there are additional signs of compromise or
-   the concern persists. Do not present a scan recommendation as proof that the
-   machine is infected.
+1. Complete the `v1.3.4` release checklist and verify the public updater assets.
+2. Keep VoiceVox speed/pitch controls in the backlog rather than expanding the
+   current release.
+3. If Windows CPU Whisper needs a larger future improvement, evaluate an
+   alternative backend/model such as Parakeet as a separate experiment.
+4. If Defender blocks a future executable, collect the exact detection name
+   and screenshot. Do not advise users to bypass Defender.
 
 ## Code-signing status
 

@@ -54,8 +54,7 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
-      - name: Validate updater signing secret (release only)
-        if: github.event_name == 'release'
+      - name: Validate updater signing secret
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
