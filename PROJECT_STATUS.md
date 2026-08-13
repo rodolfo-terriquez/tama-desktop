@@ -7,7 +7,9 @@ changing the project, and update it when the facts below change.
 
 ## Current production state
 
-- Latest public release: `v1.3.3`.
+- Latest public release: [`v1.3.4`](https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/v1.3.4),
+  published from commit `4feea59e4fcb652e825575f203341d2377736840` on
+  2026-08-13.
 - Push-to-talk is available and avoids the aggressive silence detection that
   interrupted natural pauses.
 - Current Windows releases are not Authenticode-signed. SignPath Foundation
@@ -32,7 +34,7 @@ file would support local modification or corruption, while a matching hash
 would show that Defender evaluated the same bytes published by GitHub. Do not
 ask the user to restore or run a quarantined file merely to obtain the hash.
 
-## Active Windows Whisper investigation
+## Windows Whisper v1.3.4 outcome
 
 A Windows 11 user, Josje, reported that local Whisper transcription takes about
 30 seconds after every recording while Tama uses exactly 25% CPU. Their machine
@@ -44,14 +46,14 @@ The likely explanation for the 25% ceiling is that the current Windows
 `whisper-rs` path is CPU-only and was using too few threads. AMD GPU offload is
 not currently available in Tama's Windows Whisper build.
 
-### Unreleased test branch
+### Released implementation
 
-- Branch: `codex/windows-whisper-test`
+- The tested `codex/windows-whisper-test` branch was fast-forwarded to `main`.
 - Feature commit: `01b31c4` (`Improve local Whisper performance`)
 - CI fix commit: `95a43cf` (`Fix Windows test artifact signing`)
 - Portable voice fix: `d2d0e52` (`Fix Windows portable voice startup`)
-- No pull request, merge, or stable release has been created for this work. An
-  explicitly labeled unsigned pre-release is available for the external test.
+- Release-preparation commit: `3318bff` (`Prepare Tama v1.3.4`)
+- Preflight-signing fix: `4feea59` (`Fix release preflight signing`)
 
 The branch changes local Whisper to use approximately 75% of logical CPUs,
 capped at 12 threads. On Josje's 16-logical-processor machine this should use 12
@@ -60,14 +62,25 @@ Settings. The log is collapsed by default and supports Refresh, Copy, and Clear.
 It records backend, thread count, language, timing, outcome, and errors, but
 never audio or transcript text.
 
-Local validation completed before the Windows build:
+Local validation completed before the stable release:
 
 - `npm run build`
 - `npm run lint`
 - `cargo fmt --check`
-- focused Whisper tests (2 passed)
+- Rust tests (6 passed)
 - `cargo check`
 - visual verification in the desktop app
+
+The production-equivalent three-platform preflight passed at
+<https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/31730042736>:
+
+- macOS Apple Silicon: 8m03s
+- Linux x64: 10m27s
+- Windows x64: 13m04s
+
+The first manual preflight exposed that the encrypted updater key password was
+not passed to the manual build step. Commit `4feea59` fixed that preflight-only
+environment omission; the real release-upload step already passed the password.
 
 ### Windows test build
 
@@ -132,9 +145,29 @@ machine, though local CPU Whisper remains about 4.87 times slower than the
 recorded audio duration.
 
 The owner approved merging the experiment and publishing stable `v1.3.4` on
-2026-08-13. VoiceVox speaking-speed and pitch controls are a separate future
-improvement requested for beginner learners and are intentionally outside this
-release.
+2026-08-13. The production release workflow passed at
+<https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/31731246787>
+(macOS 7m06s, Linux 10m35s, Windows 13m08s) and uploaded 14 public assets.
+
+Post-release delivery verification confirmed:
+
+- GitHub reports `v1.3.4` as Latest, non-draft, and non-prerelease.
+- `latest.json` reports version `1.3.4`, contains nine updater platform
+  mappings, and points only to `v1.3.4` assets.
+- Manifest signatures exactly match their public `.sig` files.
+- Downloaded Windows NSIS, macOS app archive, and Linux RPM payloads all verify
+  cryptographically against Tama's embedded updater public key.
+- Representative Windows, macOS, and Linux downloads were fetched without
+  GitHub authentication and matched the published byte sizes.
+- The downloaded macOS DMG checksum is valid. The app inside is Developer
+  ID-signed by Rodolfo Alberto Lopez Terriquez, Gatekeeper accepts it as a
+  Notarized Developer ID app, and the app has a stapled notarization ticket.
+- The launch-time updater UI was not exercised locally because no older Tama
+  app is installed in `/Applications`; public metadata and cryptographic
+  delivery were verified directly instead.
+
+VoiceVox speaking-speed and pitch controls are a separate future improvement
+requested for beginner learners and are intentionally outside this release.
 
 Verified artifact checksums:
 
@@ -143,27 +176,29 @@ c625c571d19d7fe8a3fe8c8d32bd65bbf845a888bc72e1d6aa9e4cc20e656841  Tama-Windows-W
 5821911a42a85b489d56fba872ce1d34668c461c4cdce3700403cbb45f63e549  tama-desktop.exe
 a35ebf52fd3ce5f1469b2a36158dba761bc47b973ea3382b3186ca15b1f5af28  resources/silero_vad.onnx
 5e4e0f78b6a5bfcbfa3e9297192430f0ee5d69f8d983a42fcaec8f88a486b6d1  Tama_1.3.3_x64-setup.exe
+8addb9c5e556097cf01d2de43a409210871ecfd21c917f0cf6f0782ff594bab5  Tama_1.3.4_x64-setup.exe
+e998f55a546d0da44e4670d5a0b4b088fa7ebf296a107d7bb91f3fa35acffeb5  Tama_1.3.4_aarch64.dmg
+4c0d37be59e4ad6fa2707fafd1c9daf4b511d58d30ecb509810a392b5e516518  Tama-1.3.4-1.x86_64.rpm
 ```
 
-The workflow disables Tauri updater-artifact creation only for this private CI
-job so that missing updater signing keys do not fail the test build. Production
-release configuration was not changed.
+The Windows test workflow disables Tauri updater-artifact creation only for its
+private CI job so missing updater signing keys do not fail test builds. Stable
+release artifacts use the production updater key and were verified above.
 
 ## What we are waiting for
 
-1. Successful local validation and three-platform release preflight for
-   `v1.3.4`.
-2. Microsoft's determination on the Defender false-positive submission.
+1. Microsoft's determination on the Defender false-positive submission.
 
 ## Next decisions
 
-1. Complete the `v1.3.4` release checklist and verify the public updater assets.
-2. Keep VoiceVox speed/pitch controls in the backlog rather than expanding the
+1. Keep VoiceVox speed/pitch controls in the backlog rather than expanding the
    current release.
-3. If Windows CPU Whisper needs a larger future improvement, evaluate an
+2. If Windows CPU Whisper needs a larger future improvement, evaluate an
    alternative backend/model such as Parakeet as a separate experiment.
-4. If Defender blocks a future executable, collect the exact detection name
+3. If Defender blocks a future executable, collect the exact detection name
    and screenshot. Do not advise users to bypass Defender.
+4. Update `actions/checkout` and `actions/setup-node` when suitable to remove
+   GitHub's non-blocking Node.js 20 deprecation warning.
 
 ## Code-signing status
 
