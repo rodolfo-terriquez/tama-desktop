@@ -18,9 +18,12 @@ changing the project, and update it when the facts below change.
 
 ## Current production state
 
-- Latest public release: [`v1.3.4`](https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/v1.3.4),
-  published from commit `4feea59e4fcb652e825575f203341d2377736840` on
-  2026-08-13.
+- Latest public release: [`v1.3.5`](https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/v1.3.5),
+  published from commit `7ee466ea918337f082578f95a28fefd643c13783` on
+  2026-08-21.
+- Settings includes discoverable VOICEVOX and selected voice-library credits,
+  official terms and source links, and selected-speaker policy loading when the
+  local VOICEVOX engine is running.
 - Push-to-talk is available and avoids the aggressive silence detection that
   interrupted natural pauses.
 - Current Windows releases are not Authenticode-signed. SignPath Foundation
@@ -30,13 +33,6 @@ changing the project, and update it when the facts below change.
   `Trojan:Win32/Wacatac.C!ml`. A false-positive submission was filed with
   Microsoft under submission ID `260c5851-4cc1-4813-ba05-16d785ab49fd` and was
   pending at the last check.
-
-## Active release work
-
-- `main` now includes a discoverable third-party credits
-  dialog beside the version controls in Settings, selected-voice VOICEVOX
-  attribution, voice policy loading from the local engine, and a README notice.
-- Version `1.3.5` is being prepared. It has not been released yet.
 
 The exact v1.3.2 installer currently published on GitHub was downloaded and
 verified on 2026-08-12:
