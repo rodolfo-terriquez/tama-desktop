@@ -1,6 +1,6 @@
 # Tama Project Status
 
-Last updated: 2026-08-13
+Last updated: 2026-08-21
 
 This is the handoff document for active work. Read it before investigating or
 changing the project, and update it when the facts below change.
@@ -30,6 +30,13 @@ changing the project, and update it when the facts below change.
   `Trojan:Win32/Wacatac.C!ml`. A false-positive submission was filed with
   Microsoft under submission ID `260c5851-4cc1-4813-ba05-16d785ab49fd` and was
   pending at the last check.
+
+## Active local work
+
+- Local branch `codex/voicevox-credits` adds a discoverable third-party credits
+  dialog beside the version controls in Settings, selected-voice VOICEVOX
+  attribution, voice policy loading from the local engine, and a README notice.
+- This branch has not been merged into `main` or released yet.
 
 The exact v1.3.2 installer currently published on GitHub was downloaded and
 verified on 2026-08-12:

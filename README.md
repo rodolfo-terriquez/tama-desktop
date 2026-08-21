@@ -481,6 +481,28 @@ For release and updater signing steps, see [RELEASE_CHECKLIST.md](./RELEASE_CHEC
 
 Windows releases follow the project's [Code Signing Policy](./CODE_SIGNING_POLICY.md).
 
+## Third-party credits
+
+### VOICEVOX
+
+Tama supports local speech synthesis with
+[VOICEVOX](https://voicevox.hiroshiba.jp/). The optional in-app installer
+downloads the engine directly from official VOICEVOX GitHub releases; Tama
+does not bundle or mirror the engine.
+
+VOICEVOX voices have voice-specific terms in addition to the software terms.
+Tama displays the selected voice's required attribution and, while the local
+engine is running, its policy in **Settings → Third-party credits**. The
+default voice attribution is:
+
+```text
+VOICEVOX:四国めたん
+```
+
+- [VOICEVOX software terms](https://voicevox.hiroshiba.jp/term/)
+- [VOICEVOX characters and voice terms](https://voicevox.hiroshiba.jp/)
+- [VOICEVOX engine source and license](https://github.com/VOICEVOX/voicevox_engine)
+
 ## License
 
 This project is licensed under the GNU General Public License v3.0.

@@ -7,6 +7,10 @@ import type { TTSEngine, TTSSpeaker } from "./tts";
 
 const VOICEVOX_BASE_URL = "http://localhost:50021";
 
+interface VoicevoxSpeakerInfo {
+  policy?: string;
+}
+
 async function createAudioQuery(
   text: string,
   speakerId: number
@@ -80,6 +84,24 @@ export const voicevoxEngine: TTSEngine = {
         id: String(st.id),
       })),
     }));
+  },
+
+  async getSpeakerPolicy(speakerId: string): Promise<string | null> {
+    const params = new URLSearchParams({
+      speaker_uuid: speakerId,
+      resource_format: "url",
+    });
+    const response = await fetch(
+      `${VOICEVOX_BASE_URL}/speaker_info?${params.toString()}`,
+      { method: "GET" }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to get VOICEVOX speaker policy (${response.status})`);
+    }
+
+    const info: VoicevoxSpeakerInfo = await response.json();
+    return info.policy?.trim() || null;
   },
 
   async synthesize(text: string, voiceId?: string): Promise<ArrayBuffer> {

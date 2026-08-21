@@ -21,6 +21,7 @@ export interface TTSEngine {
   readonly type: TTSEngineType;
   checkStatus(): Promise<boolean>;
   getSpeakers(): Promise<TTSSpeaker[]>;
+  getSpeakerPolicy?(speakerId: string): Promise<string | null>;
   synthesize(text: string, voiceId?: string): Promise<ArrayBuffer>;
 }
 
@@ -39,6 +40,7 @@ interface PlayAudioOptions {
 export interface VoiceOption {
   id: string;
   name: string;
+  speakerId: string;
   speakerName: string;
   styleName: string;
 }
@@ -415,6 +417,7 @@ export async function getAllVoiceOptions(): Promise<VoiceOption[]> {
       options.push({
         id: style.id,
         name: `${speaker.name} (${style.name})`,
+        speakerId: speaker.id,
         speakerName: speaker.name,
         styleName: style.name,
       });
@@ -426,6 +429,18 @@ export async function getAllVoiceOptions(): Promise<VoiceOption[]> {
 
 export function getDefaultVoiceId(): string {
   return getStoredVoiceId() || "";
+}
+
+/**
+ * Load the active engine's voice-library policy when the engine exposes one.
+ */
+export async function getVoicePolicy(
+  engineType: TTSEngineType,
+  speakerId: string
+): Promise<string | null> {
+  const engine = getEngine(engineType);
+  if (!engine.getSpeakerPolicy) return null;
+  return engine.getSpeakerPolicy(speakerId);
 }
 
 export function setDefaultVoiceId(id: string): void {

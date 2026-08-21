@@ -68,6 +68,8 @@ import {
 } from "@/services/whisper-local";
 import { VoicevoxControl } from "@/components/VoicevoxControl";
 import { SBV2Control } from "@/components/SBV2Control";
+import { ThirdPartyCreditsDialog } from "@/components/ThirdPartyCreditsDialog";
+import { getVoicevoxAttribution } from "@/services/credits";
 import { clearAllData, getUserProfile, updateUserProfile } from "@/services/storage";
 import { exportAccountBackup, restoreAccountBackupFromText } from "@/services/account";
 import {
@@ -1013,6 +1015,22 @@ export function Settings() {
                         </span>
                       </Button>
                     )}
+                  </div>
+                }
+              />
+
+              <SettingRow
+                label={t("settings.thirdPartyCredits")}
+                description={t("settings.thirdPartyCreditsDescription", {
+                  credit: getVoicevoxAttribution(ttsEngine, selectedVoice),
+                })}
+                controlClassName="lg:min-w-0 lg:max-w-none"
+                control={
+                  <div className="flex justify-start lg:justify-end">
+                    <ThirdPartyCreditsDialog
+                      ttsEngine={ttsEngine}
+                      selectedVoice={selectedVoice}
+                    />
                   </div>
                 }
               />
