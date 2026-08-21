@@ -31,12 +31,12 @@ changing the project, and update it when the facts below change.
   Microsoft under submission ID `260c5851-4cc1-4813-ba05-16d785ab49fd` and was
   pending at the last check.
 
-## Active local work
+## Active release work
 
-- Local branch `codex/voicevox-credits` adds a discoverable third-party credits
+- `main` now includes a discoverable third-party credits
   dialog beside the version controls in Settings, selected-voice VOICEVOX
   attribution, voice policy loading from the local engine, and a README notice.
-- This branch has not been merged into `main` or released yet.
+- Version `1.3.5` is being prepared. It has not been released yet.
 
 The exact v1.3.2 installer currently published on GitHub was downloaded and
 verified on 2026-08-12:
