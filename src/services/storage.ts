@@ -291,6 +291,24 @@ export async function saveSession(session: Session): Promise<void> {
   );
 }
 
+export async function insertSessionIfMissing(session: Session): Promise<boolean> {
+  const d = await getDb();
+  const result = await d.execute(
+    `INSERT OR IGNORE INTO sessions (id, date, scenario, messages, feedback, duration_seconds, run_mode)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      session.id,
+      session.date,
+      JSON.stringify(session.scenario),
+      JSON.stringify(session.messages),
+      session.feedback ? JSON.stringify(session.feedback) : null,
+      session.duration_seconds,
+      session.run_mode ?? "conversation",
+    ]
+  );
+  return result.rowsAffected > 0;
+}
+
 export async function getLastSession(): Promise<Session | null> {
   const d = await getDb();
   const rows = await d.select<SessionRow[]>("SELECT * FROM sessions ORDER BY date DESC");

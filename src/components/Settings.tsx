@@ -43,7 +43,7 @@ import {
   getDefaultVoiceId,
   setDefaultVoiceId,
   getAllVoiceOptions,
-  getEngine,
+  initializeTTS,
   speak,
 } from "@/services/tts";
 import {
@@ -69,6 +69,7 @@ import {
 import { VoicevoxControl } from "@/components/VoicevoxControl";
 import { SBV2Control } from "@/components/SBV2Control";
 import { ThirdPartyCreditsDialog } from "@/components/ThirdPartyCreditsDialog";
+import { SpeechRateControl } from "@/components/conversation/SpeechRateControl";
 import { getVoicevoxAttribution } from "@/services/credits";
 import { clearAllData, getUserProfile, updateUserProfile } from "@/services/storage";
 import { exportAccountBackup, restoreAccountBackupFromText } from "@/services/account";
@@ -497,14 +498,13 @@ export function Settings() {
   const loadVoices = useCallback(async () => {
     setLoadingVoices(true);
     try {
-      const engine = getEngine(ttsEngine);
-      const available = await engine.checkStatus();
-      setEngineAvailable(available);
+      const initialized = await initializeTTS(ttsEngine);
+      setEngineAvailable(initialized.available);
 
-      if (available) {
+      if (initialized.available) {
         const options = await getAllVoiceOptions();
         setVoiceOptions(options);
-        setSelectedVoiceId(getDefaultVoiceId());
+        setSelectedVoiceId(initialized.speakerId);
       } else {
         setVoiceOptions([]);
       }
@@ -1607,6 +1607,17 @@ export function Settings() {
                       {t("common.refresh")}
                     </Button>
                   </div>
+                </div>
+              )}
+
+              {ttsEngine === "voicevox" && (
+                <div className="mt-3 border-t border-border pt-3">
+                  <SettingRow
+                    label={t("settings.speechSpeed")}
+                    description={t("settings.speechSpeedDescription")}
+                    controlClassName="flex justify-end"
+                    control={<SpeechRateControl size="settings" />}
+                  />
                 </div>
               )}
             </div>

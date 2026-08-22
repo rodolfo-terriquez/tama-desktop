@@ -3,7 +3,7 @@
  * Wraps the VOICEVOX REST API (localhost:50021) behind the TTSEngine interface.
  */
 
-import type { TTSEngine, TTSSpeaker } from "./tts";
+import type { TTSEngine, TTSSpeaker, TTSynthesisOptions } from "./tts";
 
 const VOICEVOX_BASE_URL = "http://localhost:50021";
 
@@ -11,10 +11,14 @@ interface VoicevoxSpeakerInfo {
   policy?: string;
 }
 
+interface VoicevoxAudioQuery extends Record<string, unknown> {
+  speedScale?: number;
+}
+
 async function createAudioQuery(
   text: string,
   speakerId: number
-): Promise<object> {
+): Promise<VoicevoxAudioQuery> {
   const params = new URLSearchParams({
     text,
     speaker: speakerId.toString(),
@@ -29,11 +33,11 @@ async function createAudioQuery(
     throw new Error(`VOICEVOX audio_query failed (${response.status})`);
   }
 
-  return response.json();
+  return response.json() as Promise<VoicevoxAudioQuery>;
 }
 
 async function synthesizeFromQuery(
-  query: object,
+  query: VoicevoxAudioQuery,
   speakerId: number
 ): Promise<ArrayBuffer> {
   const params = new URLSearchParams({
@@ -104,9 +108,16 @@ export const voicevoxEngine: TTSEngine = {
     return info.policy?.trim() || null;
   },
 
-  async synthesize(text: string, voiceId?: string): Promise<ArrayBuffer> {
+  async synthesize(
+    text: string,
+    voiceId?: string,
+    options?: TTSynthesisOptions
+  ): Promise<ArrayBuffer> {
     const speakerId = voiceId ? parseInt(voiceId, 10) : 2;
     const query = await createAudioQuery(text, speakerId);
+    if (options?.speechRate !== undefined) {
+      query.speedScale = options.speechRate;
+    }
     return synthesizeFromQuery(query, speakerId);
   },
 };

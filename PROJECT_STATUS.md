@@ -34,6 +34,29 @@ changing the project, and update it when the facts below change.
   Microsoft under submission ID `260c5851-4cc1-4813-ba05-16d785ab49fd` and was
   pending at the last check.
 
+## v1.3.6 changes
+
+The `v1.3.6` release includes changes that:
+
+- save completed sessions before feedback generation and allow failed feedback
+  requests to be retried without losing the conversation;
+- serialize local transcription results and combine short pause-separated audio
+  chunks before sending a learner turn;
+- add persistent VOICEVOX speaking-rate controls in Settings and both voice
+  conversation layouts;
+- use 琴詠ニア's normal style as the first-run VOICEVOX default while keeping
+  existing valid voice selections and attribution intact;
+- explicitly prohibit furigana in conversation prompts and remove inline kana
+  readings from synthesized speech if a model still returns them; and
+- keep the voice visualizer behind transcript cards by removing the top-edge
+  mask that made the cards themselves partially transparent.
+
+The session recovery, pause handling, speaking-rate behavior, and conversation
+flow were exercised in the local desktop app. The installed VOICEVOX engine was
+also queried directly to confirm 琴詠ニア's normal talk style. Frontend lint and
+build, Rust formatting, all six Rust tests, Cargo check, and diff checks pass as
+of 2026-08-21.
+
 The exact v1.3.2 installer currently published on GitHub was downloaded and
 verified on 2026-08-12:
 
@@ -180,8 +203,9 @@ Post-release delivery verification confirmed:
   app is installed in `/Applications`; public metadata and cryptographic
   delivery were verified directly instead.
 
-VoiceVox speaking-speed and pitch controls are a separate future improvement
-requested for beginner learners and are intentionally outside this release.
+VoiceVox speaking-speed and pitch controls were requested for beginner
+learners and were intentionally outside `v1.3.4`. Speaking rate is now part of
+the current unreleased local work; pitch remains a possible future improvement.
 Additional anonymous feedback after `v1.3.4` reinforced two future ideas:
 
 - Add Tama-owned VoiceVox speech controls, starting with speaking rate and
@@ -216,8 +240,9 @@ release artifacts use the production updater key and were verified above.
 
 ## Next decisions
 
-1. Keep VoiceVox speed/pitch controls in the backlog rather than expanding the
-   current release; speaking rate is the first useful control.
+1. After the current local work is fully verified, decide whether it should be
+   grouped into a new release. Keep pitch outside that decision unless it is
+   explicitly brought into scope.
 2. If Windows transcription needs a larger future improvement, evaluate the
    optional Vulkan GPU path described above with CPU fallback. Alternative
    backends or models such as Parakeet remain separate experiments.

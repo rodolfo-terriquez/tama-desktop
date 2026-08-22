@@ -7,6 +7,7 @@ import { MessageBubble } from "@/components/conversation/MessageBubble";
 import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
 import { TranscriptBubbles } from "@/components/conversation/TranscriptBubbles";
 import { PushToTalkControl } from "@/components/conversation/PushToTalkControl";
+import { SpeechRateControl } from "@/components/conversation/SpeechRateControl";
 import { useVADRecorder } from "@/hooks/useVADRecorder";
 import { usePushToTalkHotkey } from "@/hooks/usePushToTalkHotkey";
 import { useI18n } from "@/i18n";
@@ -418,7 +419,8 @@ export function OngoingChatScreen({ chatId, onBack, onContextChange }: OngoingCh
           />
         )}
 
-        <div className="flex-shrink-0 flex justify-center gap-3 py-3 px-4">
+        <div className="flex flex-shrink-0 flex-wrap justify-center gap-3 px-4 py-3">
+          <SpeechRateControl />
           <Button variant="ghost" size="sm" onClick={() => setShowCaptions(!showCaptions)}>
             {showCaptions ? t("scenario.hideTranscript") : t("scenario.showTranscript")}
           </Button>

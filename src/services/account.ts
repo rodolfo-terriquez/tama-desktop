@@ -34,9 +34,11 @@ import {
   clearStoredVoiceId,
   getSBV2BaseUrl,
   getStoredEngineType,
+  getStoredSpeechRate,
   getStoredVoiceId,
   setSBV2BaseUrl,
   setStoredEngineType,
+  setStoredSpeechRate,
   setStoredVoiceId,
 } from "@/services/tts";
 import { getTranscriptionEngine, setTranscriptionEngine } from "@/services/transcription";
@@ -320,6 +322,7 @@ function isAccountPreferences(value: unknown): value is AccountPreferences {
     (value.displayMode === "light" || value.displayMode === "dark" || value.displayMode === "system") &&
     (value.ttsEngine === "voicevox" || value.ttsEngine === "sbv2") &&
     (value.ttsVoiceId === null || isString(value.ttsVoiceId)) &&
+    (value.ttsSpeechRate === undefined || isNumber(value.ttsSpeechRate)) &&
     isString(value.sbv2BaseUrl) &&
     (value.transcriptionEngine === "local" || value.transcriptionEngine === "openai")
   );
@@ -379,6 +382,7 @@ export function getAccountPreferences(): AccountPreferences {
     displayMode: getDisplayMode(),
     ttsEngine: getStoredEngineType(),
     ttsVoiceId: getStoredVoiceId(),
+    ttsSpeechRate: getStoredSpeechRate(),
     sbv2BaseUrl: getSBV2BaseUrl(),
     transcriptionEngine: getTranscriptionEngine(),
   };
@@ -393,6 +397,9 @@ export function applyAccountPreferences(preferences: AccountPreferences): void {
   if (preferences.localModel) setLocalModel(preferences.localModel);
   setDisplayMode(preferences.displayMode);
   setStoredEngineType(preferences.ttsEngine);
+  if (preferences.ttsSpeechRate !== undefined) {
+    setStoredSpeechRate(preferences.ttsSpeechRate);
+  }
 
   if (preferences.ttsVoiceId) {
     setStoredVoiceId(preferences.ttsVoiceId);

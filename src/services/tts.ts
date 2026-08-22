@@ -22,11 +22,20 @@ export interface TTSEngine {
   checkStatus(): Promise<boolean>;
   getSpeakers(): Promise<TTSSpeaker[]>;
   getSpeakerPolicy?(speakerId: string): Promise<string | null>;
-  synthesize(text: string, voiceId?: string): Promise<ArrayBuffer>;
+  synthesize(
+    text: string,
+    voiceId?: string,
+    options?: TTSynthesisOptions
+  ): Promise<ArrayBuffer>;
+}
+
+export interface TTSynthesisOptions {
+  speechRate?: number;
 }
 
 export interface SpeakOptions {
   voiceId?: string;
+  speechRate?: number;
   onAmplitude?: (amplitude: number) => void;
   amplitudeSampleRate?: number;
 }
@@ -70,6 +79,7 @@ const SPEAKER_ENGLISH_NAMES: Record<string, string> = {
   "麒ヶ島宗麟": "Kigashima Sourin",
   "猫使アル": "Nekotsukai Aru",
   "猫使ビィ": "Nekotsukai Bii",
+  "琴詠ニア": "Kotoyomi Nia",
 };
 
 const STYLE_ENGLISH_NAMES: Record<string, string> = {
@@ -108,6 +118,33 @@ export function getEnglishVoiceDisplayName(name: string): string {
 const STORAGE_KEY_ENGINE = "tama_tts_engine";
 const STORAGE_KEY_VOICE = "tama_tts_voice_id";
 const STORAGE_KEY_SBV2_URL = "tama_sbv2_url";
+const STORAGE_KEY_SPEECH_RATE = "tama_tts_speech_rate";
+
+export const DEFAULT_VOICEVOX_SPEAKER_NAME = "琴詠ニア";
+export const DEFAULT_VOICEVOX_STYLE_NAME = "ノーマル";
+
+export const MIN_SPEECH_RATE = 0.5;
+export const MAX_SPEECH_RATE = 2;
+export const SPEECH_RATE_STEP = 0.1;
+export const DEFAULT_SPEECH_RATE = 1;
+
+export function clampSpeechRate(rate: number): number {
+  if (!Number.isFinite(rate)) return DEFAULT_SPEECH_RATE;
+  const clamped = Math.min(MAX_SPEECH_RATE, Math.max(MIN_SPEECH_RATE, rate));
+  return Math.round(clamped * 10) / 10;
+}
+
+export function getStoredSpeechRate(): number {
+  const stored = localStorage.getItem(STORAGE_KEY_SPEECH_RATE);
+  return stored === null ? DEFAULT_SPEECH_RATE : clampSpeechRate(Number(stored));
+}
+
+export function setStoredSpeechRate(rate: number): number {
+  const clamped = clampSpeechRate(rate);
+  localStorage.setItem(STORAGE_KEY_SPEECH_RATE, String(clamped));
+  window.dispatchEvent(new Event("tts-speech-rate-changed"));
+  return clamped;
+}
 
 export function getStoredEngineType(): TTSEngineType {
   return (localStorage.getItem(STORAGE_KEY_ENGINE) as TTSEngineType) || "voicevox";
@@ -293,6 +330,9 @@ const EMOJI_RE =
 const CJK_SPACE_RE =
   /([\u3000-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF])\s+([\u3000-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF])/g;
 
+const JAPANESE_READING_ANNOTATION_RE =
+  /([\p{Script=Han}々〆ヵヶ][\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}々〆ヵヶー]*)\s*[（(]([\p{Script=Hiragana}\p{Script=Katakana}ー・\s]+)[）)]/gu;
+
 function stripSpacesBetweenJapanese(text: string): string {
   let prev = "";
   while (prev !== text) {
@@ -304,6 +344,15 @@ function stripSpacesBetweenJapanese(text: string): string {
 
 function stripEmoji(text: string): string {
   return text.replace(EMOJI_RE, "").replace(/\s{2,}/g, " ").trim();
+}
+
+/**
+ * Remove inline kana readings from synthesized speech so a model response such
+ * as "散歩（さんぽ）" is spoken once rather than as both the word and its reading.
+ * The displayed and stored response remains untouched.
+ */
+export function stripJapaneseReadingAnnotations(text: string): string {
+  return text.replace(JAPANESE_READING_ANNOTATION_RE, "$1");
 }
 
 // ── Sentence splitting for pipelined playback ───────────
@@ -321,12 +370,12 @@ function splitIntoSentences(text: string): string[] {
 /**
  * Initialize TTS: check active engine, find stored voice or default.
  */
-export async function initializeTTS(): Promise<{
+export async function initializeTTS(engineType?: TTSEngineType): Promise<{
   available: boolean;
   speakerId: string;
   speakerName: string;
 }> {
-  const engine = getEngine();
+  const engine = getEngine(engineType);
 
   const available = await engine.checkStatus();
   if (!available) {
@@ -348,6 +397,26 @@ export async function initializeTTS(): Promise<{
           };
         }
       }
+    }
+  }
+
+  // Prefer Tama's intended first-run VOICEVOX voice without replacing a
+  // valid voice that the user has already selected.
+  if (engine.type === "voicevox") {
+    const defaultSpeaker = speakers.find(
+      (speaker) => speaker.name === DEFAULT_VOICEVOX_SPEAKER_NAME
+    );
+    const defaultStyle = defaultSpeaker?.styles.find(
+      (style) => style.name === DEFAULT_VOICEVOX_STYLE_NAME
+    );
+
+    if (defaultSpeaker && defaultStyle) {
+      setStoredVoiceId(defaultStyle.id);
+      return {
+        available: true,
+        speakerId: defaultStyle.id,
+        speakerName: `${defaultSpeaker.name} (${defaultStyle.name})`,
+      };
     }
   }
 
@@ -375,25 +444,30 @@ export async function initializeTTS(): Promise<{
 export async function speak(text: string, options?: SpeakOptions): Promise<void> {
   const engine = getEngine();
   const voiceId = options?.voiceId ?? getStoredVoiceId() ?? undefined;
+  const speechRate = clampSpeechRate(options?.speechRate ?? getStoredSpeechRate());
   const playOpts = {
     onAmplitude: options?.onAmplitude,
     amplitudeSampleRate: options?.amplitudeSampleRate,
   };
   const interruptionToken = cancelActivePlayback();
 
-  text = stripSpacesBetweenJapanese(stripEmoji(text));
+  text = stripSpacesBetweenJapanese(
+    stripJapaneseReadingAnnotations(stripEmoji(text))
+  );
   if (!text) return;
 
   const sentences = splitIntoSentences(text);
   if (sentences.length <= 1) {
-    const audioData = await engine.synthesize(text, voiceId);
+    const audioData = await engine.synthesize(text, voiceId, { speechRate });
     if (cancelledToken !== interruptionToken) return;
     await playAudio(audioData, { ...playOpts, interruptionToken });
     return;
   }
 
   // Kick off all synthesis requests in parallel
-  const synthPromises = sentences.map((s) => engine.synthesize(s, voiceId));
+  const synthPromises = sentences.map((s) =>
+    engine.synthesize(s, voiceId, { speechRate })
+  );
 
   // Play each segment in order as it becomes ready
   for (const promise of synthPromises) {

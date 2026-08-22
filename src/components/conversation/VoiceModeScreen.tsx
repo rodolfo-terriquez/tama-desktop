@@ -10,6 +10,7 @@ import { PushToTalkControl } from "@/components/conversation/PushToTalkControl";
 import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
 import { TranscriptBubbles } from "@/components/conversation/TranscriptBubbles";
 import { MessageBubble } from "@/components/conversation/MessageBubble";
+import { SpeechRateControl } from "@/components/conversation/SpeechRateControl";
 import { localizeScenario } from "@/data/scenarios";
 import { useVADRecorder } from "@/hooks/useVADRecorder";
 import { usePushToTalkHotkey } from "@/hooks/usePushToTalkHotkey";
@@ -43,6 +44,10 @@ type ConversationState =
   | "transcribing"
   | "thinking"
   | "speaking";
+
+// Rust VAD emits a chunk after 800 ms of silence. This additional window treats
+// that event as a possible pause instead of immediately ending the learner's turn.
+const VOICE_CONTINUATION_GRACE_MS = 1200;
 
 interface VoiceModeScreenProps {
   scenario: Scenario;
@@ -78,6 +83,12 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   const messagesRef = useRef<Message[]>([]);
   const sessionEndedRef = useRef(false);
   const conversationStateRef = useRef<ConversationState>("idle");
+  const voiceTurnInFlightRef = useRef(false);
+  const voiceSpeechActiveRef = useRef(false);
+  const pendingVoiceTranscriptPartsRef = useRef<string[]>([]);
+  const pendingVoiceTranscriptionsRef = useRef(0);
+  const voiceContinuationElapsedRef = useRef(false);
+  const voiceContinuationTimerRef = useRef<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   // Refs for VAD controls so handlers can call them synchronously without waiting for state/effect cycle
   const pauseVADRef = useRef<() => void>(() => {});
@@ -88,6 +99,22 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     }),
     []
   );
+
+  const clearVoiceContinuationTimer = useCallback(() => {
+    if (voiceContinuationTimerRef.current !== null) {
+      window.clearTimeout(voiceContinuationTimerRef.current);
+      voiceContinuationTimerRef.current = null;
+    }
+  }, []);
+
+  const resetPendingVoiceTurn = useCallback(() => {
+    clearVoiceContinuationTimer();
+    voiceSpeechActiveRef.current = false;
+    pendingVoiceTranscriptPartsRef.current = [];
+    pendingVoiceTranscriptionsRef.current = 0;
+    voiceContinuationElapsedRef.current = false;
+    voiceTurnInFlightRef.current = false;
+  }, [clearVoiceContinuationTimer]);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { conversationStateRef.current = conversationState; }, [conversationState]);
@@ -108,7 +135,10 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     setShadowScript(null);
     setDraftMessage("");
     sessionEndedRef.current = false;
-  }, [scenario.id, scenario.isCustom]);
+    resetPendingVoiceTurn();
+  }, [resetPendingVoiceTurn, scenario.id, scenario.isCustom]);
+
+  useEffect(() => clearVoiceContinuationTimer, [clearVoiceContinuationTimer]);
 
   useEffect(() => {
     getShadowScript(scenario.id)
@@ -293,49 +323,85 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     [scenario, t, userProfile]
   );
 
-  // --- Voice transcription handler ---
-  const handleVoiceTranscription = useCallback(
+  const respondToVoiceTurn = useCallback(
     async (transcript: string) => {
-      if (sessionEndedRef.current) return;
-      
-      // Guard against processing transcription while AI is speaking or thinking
-      // This prevents the AI from responding to its own voice (audio feedback loop)
-      const currentState = conversationStateRef.current;
-      if (currentState === "speaking" || currentState === "thinking") {
-        console.log("Ignoring transcription during", currentState, "state");
-        return;
-      }
-      
-      if (!transcript?.trim()) {
-        setConversationState("listening");
-        return;
-      }
+      try {
+        const result = await sendAndRespond(transcript);
+        if (sessionEndedRef.current) return;
 
-      setConversationState("thinking");
-      const result = await sendAndRespond(transcript);
-
-      if (sessionEndedRef.current) return;
-
-      if (result && ttsStatus.available) {
-        // Pause VAD synchronously BEFORE speaking to prevent mic picking up TTS audio
-        pauseVADRef.current();
-        setConversationState("speaking");
-        try {
-          await speak(result.response, { onAmplitude: setAmplitude });
-        } catch (err) {
-          console.error("TTS error:", err);
+        if (result && ttsStatus.available) {
+          conversationStateRef.current = "speaking";
+          setConversationState("speaking");
+          try {
+            await speak(result.response, { onAmplitude: setAmplitude });
+          } catch (err) {
+            console.error("TTS error:", err);
+          }
+          // Wait for audio to fully clear before resuming mic
+          await new Promise((r) => setTimeout(r, 600));
         }
-        // Wait for audio to fully clear before resuming mic
-        await new Promise((r) => setTimeout(r, 600));
+      } finally {
+        voiceTurnInFlightRef.current = false;
+        if (!sessionEndedRef.current) {
+          setAmplitude(0);
+          resumeVADRef.current();
+          conversationStateRef.current = "listening";
+          setConversationState("listening");
+        }
       }
-
-      if (sessionEndedRef.current) return;
-      setAmplitude(0);
-      resumeVADRef.current();
-      setConversationState("listening");
     },
     [sendAndRespond, ttsStatus.available]
   );
+
+  const finalizePendingVoiceTurn = useCallback(() => {
+    if (
+      sessionEndedRef.current ||
+      voiceTurnInFlightRef.current ||
+      voiceSpeechActiveRef.current ||
+      !voiceContinuationElapsedRef.current ||
+      pendingVoiceTranscriptionsRef.current > 0
+    ) {
+      return;
+    }
+
+    clearVoiceContinuationTimer();
+    voiceContinuationElapsedRef.current = false;
+
+    const transcript = pendingVoiceTranscriptPartsRef.current.join("").trim();
+    pendingVoiceTranscriptPartsRef.current = [];
+
+    if (!transcript) {
+      conversationStateRef.current = "listening";
+      setConversationState("listening");
+      return;
+    }
+
+    // Only the settled, combined learner turn is allowed to reach the model.
+    voiceTurnInFlightRef.current = true;
+    pauseVADRef.current();
+    conversationStateRef.current = "thinking";
+    setConversationState("thinking");
+    void respondToVoiceTurn(transcript);
+  }, [clearVoiceContinuationTimer, respondToVoiceTurn]);
+
+  const scheduleVoiceTurnFinalization = useCallback(() => {
+    clearVoiceContinuationTimer();
+    voiceContinuationElapsedRef.current = false;
+    voiceContinuationTimerRef.current = window.setTimeout(() => {
+      voiceContinuationTimerRef.current = null;
+      voiceContinuationElapsedRef.current = true;
+      finalizePendingVoiceTurn();
+    }, VOICE_CONTINUATION_GRACE_MS);
+  }, [clearVoiceContinuationTimer, finalizePendingVoiceTurn]);
+
+  const handleVoiceTranscription = useCallback((transcript: string) => {
+    if (sessionEndedRef.current || voiceTurnInFlightRef.current) return;
+
+    const trimmed = transcript.trim();
+    if (trimmed) {
+      pendingVoiceTranscriptPartsRef.current.push(trimmed);
+    }
+  }, []);
 
   // --- Text submit handler ---
   const handleTextSubmit = useCallback(
@@ -371,16 +437,74 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   } = useVADRecorder({
     recordingMode: voiceInputMode,
     onSpeechStart: () => {
-      if (conversationState === "speaking") {
+      voiceSpeechActiveRef.current = true;
+      voiceContinuationElapsedRef.current = false;
+      clearVoiceContinuationTimer();
+
+      if (conversationStateRef.current === "speaking") {
         stopCurrentAudio();
+        conversationStateRef.current = "listening";
+        setConversationState("listening");
+      } else if (!voiceTurnInFlightRef.current) {
+        conversationStateRef.current = "listening";
         setConversationState("listening");
       }
     },
     onSpeechEnd: () => {
+      voiceSpeechActiveRef.current = false;
+      conversationStateRef.current = "transcribing";
       setConversationState("transcribing");
+
+      if (voiceInputMode === "push-to-talk") {
+        voiceContinuationElapsedRef.current = true;
+      } else {
+        scheduleVoiceTurnFinalization();
+      }
+    },
+    onSpeechCancelled: () => {
+      voiceSpeechActiveRef.current = false;
+      if (
+        pendingVoiceTranscriptPartsRef.current.length > 0 ||
+        pendingVoiceTranscriptionsRef.current > 0
+      ) {
+        if (voiceInputMode === "push-to-talk") {
+          voiceContinuationElapsedRef.current = true;
+          finalizePendingVoiceTurn();
+        } else {
+          scheduleVoiceTurnFinalization();
+        }
+      } else if (!voiceTurnInFlightRef.current) {
+        conversationStateRef.current = "listening";
+        setConversationState("listening");
+      }
+    },
+    onTranscriptionStart: () => {
+      pendingVoiceTranscriptionsRef.current += 1;
+      if (!voiceTurnInFlightRef.current) {
+        conversationStateRef.current = "transcribing";
+        setConversationState("transcribing");
+      }
     },
     onTranscription: handleVoiceTranscription,
+    onTranscriptionSettled: () => {
+      pendingVoiceTranscriptionsRef.current = Math.max(
+        0,
+        pendingVoiceTranscriptionsRef.current - 1
+      );
+      finalizePendingVoiceTurn();
+    },
     onAmplitude: setAmplitude,
+    onError: (message) => {
+      setError(message);
+      if (
+        !sessionEndedRef.current &&
+        !voiceTurnInFlightRef.current &&
+        !voiceSpeechActiveRef.current
+      ) {
+        conversationStateRef.current = "listening";
+        setConversationState("listening");
+      }
+    },
   });
 
   const pushToTalkDisabled =
@@ -397,10 +521,8 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   useEffect(() => { pauseVADRef.current = pauseVAD; }, [pauseVAD]);
   useEffect(() => { resumeVADRef.current = resumeVAD; }, [resumeVAD]);
 
-  // Only pause Rust audio capture when the AI is actually speaking (TTS active).
-  // Do NOT pause during "transcribing" or "thinking" — that would cause the
-  // user's own transcription to be dropped by the JS isPausedRef check.
-  // The explicit pauseVADRef.current() call before speak() handles TTS gating.
+  // Resume capture only after the current turn has fully returned to listening.
+  // Speech-end and TTS transitions pause capture synchronously in their handlers.
   useEffect(() => {
     if (inputMode !== "voice" || !started) return;
     if (conversationState === "listening" && isListening) {
@@ -410,14 +532,17 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
 
   // --- Start session (always starts in voice mode) ---
   const handleStartConversation = useCallback(async () => {
+    resetPendingVoiceTurn();
     setRunMode("conversation");
     setStarted(true);
     setError(null);
+    conversationStateRef.current = "thinking";
     setConversationState("thinking");
 
     try {
       const includeFlashcardVocab = userProfile?.include_flashcard_vocab_in_conversations ?? true;
       await startVAD(getStartVADOptions());
+      pauseVADRef.current();
 
       const systemPrompt = buildScenarioPrompt(
         scenario,
@@ -444,6 +569,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
       if (ttsStatus.available) {
         // Pause VAD synchronously BEFORE speaking to prevent mic picking up TTS audio
         pauseVADRef.current();
+        conversationStateRef.current = "speaking";
         setConversationState("speaking");
         try {
           await speak(response, { onAmplitude: setAmplitude });
@@ -456,27 +582,33 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
 
       setAmplitude(0);
       resumeVADRef.current();
+      conversationStateRef.current = "listening";
       setConversationState("listening");
     } catch (err) {
       console.error("Error starting session:", err);
+      await stopVAD();
       setError(err instanceof Error ? err.message : t("scenario.failedToStart"));
       setStarted(false);
+      conversationStateRef.current = "idle";
       setConversationState("idle");
     }
-  }, [getStartVADOptions, scenario, t, ttsStatus.available, startVAD, userProfile]);
+  }, [getStartVADOptions, resetPendingVoiceTurn, scenario, t, ttsStatus.available, startVAD, stopVAD, userProfile]);
 
   // --- Mode switching ---
   const handleSwitchToText = useCallback(() => {
+    resetPendingVoiceTurn();
     pauseVAD();
     stopCurrentAudio();
     setInputMode("text");
+    conversationStateRef.current = "idle";
     setConversationState("idle");
     setAmplitude(0);
-  }, [pauseVAD]);
+  }, [pauseVAD, resetPendingVoiceTurn]);
 
   const handleSwitchToVoice = useCallback(async () => {
     setError(null);
     setInputMode("voice");
+    conversationStateRef.current = "listening";
     setConversationState("listening");
     try {
       if (!isListening) {
@@ -487,6 +619,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     } catch (err) {
       setError(err instanceof Error ? err.message : t("scenario.failedToStart"));
       setInputMode("text");
+      conversationStateRef.current = "idle";
       setConversationState("idle");
     }
   }, [getStartVADOptions, isListening, startVAD, resumeVAD, t]);
@@ -494,12 +627,13 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   // --- End session ---
   const endSession = useCallback(() => {
     sessionEndedRef.current = true;
+    resetPendingVoiceTurn();
     stopVAD();
     stopCurrentAudio();
     if (onEndSession) {
       onEndSession(messages, scenario);
     }
-  }, [messages, scenario, onEndSession, stopVAD]);
+  }, [messages, scenario, onEndSession, resetPendingVoiceTurn, stopVAD]);
 
   // ── Setup screen ──
   if (!started) {
@@ -745,7 +879,8 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
           />
         )}
 
-        <div className="flex-shrink-0 flex justify-center gap-3 py-3 px-4">
+        <div className="flex flex-shrink-0 flex-wrap justify-center gap-3 px-4 py-3">
+          <SpeechRateControl />
           <Button variant="ghost" size="sm" onClick={() => setShowCaptions(!showCaptions)}>
             {showCaptions ? t("scenario.hideTranscript") : t("scenario.showTranscript")}
           </Button>

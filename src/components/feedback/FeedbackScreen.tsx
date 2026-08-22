@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,10 +8,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useI18n } from "@/i18n";
 import { generateFeedback } from "@/services/claude";
-import { FeedbackParseError, parseFeedbackResponse } from "@/services/feedback-parser";
+import { parseFeedbackResponse } from "@/services/feedback-parser";
 import { generateDailyStudyPlan } from "@/services/study-plan";
 import { formatLocalDate } from "@/services/local-date";
-import { addVocabItem, saveSession, getVocabulary, getUserProfile, updateUserProfile } from "@/services/storage";
+import {
+  addVocabItem,
+  getUserProfile,
+  getVocabulary,
+  insertSessionIfMissing,
+  saveSession,
+  updateUserProfile,
+} from "@/services/storage";
 import type { Message, Scenario, SessionFeedback, Session } from "@/types";
 
 interface FeedbackScreenProps {
@@ -37,98 +44,154 @@ export function FeedbackScreen({
   const [feedback, setFeedback] = useState<SessionFeedback | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
   const [sessionSaved, setSessionSaved] = useState(false);
+  const mountedRef = useRef(true);
+  const sessionRef = useRef<Session | null>(null);
+  const sessionSavePromiseRef = useRef<Promise<void> | null>(null);
+  const feedbackRequestRef = useRef<Promise<void> | null>(null);
 
-  const saveSessionData = useCallback(
-    async (fb: SessionFeedback) => {
-      if (sessionSaved) return;
+  if (!sessionRef.current) {
+    const firstMsg = messages[0];
+    const lastMsg = messages[messages.length - 1];
+    const startTime = new Date(firstMsg?.timestamp || Date.now());
+    const endTime = new Date(lastMsg?.timestamp || Date.now());
+    const durationSeconds = Math.max(
+      0,
+      Math.round((endTime.getTime() - startTime.getTime()) / 1000)
+    );
 
-      const firstMsg = messages[0];
-      const lastMsg = messages[messages.length - 1];
-      const startTime = new Date(firstMsg?.timestamp || Date.now());
-      const endTime = new Date(lastMsg?.timestamp || Date.now());
-      const durationSeconds = Math.round(
-        (endTime.getTime() - startTime.getTime()) / 1000
-      );
+    sessionRef.current = {
+      id: firstMsg?.id ? `session:${firstMsg.id}` : crypto.randomUUID(),
+      date: new Date().toISOString(),
+      scenario,
+      messages,
+      feedback: null,
+      duration_seconds: durationSeconds,
+      run_mode: "conversation",
+    };
+  }
 
-      const session: Session = {
-        id: crypto.randomUUID(),
-        date: new Date().toISOString(),
-        scenario,
-        messages,
-        feedback: fb,
-        duration_seconds: durationSeconds,
-        run_mode: "conversation",
-      };
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-      await saveSession(session);
+  const ensureSessionSaved = useCallback(async () => {
+    if (!sessionSavePromiseRef.current) {
+      sessionSavePromiseRef.current = (async () => {
+        const session = sessionRef.current;
+        if (!session) return;
 
+        const inserted = await insertSessionIfMissing(session);
+        if (mountedRef.current) {
+          setSessionSaved(true);
+          setSaveError(null);
+        }
+
+        if (inserted) {
+          try {
+            const profile = await getUserProfile();
+            await updateUserProfile({
+              total_sessions: profile.total_sessions + 1,
+            });
+          } catch (profileError) {
+            console.error("Failed to update session count:", profileError);
+          }
+        }
+      })().catch((saveFailure) => {
+        sessionSavePromiseRef.current = null;
+        throw saveFailure;
+      });
+    }
+
+    return sessionSavePromiseRef.current;
+  }, []);
+
+  const saveFeedbackData = useCallback(async (fb: SessionFeedback) => {
+    await ensureSessionSaved();
+    const session = sessionRef.current;
+    if (!session) return;
+
+    await saveSession({ ...session, feedback: fb });
+
+    try {
       const profile = await getUserProfile();
       const newTopics = fb.summary.topics_covered.filter(
-        (t) => !profile.topics_covered.includes(t)
+        (topic) => !profile.topics_covered.includes(topic)
       );
       const newStruggles = fb.grammar_points
         .slice(0, 3)
-        .map((g) => g.explanation);
+        .map((point) => point.explanation);
 
       await updateUserProfile({
-        total_sessions: profile.total_sessions + 1,
         topics_covered: [...profile.topics_covered, ...newTopics].slice(-20),
-        recent_struggles: newStruggles.length > 0 ? newStruggles : profile.recent_struggles,
+        recent_struggles:
+          newStruggles.length > 0 ? newStruggles : profile.recent_struggles,
       });
+    } catch (profileError) {
+      console.error("Failed to update profile from session feedback:", profileError);
+    }
 
-      void generateDailyStudyPlan().catch((error) => {
-        console.error("Failed to refresh daily study plan after session:", error);
-      });
+    void generateDailyStudyPlan().catch((planError) => {
+      console.error("Failed to refresh daily study plan after session:", planError);
+    });
+  }, [ensureSessionSaved]);
 
-      setSessionSaved(true);
-    },
-    [messages, scenario, sessionSaved]
-  );
+  const runFeedback = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchFeedback() {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const raw = await generateFeedback(messages, {
-          title: scenario.title,
-          description: scenario.description,
-        }, locale);
-
-        if (cancelled) return;
-
-        const parsed = parseFeedbackResponse(raw);
-        setFeedback(parsed);
-        await saveSessionData(parsed);
-      } catch (err) {
-        if (cancelled) return;
-        console.error("Feedback generation failed:", err);
-        setError(
-          err instanceof FeedbackParseError ? t("feedback.generateFailed")
-          : err instanceof Error ? err.message
-          : t("feedback.generateFailed")
-        );
-      } finally {
-        if (!cancelled) setIsLoading(false);
+    try {
+      await ensureSessionSaved();
+    } catch (saveFailure) {
+      console.error("Failed to save completed session:", saveFailure);
+      if (mountedRef.current) {
+        setSaveError(t("feedback.saveFailed"));
       }
     }
 
+    try {
+      const raw = await generateFeedback(messages, {
+        title: scenario.title,
+        description: scenario.description,
+      }, locale);
+      if (!mountedRef.current) return;
+
+      const parsed = parseFeedbackResponse(raw);
+      await saveFeedbackData(parsed);
+      if (!mountedRef.current) return;
+      setFeedback(parsed);
+    } catch (feedbackFailure) {
+      console.error("Feedback generation failed:", feedbackFailure);
+      if (mountedRef.current) {
+        setError(t("feedback.generateFailed"));
+      }
+    } finally {
+      if (mountedRef.current) setIsLoading(false);
+    }
+  }, [ensureSessionSaved, locale, messages, saveFeedbackData, scenario.description, scenario.title, t]);
+
+  const requestFeedback = useCallback(() => {
+    if (!feedbackRequestRef.current) {
+      feedbackRequestRef.current = runFeedback().finally(() => {
+        feedbackRequestRef.current = null;
+      });
+    }
+    return feedbackRequestRef.current;
+  }, [runFeedback]);
+
+  useEffect(() => {
     if (messages.length > 0) {
-      fetchFeedback();
+      void requestFeedback();
     } else {
       setIsLoading(false);
       setError(t("feedback.noConversation"));
     }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [locale, messages, saveSessionData, scenario, t]);
+  }, [messages.length, requestFeedback, t]);
 
   const handleAddToSRS = useCallback(
     async (vocabIndex: number) => {
@@ -183,9 +246,22 @@ export function FeedbackScreen({
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
-            <div className="flex gap-2 justify-center pt-2">
+            {sessionSaved && (
+              <Alert>
+                <AlertDescription>{t("feedback.sessionSavedWithoutFeedback")}</AlertDescription>
+              </Alert>
+            )}
+            {saveError && (
+              <Alert variant="destructive">
+                <AlertDescription>{saveError}</AlertDescription>
+              </Alert>
+            )}
+            <div className="flex flex-wrap gap-2 justify-center pt-2">
               <Button variant="outline" onClick={onGoHome}>
                 {t("common.home")}
+              </Button>
+              <Button variant="outline" onClick={() => void requestFeedback()}>
+                {t("feedback.retry")}
               </Button>
               <Button onClick={onStartNewSession}>{t("feedback.newSession")}</Button>
             </div>
@@ -203,6 +279,11 @@ export function FeedbackScreen({
   return (
     <ScrollArea className="h-full">
       <div className="max-w-3xl mx-auto p-4 pb-12 space-y-6">
+        {saveError && (
+          <Alert variant="destructive">
+            <AlertDescription>{saveError}</AlertDescription>
+          </Alert>
+        )}
         {/* Summary Card */}
         <Card>
           <CardHeader className="pb-3">

@@ -9,7 +9,10 @@ interface UseVADRecorderOptions {
   recordingMode?: VoiceInputMode;
   onSpeechStart?: () => void;
   onSpeechEnd?: () => void;
+  onSpeechCancelled?: () => void;
+  onTranscriptionStart?: () => void;
   onTranscription?: (text: string) => void;
+  onTranscriptionSettled?: () => void;
   onAmplitude?: (amplitude: number) => void;
   onError?: (message: string) => void;
 }
@@ -42,8 +45,16 @@ interface AudioSegmentPayload {
 export function useVADRecorder(
   options: UseVADRecorderOptions = {}
 ): UseVADRecorderReturn {
-  const { onSpeechStart, onSpeechEnd, onTranscription, onAmplitude, onError } =
-    options;
+  const {
+    onSpeechStart,
+    onSpeechEnd,
+    onSpeechCancelled,
+    onTranscriptionStart,
+    onTranscription,
+    onTranscriptionSettled,
+    onAmplitude,
+    onError,
+  } = options;
   const recordingMode = options.recordingMode ?? "automatic";
 
   const [isListening, setIsListening] = useState(false);
@@ -56,22 +67,38 @@ export function useVADRecorder(
   const isPausedRef = useRef(false);
   const isPushToTalkActiveRef = useRef(false);
   const pushToTalkCommandRef = useRef<Promise<void>>(Promise.resolve());
+  const transcriptionQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pushToTalkFinalizingTimeoutRef = useRef<number | null>(null);
   const unlistenersRef = useRef<UnlistenFn[]>([]);
 
   const onSpeechStartRef = useRef(onSpeechStart);
   const onSpeechEndRef = useRef(onSpeechEnd);
+  const onSpeechCancelledRef = useRef(onSpeechCancelled);
+  const onTranscriptionStartRef = useRef(onTranscriptionStart);
   const onTranscriptionRef = useRef(onTranscription);
+  const onTranscriptionSettledRef = useRef(onTranscriptionSettled);
   const onAmplitudeRef = useRef(onAmplitude);
   const onErrorRef = useRef(onError);
 
   useEffect(() => {
     onSpeechStartRef.current = onSpeechStart;
     onSpeechEndRef.current = onSpeechEnd;
+    onSpeechCancelledRef.current = onSpeechCancelled;
+    onTranscriptionStartRef.current = onTranscriptionStart;
     onTranscriptionRef.current = onTranscription;
+    onTranscriptionSettledRef.current = onTranscriptionSettled;
     onAmplitudeRef.current = onAmplitude;
     onErrorRef.current = onError;
-  }, [onSpeechStart, onSpeechEnd, onTranscription, onAmplitude, onError]);
+  }, [
+    onSpeechStart,
+    onSpeechEnd,
+    onSpeechCancelled,
+    onTranscriptionStart,
+    onTranscription,
+    onTranscriptionSettled,
+    onAmplitude,
+    onError,
+  ]);
 
   const clearPushToTalkFinalizing = useCallback(() => {
     if (pushToTalkFinalizingTimeoutRef.current !== null) {
@@ -120,25 +147,34 @@ export function useVADRecorder(
           setIsSpeaking(false);
           clearPushToTalkFinalizing();
           onAmplitudeRef.current?.(0);
+          if (!isPausedRef.current) {
+            onSpeechCancelledRef.current?.();
+          }
         })
       );
 
       unlisteners.push(
         await listen<AudioSegmentPayload>("voice-audio-segment", (event) => {
-          void (async () => {
+          onTranscriptionStartRef.current?.();
+
+          const transcriptionJob = transcriptionQueueRef.current.then(async () => {
             try {
               const pcm = base64ToFloat32PCM(event.payload.audioBase64);
               const text = await transcribeAudio(pcm, { language: "ja" });
-              if (text) {
-                onTranscriptionRef.current?.(text);
-              }
+              onTranscriptionRef.current?.(text);
             } catch (err) {
               const message =
                 err instanceof Error ? err.message : "Failed to transcribe audio";
               setError(message);
               onErrorRef.current?.(message);
+            } finally {
+              onTranscriptionSettledRef.current?.();
             }
-          })();
+          });
+
+          // Preserve emission order so adjacent speech chunks are appended to the
+          // learner's turn in the same order they were recorded.
+          transcriptionQueueRef.current = transcriptionJob.catch(() => {});
         })
       );
 

@@ -1,6 +1,8 @@
-import type { TTSEngineType, VoiceOption } from "./tts";
-
-const DEFAULT_VOICE_NAME = "四国めたん";
+import {
+  DEFAULT_VOICEVOX_SPEAKER_NAME,
+  type TTSEngineType,
+  type VoiceOption,
+} from "./tts";
 
 export function getVoicevoxAttribution(
   ttsEngine: TTSEngineType,
@@ -9,6 +11,6 @@ export function getVoicevoxAttribution(
   const voiceName =
     ttsEngine === "voicevox" && selectedVoice?.speakerName
       ? selectedVoice.speakerName
-      : DEFAULT_VOICE_NAME;
+      : DEFAULT_VOICEVOX_SPEAKER_NAME;
   return `VOICEVOX:${voiceName}`;
 }

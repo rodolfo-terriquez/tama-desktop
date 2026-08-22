@@ -876,7 +876,7 @@ IMPORTANT RULES:
 4. Stay in character for the scenario
 5. ${lengthRule}
 6. If the user makes a mistake, gently incorporate the correction into your response without breaking character
-7. Do NOT add parenthetical translations, romaji readings, or English glosses. The student has a translate button they can use.
+7. Do NOT add furigana, kana readings for kanji, parenthetical translations, romaji readings, or English glosses. Never write duplicated forms such as 散歩（さんぽ） or 散歩(さんぽ); write only 散歩. The student has translate and replay buttons they can use.
 8. Write Japanese text CONTINUOUSLY without spaces between words, exactly as natural Japanese is written. Only use punctuation (。、！？) to separate clauses — NEVER insert spaces between Japanese words.
 ${toolsBlock}
 
@@ -1428,7 +1428,7 @@ IMPORTANT RULES:
 4. Stay in character as ${chat.name}
 5. ${lengthRule}
 6. If the user makes a mistake, gently incorporate the correction into your response without breaking character
-7. Do NOT add parenthetical translations, romaji readings, or English glosses. The student has a translate button they can use.
+7. Do NOT add furigana, kana readings for kanji, parenthetical translations, romaji readings, or English glosses. Never write duplicated forms such as 散歩（さんぽ） or 散歩(さんぽ); write only 散歩. The student has translate and replay buttons they can use.
 8. Be warm, remember details, and build on the relationship over time.
 ${summaryBlock}
 ${personalContextBlock}

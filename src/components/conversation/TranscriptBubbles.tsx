@@ -103,10 +103,6 @@ export function TranscriptBubbles({
       ref={containerRef}
       className="w-full max-w-md mx-auto h-full overflow-y-auto scroll-smooth px-2 scrollbar-none"
       style={{
-        maskImage:
-          "linear-gradient(to bottom, transparent 0%, black 10%, black 100%)",
-        WebkitMaskImage:
-          "linear-gradient(to bottom, transparent 0%, black 10%, black 100%)",
         scrollbarWidth: "none",
         msOverflowStyle: "none",
       }}

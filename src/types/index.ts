@@ -300,6 +300,7 @@ export interface AccountPreferences {
   displayMode: "light" | "dark" | "system";
   ttsEngine: "voicevox" | "sbv2";
   ttsVoiceId: string | null;
+  ttsSpeechRate?: number;
   sbv2BaseUrl: string;
   transcriptionEngine: "local" | "openai";
 }
