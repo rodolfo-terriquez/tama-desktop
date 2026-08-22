@@ -18,9 +18,15 @@ changing the project, and update it when the facts below change.
 
 ## Current production state
 
-- Latest public release: [`v1.3.5`](https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/v1.3.5),
-  published from commit `7ee466ea918337f082578f95a28fefd643c13783` on
+- Latest public release: [`v1.3.6`](https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/v1.3.6),
+  published from commit `58459522bdd864b536c507bb8e77d6334817abc0` on
   2026-08-21.
+- The [`v1.3.6` release workflow](https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/32551087138)
+  passed on macOS, Windows, and Linux. GitHub reports 14 uploaded assets,
+  including installers, updater packages, detached signatures, and
+  `latest.json`. The published updater manifest reports version `1.3.6`, has
+  nine platform entries, points every URL at the `v1.3.6` release, and includes
+  a non-empty signature for every entry.
 - Settings includes discoverable VOICEVOX and selected voice-library credits,
   official terms and source links, and selected-speaker policy loading when the
   local VOICEVOX engine is running.
@@ -34,7 +40,7 @@ changing the project, and update it when the facts below change.
   Microsoft under submission ID `260c5851-4cc1-4813-ba05-16d785ab49fd` and was
   pending at the last check.
 
-## v1.3.6 changes
+## v1.3.6 release
 
 The `v1.3.6` release includes changes that:
 
@@ -240,9 +246,9 @@ release artifacts use the production updater key and were verified above.
 
 ## Next decisions
 
-1. After the current local work is fully verified, decide whether it should be
-   grouped into a new release. Keep pitch outside that decision unless it is
-   explicitly brought into scope.
+1. Observe `v1.3.6` in normal use for regressions in automatic turn handling,
+   feedback retry, speaking-rate controls, and the new first-run voice. Keep
+   pitch outside that work unless it is explicitly brought into scope.
 2. If Windows transcription needs a larger future improvement, evaluate the
    optional Vulkan GPU path described above with CPU fallback. Alternative
    backends or models such as Parakeet remain separate experiments.
