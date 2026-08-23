@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BrailleLoader } from "@/components/ui/braille-loader";
-import { Volume2, Languages } from "lucide-react";
+import { Check, Copy, Languages, Volume2 } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { speak } from "@/services/tts";
 import { translateJapaneseText } from "@/services/claude";
@@ -42,6 +42,7 @@ export function TranscriptBubbles({
   const [showTranslation, setShowTranslation] = useState<Record<string, boolean>>({});
   const [loadingTranslation, setLoadingTranslation] = useState<Record<string, boolean>>({});
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const targetLanguage = t(locale === "es" ? "common.spanish" : "common.english");
 
   useEffect(() => {
@@ -96,6 +97,27 @@ export function TranscriptBubbles({
     }
   };
 
+  const handleCopy = async (message: Message) => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = message.content;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "absolute";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+
+    setCopiedId(message.id);
+    window.setTimeout(() => {
+      setCopiedId((current) => (current === message.id ? null : current));
+    }, 1600);
+  };
+
   if (messages.length === 0) return null;
 
   return (
@@ -115,7 +137,8 @@ export function TranscriptBubbles({
           const isShowingTranslation = showTranslation[id];
           const isLoadingTranslation = loadingTranslation[id];
           const translation = translations[id];
-          const isPlaying = playingId === id;
+          const isPlaying = playingId === message.id;
+          const isCopied = copiedId === message.id;
 
           return (
             <div
@@ -178,6 +201,16 @@ export function TranscriptBubbles({
                       ) : (
                         <Languages className="size-3" />
                       )}
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex size-6 items-center justify-center rounded opacity-40 transition-opacity hover:bg-primary/10 hover:opacity-100"
+                      onClick={() => handleCopy(message)}
+                      title={t("common.copy")}
+                      data-1p-ignore
+                    >
+                      {isCopied ? <Check className="size-3" /> : <Copy className="size-3" />}
+                      <span className="sr-only">{t("common.copy")}</span>
                     </button>
                   </div>
                 )}

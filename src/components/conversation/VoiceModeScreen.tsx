@@ -11,6 +11,7 @@ import { VoiceVisualizer } from "@/components/conversation/VoiceVisualizer";
 import { TranscriptBubbles } from "@/components/conversation/TranscriptBubbles";
 import { MessageBubble } from "@/components/conversation/MessageBubble";
 import { SpeechRateControl } from "@/components/conversation/SpeechRateControl";
+import { BrailleLoader } from "@/components/ui/braille-loader";
 import { localizeScenario } from "@/data/scenarios";
 import { useVADRecorder } from "@/hooks/useVADRecorder";
 import { usePushToTalkHotkey } from "@/hooks/usePushToTalkHotkey";
@@ -79,6 +80,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [shadowScript, setShadowScript] = useState<ShadowScript | null>(null);
   const [draftMessage, setDraftMessage] = useState("");
+  const [textComposerHeight, setTextComposerHeight] = useState(0);
 
   const messagesRef = useRef<Message[]>([]);
   const sessionEndedRef = useRef(false);
@@ -90,6 +92,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
   const voiceContinuationElapsedRef = useRef(false);
   const voiceContinuationTimerRef = useRef<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textComposerRef = useRef<HTMLFormElement>(null);
   // Refs for VAD controls so handlers can call them synchronously without waiting for state/effect cycle
   const pauseVADRef = useRef<() => void>(() => {});
   const resumeVADRef = useRef<() => void>(() => {});
@@ -261,7 +264,22 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
     if (inputMode === "text") {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, isLoading, inputMode]);
+  }, [messages, isLoading, inputMode, textComposerHeight]);
+
+  useEffect(() => {
+    if (inputMode !== "text" || !textComposerRef.current) {
+      return;
+    }
+
+    const composer = textComposerRef.current;
+    const updateHeight = () => setTextComposerHeight(composer.getBoundingClientRect().height);
+    updateHeight();
+
+    const resizeObserver = new ResizeObserver(updateHeight);
+    resizeObserver.observe(composer);
+
+    return () => resizeObserver.disconnect();
+  }, [inputMode]);
 
   // --- Shared send logic ---
   const sendAndRespond = useCallback(
@@ -907,8 +925,11 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
             </Alert>
           )}
 
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="space-y-4 px-4 pt-4 pb-28">
+          <ScrollArea className="min-h-0 flex-1" hideScrollbar>
+            <div
+              className="space-y-4 px-4 pt-4"
+              style={{ paddingBottom: textComposerHeight > 0 ? textComposerHeight + 28 : 144 }}
+            >
               {messages.map((message) => (
                 <MessageBubble
                   key={message.id}
@@ -921,7 +942,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
               {isLoading && (
                 <div className="flex justify-start">
                   <div className="flex items-center gap-2 rounded-xl border bg-card px-3 py-2 text-sm text-muted-foreground">
-                    <p>...</p>
+                    <BrailleLoader className="text-[13px]" />
                   </div>
                 </div>
               )}
@@ -931,6 +952,7 @@ export function VoiceModeScreen({ scenario, onEndSession, onContextChange }: Voi
           </ScrollArea>
 
           <form
+            ref={textComposerRef}
             onSubmit={(e) => {
               e.preventDefault();
               const value = draftMessage.trim();

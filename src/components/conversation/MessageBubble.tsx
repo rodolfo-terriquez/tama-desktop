@@ -3,7 +3,7 @@ import { translateJapaneseText } from "@/services/claude";
 import { SimpleMarkdown } from "@/lib/simple-markdown";
 import { speak } from "@/services/tts";
 import { BrailleLoader } from "@/components/ui/braille-loader";
-import { Volume2, Languages } from "lucide-react";
+import { Check, Copy, Languages, Volume2 } from "lucide-react";
 import { useI18n } from "@/i18n";
 import type { AppLocale } from "@/types";
 import type { Message } from "@/types";
@@ -24,6 +24,7 @@ export function MessageBubble({
   const [isTranslating, setIsTranslating] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
@@ -61,6 +62,25 @@ export function MessageBubble({
     } finally {
       setIsPlaying(false);
     }
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = message.content;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "absolute";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+
+    setIsCopied(true);
+    window.setTimeout(() => setIsCopied(false), 1600);
   };
 
   return (
@@ -115,7 +135,7 @@ export function MessageBubble({
                   </button>
                   <button
                     type="button"
-                    className="inline-flex items-center justify-center size-7 opacity-60 hover:opacity-100 hover:bg-black/5 rounded transition-opacity"
+                    className="hover:bg-foreground/5 inline-flex size-7 items-center justify-center rounded opacity-60 transition-opacity hover:opacity-100"
                     onClick={handleTranslate}
                     disabled={isTranslating}
                     title={
@@ -130,6 +150,16 @@ export function MessageBubble({
                     ) : (
                       <Languages className="size-3.5" />
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    className="hover:bg-foreground/5 inline-flex size-7 items-center justify-center rounded opacity-60 transition-opacity hover:opacity-100"
+                    onClick={handleCopy}
+                    title={t("common.copy")}
+                    data-1p-ignore
+                  >
+                    {isCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                    <span className="sr-only">{t("common.copy")}</span>
                   </button>
                 </div>
               </div>

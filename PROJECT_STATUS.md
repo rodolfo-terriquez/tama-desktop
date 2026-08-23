@@ -1,6 +1,6 @@
 # Tama Project Status
 
-Last updated: 2026-08-22
+Last updated: 2026-08-23
 
 This is the handoff document for active work. Read it before investigating or
 changing the project, and update it when the facts below change.
@@ -42,6 +42,18 @@ changing the project, and update it when the facts below change.
   `Trojan:Win32/Wacatac.C!ml`. A false-positive submission was filed with
   Microsoft under submission ID `260c5851-4cc1-4813-ba05-16d785ab49fd` and was
   pending at the last check.
+
+## v1.3.8 changes
+
+- Scenario text mode now measures its floating composer and reserves matching
+  scroll space, hides its scrollbar, and uses Tama's animated Braille loader
+  while waiting for an assistant response.
+- Assistant response action rows now include copy controls in text and voice
+  transcript layouts.
+- Frontend lint and the production build, Rust formatting, all six Rust tests,
+  Cargo check, and diff checks pass as of 2026-08-23. A native visual smoke test
+  is still pending because the browser-only preview cannot initialize Tauri's
+  SQL plugin.
 
 ## v1.3.6 release
 
