@@ -1,6 +1,6 @@
 # Tama Project Status
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
 This is the handoff document for active work. Read it before investigating or
 changing the project, and update it when the facts below change.
@@ -62,6 +62,31 @@ flow were exercised in the local desktop app. The installed VOICEVOX engine was
 also queried directly to confirm 琴詠ニア's normal talk style. Frontend lint and
 build, Rust formatting, all six Rust tests, Cargo check, and diff checks pass as
 of 2026-08-21.
+
+## v1.3.7 changes
+
+- OpenRouter requests now look up and cache the selected model's reported
+  reasoning, structured-output, and tool capabilities. The shared local-model
+  path remains conservative because generic OpenAI-compatible `/models`
+  endpoints normally expose identifiers rather than standardized capability
+  metadata.
+- Structured OpenRouter tasks use strict JSON schemas when the model reports
+  support. Automatic reasoning uses `none` for those tasks when allowed, or the
+  model's lowest reported effort when reasoning is mandatory.
+- OpenAI-compatible requests can retry once after an empty response, invalid
+  transport JSON, or a rejected optional compatibility parameter. The empty
+  response retry reduces reasoning and increases final-answer headroom; errors
+  now retain only safe metadata such as model, finish reason, and token counts.
+- Settings exposes automatic/manual reasoning levels, one-retry recovery, and
+  OpenRouter capability badges. These non-secret preferences are included in
+  account backups while older backups remain valid.
+- The live OpenRouter metadata shape was checked against
+  `deepseek/deepseek-v4-flash-0731`. A real inference retry has not been sent
+  because that would consume the configured user's provider credits.
+- Frontend lint and production build, Rust formatting, all six Rust tests, and
+  diff checks pass. The capability card, reasoning selector, and recovery toggle
+  were also visually checked in the native desktop app with the selected
+  DeepSeek model metadata loaded.
 
 The exact v1.3.2 installer currently published on GitHub was downloaded and
 verified on 2026-08-12:
@@ -210,8 +235,8 @@ Post-release delivery verification confirmed:
   delivery were verified directly instead.
 
 VoiceVox speaking-speed and pitch controls were requested for beginner
-learners and were intentionally outside `v1.3.4`. Speaking rate is now part of
-the current unreleased local work; pitch remains a possible future improvement.
+learners and were intentionally outside `v1.3.4`. Speaking rate shipped in
+`v1.3.6`; pitch remains a possible future improvement.
 Additional anonymous feedback after `v1.3.4` reinforced two future ideas:
 
 - Add Tama-owned VoiceVox speech controls, starting with speaking rate and
@@ -246,9 +271,9 @@ release artifacts use the production updater key and were verified above.
 
 ## Next decisions
 
-1. Observe `v1.3.6` in normal use for regressions in automatic turn handling,
-   feedback retry, speaking-rate controls, and the new first-run voice. Keep
-   pitch outside that work unless it is explicitly brought into scope.
+1. After `v1.3.7`, observe OpenRouter model compatibility, structured practice
+   generation, and automatic recovery in normal use. Keep pitch outside that
+   work unless it is explicitly brought into scope.
 2. If Windows transcription needs a larger future improvement, evaluate the
    optional Vulkan GPU path described above with CPU fallback. Alternative
    backends or models such as Parakeet remain separate experiments.

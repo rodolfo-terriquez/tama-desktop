@@ -31,6 +31,16 @@ import {
   type LLMProvider as LLMProviderType,
 } from "@/services/claude";
 import {
+  clearModelCompatibilityPreferences,
+  getOpenRouterModelCapabilities,
+  getReasoningPreference,
+  isAutomaticModelRecoveryEnabled,
+  setAutomaticModelRecoveryEnabled,
+  setReasoningPreference,
+  type OpenRouterModelCapabilities,
+  type ReasoningPreference,
+} from "@/services/model-compatibility";
+import {
   getOpenAIApiKey,
   setOpenAIApiKey,
   clearOpenAIApiKey,
@@ -151,6 +161,18 @@ const SETTINGS_CARD_CLASSNAME = "gap-3 py-3";
 const SETTINGS_CARD_CONTENT_CLASSNAME = "px-5 pt-0";
 const SETTINGS_TWO_COLUMN_GRID_CLASSNAME = "grid gap-3 lg:grid-cols-2";
 
+function modelSupportsReasoningPreference(
+  capabilities: OpenRouterModelCapabilities | null,
+  preference: ReasoningPreference
+): boolean {
+  if (!capabilities || preference === "auto") return true;
+  if (!capabilities.supportedParameters.includes("reasoning")) return false;
+  if (preference === "none") return capabilities.reasoning?.mandatory !== true;
+
+  const supportedEfforts = capabilities.reasoning?.supportedEfforts;
+  return !supportedEfforts || supportedEfforts.includes(preference);
+}
+
 interface SettingRowProps {
   label: ReactNode;
   control: ReactNode;
@@ -216,6 +238,15 @@ export function Settings() {
   const [localApiKey, setLocalApiKeyState] = useState("");
   const [localModels, setLocalModels] = useState<string[]>([]);
   const [loadingLocalModels, setLoadingLocalModels] = useState(false);
+  const [openrouterCapabilities, setOpenrouterCapabilities] =
+    useState<OpenRouterModelCapabilities | null>(null);
+  const [loadingOpenrouterCapabilities, setLoadingOpenrouterCapabilities] = useState(false);
+  const [openrouterCapabilityError, setOpenrouterCapabilityError] = useState<string | null>(null);
+  const [reasoningPreference, setReasoningPreferenceState] =
+    useState<ReasoningPreference>(getReasoningPreference());
+  const [automaticModelRecovery, setAutomaticModelRecoveryState] = useState(
+    isAutomaticModelRecoveryEnabled()
+  );
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
@@ -300,6 +331,9 @@ export function Settings() {
     return hasSelectedStyle ? selectedVoiceId : selectedSpeaker.styles[0].id;
   }, [selectedSpeaker, selectedVoiceId]);
 
+  const selectedReasoningCapabilities =
+    llmProvider === "openrouter" ? openrouterCapabilities : null;
+
   useEffect(() => {
     const existingAnthropicKey = getApiKey();
     const existingOpenaiKey = getOpenAIApiKey();
@@ -326,6 +360,36 @@ export function Settings() {
       setProfileAboutYou(profile.aboutYou ?? "");
     });
   }, []);
+
+  useEffect(() => {
+    const savedModel = getOpenRouterModel();
+    if (llmProvider !== "openrouter" || openrouterModel.trim() !== savedModel) return;
+
+    let cancelled = false;
+    setLoadingOpenrouterCapabilities(true);
+    setOpenrouterCapabilityError(null);
+    getOpenRouterModelCapabilities(savedModel)
+      .then((capabilities) => {
+        if (cancelled) return;
+        setOpenrouterCapabilities(capabilities);
+        if (!modelSupportsReasoningPreference(capabilities, reasoningPreference)) {
+          setReasoningPreferenceState("auto");
+          setReasoningPreference("auto");
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setOpenrouterCapabilities(null);
+        setOpenrouterCapabilityError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingOpenrouterCapabilities(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [llmProvider, openrouterModel, reasoningPreference]);
 
   useEffect(() => {
     getVersion()
@@ -718,15 +782,50 @@ export function Settings() {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  const handleSaveOpenrouterModel = () => {
+  const handleLoadOpenrouterCapabilities = async (
+    modelId: string = openrouterModel,
+    forceRefresh: boolean = true
+  ) => {
+    const trimmed = modelId.trim();
+    if (!trimmed) return;
+
+    setLoadingOpenrouterCapabilities(true);
+    setOpenrouterCapabilityError(null);
+    try {
+      const capabilities = await getOpenRouterModelCapabilities(trimmed, { forceRefresh });
+      setOpenrouterCapabilities(capabilities);
+      if (!modelSupportsReasoningPreference(capabilities, reasoningPreference)) {
+        setReasoningPreferenceState("auto");
+        setReasoningPreference("auto");
+      }
+    } catch (err) {
+      setOpenrouterCapabilities(null);
+      setOpenrouterCapabilityError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoadingOpenrouterCapabilities(false);
+    }
+  };
+
+  const handleSaveOpenrouterModel = async () => {
     const trimmed = openrouterModel.trim();
     if (!trimmed) {
       setMessage({ type: "error", text: t("settings.enterModelName") });
       return;
     }
     setOpenRouterModel(trimmed);
+    await handleLoadOpenrouterCapabilities(trimmed);
     setMessage({ type: "success", text: t("settings.modelSet", { name: trimmed }) });
     setTimeout(() => setMessage(null), 3000);
+  };
+
+  const handleReasoningPreferenceChange = (preference: ReasoningPreference) => {
+    setReasoningPreferenceState(preference);
+    setReasoningPreference(preference);
+  };
+
+  const handleAutomaticModelRecoveryChange = (enabled: boolean) => {
+    setAutomaticModelRecoveryState(enabled);
+    setAutomaticModelRecoveryEnabled(enabled);
   };
 
   const handleLoadLocalModels = async () => {
@@ -829,6 +928,11 @@ export function Settings() {
       clearApiKey();
       clearOpenAIApiKey();
       clearOpenRouterApiKey();
+      clearModelCompatibilityPreferences();
+      setReasoningPreferenceState("auto");
+      setAutomaticModelRecoveryState(true);
+      setOpenrouterCapabilities(null);
+      setOpenrouterCapabilityError(null);
     }
   };
 
@@ -1409,13 +1513,80 @@ export function Settings() {
                       <Input
                         placeholder="anthropic/claude-sonnet-4-6"
                         value={openrouterModel}
-                        onChange={(e) => setOpenrouterModelState(e.target.value)}
+                        onChange={(e) => {
+                          setOpenrouterModelState(e.target.value);
+                          setOpenrouterCapabilities(null);
+                          setOpenrouterCapabilityError(null);
+                        }}
                         className="flex-1"
                       />
-                      <Button onClick={handleSaveOpenrouterModel}>{t("common.save")}</Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => void handleLoadOpenrouterCapabilities()}
+                        disabled={loadingOpenrouterCapabilities || !openrouterModel.trim()}
+                        title={t("settings.checkModelCapabilities")}
+                        aria-label={t("settings.checkModelCapabilities")}
+                      >
+                        <RefreshCw
+                          className={`size-4 ${loadingOpenrouterCapabilities ? "animate-spin" : ""}`}
+                        />
+                      </Button>
+                      <Button onClick={() => void handleSaveOpenrouterModel()}>
+                        {t("common.save")}
+                      </Button>
                     </div>
                   }
                 />
+
+                {(openrouterCapabilities || openrouterCapabilityError) && (
+                  <div className="rounded-lg border bg-background px-3 py-2 text-sm">
+                    {openrouterCapabilities ? (
+                      <>
+                        <p className="font-medium">{openrouterCapabilities.name}</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <Badge
+                            variant={
+                              openrouterCapabilities.supportedParameters.includes("reasoning")
+                                ? "success"
+                                : "neutral"
+                            }
+                          >
+                            {t("settings.capabilityReasoning")}
+                          </Badge>
+                          <Badge
+                            variant={
+                              openrouterCapabilities.supportedParameters.includes("structured_outputs") ||
+                              openrouterCapabilities.supportedParameters.includes("response_format")
+                                ? "success"
+                                : "neutral"
+                            }
+                          >
+                            {t("settings.capabilityStructuredJson")}
+                          </Badge>
+                          <Badge
+                            variant={
+                              openrouterCapabilities.supportedParameters.includes("tools")
+                                ? "success"
+                                : "neutral"
+                            }
+                          >
+                            {t("settings.capabilityTools")}
+                          </Badge>
+                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {t("settings.capabilitiesLoaded")}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-destructive">
+                        {t("settings.capabilitiesFailed", {
+                          message: openrouterCapabilityError ?? "",
+                        })}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-3 border-t border-border pt-3">
@@ -1478,6 +1649,90 @@ export function Settings() {
                       onFocus={() => setShowLocalApiKey(true)}
                       onBlur={() => setShowLocalApiKey(false)}
                     />
+                  }
+                />
+              </div>
+            )}
+
+            {llmProvider !== "anthropic" && (
+              <div className="divide-y divide-border border-t border-border pt-3">
+                <SettingRow
+                  htmlFor="model-reasoning-preference"
+                  label={t("settings.reasoningPreference")}
+                  description={t("settings.reasoningPreferenceDescription")}
+                  controlClassName="lg:min-w-[240px] lg:max-w-[320px]"
+                  control={
+                    <div className="relative">
+                      <select
+                        id="model-reasoning-preference"
+                        value={reasoningPreference}
+                        onChange={(event) =>
+                          handleReasoningPreferenceChange(
+                            event.target.value as ReasoningPreference
+                          )
+                        }
+                        className={SELECT_CLASSNAME}
+                      >
+                        <option value="auto">{t("settings.reasoningAuto")}</option>
+                        <option
+                          value="none"
+                          disabled={!modelSupportsReasoningPreference(selectedReasoningCapabilities, "none")}
+                        >
+                          {t("settings.reasoningNone")}
+                        </option>
+                        <option
+                          value="minimal"
+                          disabled={!modelSupportsReasoningPreference(selectedReasoningCapabilities, "minimal")}
+                        >
+                          {t("settings.reasoningMinimal")}
+                        </option>
+                        <option
+                          value="low"
+                          disabled={!modelSupportsReasoningPreference(selectedReasoningCapabilities, "low")}
+                        >
+                          {t("settings.reasoningLow")}
+                        </option>
+                        <option
+                          value="medium"
+                          disabled={!modelSupportsReasoningPreference(selectedReasoningCapabilities, "medium")}
+                        >
+                          {t("settings.reasoningMedium")}
+                        </option>
+                        <option
+                          value="high"
+                          disabled={!modelSupportsReasoningPreference(selectedReasoningCapabilities, "high")}
+                        >
+                          {t("settings.reasoningHigh")}
+                        </option>
+                        <option
+                          value="max"
+                          disabled={!modelSupportsReasoningPreference(selectedReasoningCapabilities, "max")}
+                        >
+                          {t("settings.reasoningMax")}
+                        </option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-foreground/80" />
+                    </div>
+                  }
+                />
+
+                <SettingRow
+                  htmlFor="automatic-model-recovery"
+                  label={t("settings.automaticModelRecovery")}
+                  description={t("settings.automaticModelRecoveryDescription")}
+                  controlClassName="lg:min-w-0 lg:max-w-none"
+                  control={
+                    <div className="flex h-9 items-center justify-start lg:justify-end">
+                      <input
+                        type="checkbox"
+                        id="automatic-model-recovery"
+                        checked={automaticModelRecovery}
+                        onChange={(event) =>
+                          handleAutomaticModelRecoveryChange(event.target.checked)
+                        }
+                        className="border-input h-4 w-4 rounded"
+                      />
+                    </div>
                   }
                 />
               </div>

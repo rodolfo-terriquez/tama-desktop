@@ -290,6 +290,15 @@ export interface SenseiThread {
   totalMessages: number;
 }
 
+export type ReasoningPreference =
+  | "auto"
+  | "none"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "max";
+
 export interface AccountPreferences {
   appLocale: AppLocale;
   apiOnboardingDismissed: boolean;
@@ -297,6 +306,8 @@ export interface AccountPreferences {
   openRouterModel: string;
   localBaseUrl?: string;
   localModel?: string;
+  reasoningPreference?: ReasoningPreference;
+  automaticModelRecovery?: boolean;
   displayMode: "light" | "dark" | "system";
   ttsEngine: "voicevox" | "sbv2";
   ttsVoiceId: string | null;

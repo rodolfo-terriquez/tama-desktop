@@ -15,6 +15,12 @@ import {
   getLocalModel,
   setLocalModel,
 } from "@/services/claude";
+import {
+  getReasoningPreference,
+  isAutomaticModelRecoveryEnabled,
+  setAutomaticModelRecoveryEnabled,
+  setReasoningPreference,
+} from "@/services/model-compatibility";
 import { getDisplayMode, setDisplayMode } from "@/services/display";
 import { emitConfigChanged, emitDataChanged } from "@/services/app-events";
 import {
@@ -319,6 +325,16 @@ function isAccountPreferences(value: unknown): value is AccountPreferences {
     isString(value.openRouterModel) &&
     (value.localBaseUrl === undefined || isString(value.localBaseUrl)) &&
     (value.localModel === undefined || isString(value.localModel)) &&
+    (value.reasoningPreference === undefined ||
+      value.reasoningPreference === "auto" ||
+      value.reasoningPreference === "none" ||
+      value.reasoningPreference === "minimal" ||
+      value.reasoningPreference === "low" ||
+      value.reasoningPreference === "medium" ||
+      value.reasoningPreference === "high" ||
+      value.reasoningPreference === "max") &&
+    (value.automaticModelRecovery === undefined ||
+      typeof value.automaticModelRecovery === "boolean") &&
     (value.displayMode === "light" || value.displayMode === "dark" || value.displayMode === "system") &&
     (value.ttsEngine === "voicevox" || value.ttsEngine === "sbv2") &&
     (value.ttsVoiceId === null || isString(value.ttsVoiceId)) &&
@@ -379,6 +395,8 @@ export function getAccountPreferences(): AccountPreferences {
     openRouterModel: getOpenRouterModel(),
     localBaseUrl: getLocalBaseUrl(),
     localModel: getLocalModel(),
+    reasoningPreference: getReasoningPreference(),
+    automaticModelRecovery: isAutomaticModelRecoveryEnabled(),
     displayMode: getDisplayMode(),
     ttsEngine: getStoredEngineType(),
     ttsVoiceId: getStoredVoiceId(),
@@ -395,6 +413,8 @@ export function applyAccountPreferences(preferences: AccountPreferences): void {
   setOpenRouterModel(preferences.openRouterModel);
   if (preferences.localBaseUrl) setLocalBaseUrl(preferences.localBaseUrl);
   if (preferences.localModel) setLocalModel(preferences.localModel);
+  setReasoningPreference(preferences.reasoningPreference ?? "auto");
+  setAutomaticModelRecoveryEnabled(preferences.automaticModelRecovery ?? true);
   setDisplayMode(preferences.displayMode);
   setStoredEngineType(preferences.ttsEngine);
   if (preferences.ttsSpeechRate !== undefined) {

@@ -19,6 +19,15 @@ import {
   type ToolResult,
 } from "@/services/tools";
 import { formatLocalDate } from "@/services/local-date";
+import {
+  getLowestSupportedReasoningEffort,
+  getOpenRouterModelCapabilities,
+  getReasoningPreference,
+  isAutomaticModelRecoveryEnabled,
+  supportsOpenRouterParameter,
+  type ManualReasoningEffort,
+  type OpenRouterModelCapabilities,
+} from "@/services/model-compatibility";
 
 // ── Provider Config ──────────────────────────────────────────────
 
@@ -79,6 +88,7 @@ export const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:11434/v1";
 export const DEFAULT_LOCAL_MODEL = "llama3.2";
 const MAX_TOOL_ROUNDS = 3;
 const MAX_INVALID_JSON_RETRIES = 1;
+const MAX_AUTOMATIC_RECOVERY_RETRIES = 1;
 
 function emitConfigChanged(): void {
   window.dispatchEvent(new Event("tama-config-changed"));
@@ -317,14 +327,59 @@ interface OpenRouterToolCall {
 }
 
 interface OpenRouterResponse {
-  choices: [{
+  id?: string;
+  model?: string;
+  choices: Array<{
     message: {
       role: "assistant";
       content: string | null;
       tool_calls?: OpenRouterToolCall[];
+      reasoning?: string | null;
+      reasoning_content?: string | null;
+      reasoning_details?: unknown[];
     };
-    finish_reason: string;
-  }];
+    finish_reason: string | null;
+  }>;
+  usage?: {
+    completion_tokens?: number;
+    reasoning_tokens?: number;
+    completion_tokens_details?: {
+      reasoning_tokens?: number;
+    };
+  };
+}
+
+interface JsonSchemaRequest {
+  name: string;
+  schema: Record<string, unknown>;
+}
+
+interface OpenAICompatibleRequestOptions {
+  tools?: ToolDefinition[];
+  maxTokens?: number;
+  responseSchema?: JsonSchemaRequest;
+  requestKind?: "conversation" | "structured";
+}
+
+interface CompletionMetadata {
+  provider: ProviderLabel;
+  requestedModel: string;
+  responseModel?: string;
+  responseId?: string;
+  finishReason?: string;
+  completionTokens?: number;
+  reasoningTokens?: number;
+  reasoningPresent: boolean;
+  recoveryAttempted: boolean;
+  compatibilityFallbackUsed: boolean;
+}
+
+interface OpenAICompatibleResult {
+  text: string;
+  toolCalls: ToolCall[];
+  isToolUse: boolean;
+  rawMessage: OpenRouterMessage;
+  metadata: CompletionMetadata;
 }
 
 function anthropicToolsToOpenRouter(tools: ToolDefinition[]) {
@@ -407,8 +462,10 @@ interface OpenAICompatibleConfig {
   url: string;
   model: string;
   apiKey: string | null;
-  allowToolFallback?: boolean;
+  capabilities?: OpenRouterModelCapabilities;
 }
+
+type RecoveryMode = "none" | "empty-output" | "parameter-fallback" | "invalid-json";
 
 function getLocalChatCompletionsUrl(): string {
   const baseUrl = getLocalBaseUrl().trim().replace(/\/+$/, "");
@@ -479,8 +536,8 @@ async function callOpenAICompatible(
   config: OpenAICompatibleConfig,
   systemPrompt: string,
   messages: OpenRouterMessage[],
-  options?: { tools?: ToolDefinition[]; maxTokens?: number }
-): Promise<{ text: string; toolCalls: ToolCall[]; isToolUse: boolean; rawMessage: OpenRouterMessage }> {
+  options?: OpenAICompatibleRequestOptions
+): Promise<OpenAICompatibleResult> {
   try {
     const parsedUrl = new URL(config.url);
     if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
@@ -492,21 +549,22 @@ async function callOpenAICompatible(
     );
   }
 
-  for (let attempt = 0; attempt <= MAX_INVALID_JSON_RETRIES; attempt += 1) {
-    const allMessages: OpenRouterMessage[] = [
-      { role: "system", content: systemPrompt },
-      ...messages,
-    ];
+  const automaticRecoveryEnabled = isAutomaticModelRecoveryEnabled();
+  const maxAttempts = automaticRecoveryEnabled ? MAX_AUTOMATIC_RECOVERY_RETRIES + 1 : 1;
+  const allMessages: OpenRouterMessage[] = [
+    { role: "system", content: systemPrompt },
+    ...messages,
+  ];
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
 
-    const body: Record<string, unknown> = {
-      model: config.model,
-      max_tokens: options?.maxTokens ?? 1024,
-      messages: allMessages,
-    };
-    if (options?.tools) body.tools = anthropicToolsToOpenRouter(options.tools);
+  let recoveryMode: RecoveryMode = "none";
+  let observedReasoning = false;
+  let observedReasoningTokens: number | undefined;
+  let observedFinishReason: string | undefined;
 
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const body = buildOpenAICompatibleRequestBody(config, allMessages, options, recoveryMode);
 
     let response: Response;
     try {
@@ -521,35 +579,18 @@ async function callOpenAICompatible(
 
     if (!response.ok) {
       const errorText = await response.text();
-      const canRetryWithoutTools =
-        config.allowToolFallback &&
-        Boolean(body.tools) &&
-        (response.status === 400 || response.status === 422);
+      const canRetryWithoutOptionalParameters =
+        attempt + 1 < maxAttempts &&
+        (response.status === 400 || response.status === 422) &&
+        (Boolean(body.reasoning) || Boolean(body.response_format) || Boolean(body.tools));
 
-      if (canRetryWithoutTools) {
-        delete body.tools;
-        try {
-          response = await fetch(config.url, {
-            method: "POST",
-            headers,
-            body: JSON.stringify(body),
-          });
-        } catch (err) {
-          throw new ClaudeError(buildNetworkFailureMessage(config.label, err));
-        }
-
-        if (!response.ok) {
-          const fallbackErrorText = await response.text();
-          console.error(`${config.label} API error:`, fallbackErrorText);
-          throw new ClaudeError(
-            buildApiFailureMessage(config.label, response, fallbackErrorText),
-            response.status
-          );
-        }
-      } else {
-        console.error(`${config.label} API error:`, errorText);
-        throw new ClaudeError(buildApiFailureMessage(config.label, response, errorText), response.status);
+      if (canRetryWithoutOptionalParameters) {
+        recoveryMode = "parameter-fallback";
+        continue;
       }
+
+      console.error(`${config.label} API error:`, errorText);
+      throw new ClaudeError(buildApiFailureMessage(config.label, response, errorText), response.status);
     }
 
     const responseText = await response.text();
@@ -557,8 +598,9 @@ async function callOpenAICompatible(
     try {
       data = JSON.parse(responseText) as OpenRouterResponse;
     } catch (err) {
-      console.error(`${config.label} API invalid JSON:`, responseText);
-      if (attempt < MAX_INVALID_JSON_RETRIES) {
+      console.error(`${config.label} API returned invalid JSON:`, err);
+      if (attempt + 1 < maxAttempts) {
+        recoveryMode = "invalid-json";
         continue;
       }
       throw new ClaudeError(buildInvalidJsonMessage(config.label, err));
@@ -566,6 +608,10 @@ async function callOpenAICompatible(
 
     const choice = data.choices[0];
     if (!choice?.message) {
+      if (attempt + 1 < maxAttempts) {
+        recoveryMode = "empty-output";
+        continue;
+      }
       throw new ClaudeError(`${config.label} returned a response without a message`);
     }
     const toolCalls = (choice.message.tool_calls ?? []).map((tc) => ({
@@ -574,8 +620,27 @@ async function callOpenAICompatible(
       input: parseOpenRouterToolArguments(tc.function.arguments, tc.function.name),
     }));
 
+    const reasoningTokens =
+      data.usage?.completion_tokens_details?.reasoning_tokens ?? data.usage?.reasoning_tokens;
+    const reasoningPresent = Boolean(
+      choice.message.reasoning?.trim() ||
+      choice.message.reasoning_content?.trim() ||
+      (choice.message.reasoning_details && choice.message.reasoning_details.length > 0) ||
+      (reasoningTokens !== undefined && reasoningTokens > 0)
+    );
+    const finishReason = choice.finish_reason ?? undefined;
+    observedReasoning ||= reasoningPresent;
+    observedReasoningTokens = reasoningTokens ?? observedReasoningTokens;
+    observedFinishReason = finishReason ?? observedFinishReason;
+
+    const text = choice.message.content?.trim() ?? "";
+    if (!text && toolCalls.length === 0 && attempt + 1 < maxAttempts) {
+      recoveryMode = "empty-output";
+      continue;
+    }
+
     return {
-      text: choice.message.content ?? "",
+      text,
       toolCalls,
       isToolUse: choice.finish_reason === "tool_calls" || toolCalls.length > 0,
       rawMessage: {
@@ -583,25 +648,173 @@ async function callOpenAICompatible(
         content: choice.message.content,
         tool_calls: choice.message.tool_calls,
       },
+      metadata: {
+        provider: config.label,
+        requestedModel: config.model,
+        responseModel: data.model,
+        responseId: data.id,
+        finishReason: finishReason ?? observedFinishReason,
+        completionTokens: data.usage?.completion_tokens,
+        reasoningTokens: reasoningTokens ?? observedReasoningTokens,
+        reasoningPresent: reasoningPresent || observedReasoning,
+        recoveryAttempted: attempt > 0,
+        compatibilityFallbackUsed: recoveryMode === "parameter-fallback",
+      },
     };
   }
 
   throw new ClaudeError(`${config.label} returned an invalid JSON response`);
 }
 
+function buildOpenAICompatibleRequestBody(
+  config: OpenAICompatibleConfig,
+  messages: OpenRouterMessage[],
+  options: OpenAICompatibleRequestOptions | undefined,
+  recoveryMode: RecoveryMode
+): Record<string, unknown> {
+  const requestedMaxTokens = options?.maxTokens ?? 1024;
+  const baseMaxTokens = Math.min(
+    requestedMaxTokens,
+    config.capabilities?.maxCompletionTokens ?? Number.POSITIVE_INFINITY
+  );
+  const recoveringFromEmptyOutput = recoveryMode === "empty-output";
+  const maxTokens = recoveringFromEmptyOutput
+    ? Math.min(
+        Math.max(baseMaxTokens + 1024, Math.ceil(baseMaxTokens * 1.5)),
+        config.capabilities?.maxCompletionTokens ?? Number.POSITIVE_INFINITY
+      )
+    : baseMaxTokens;
+  const body: Record<string, unknown> = {
+    model: config.model,
+    max_tokens: maxTokens,
+    messages,
+  };
+
+  if (recoveryMode === "parameter-fallback") {
+    return body;
+  }
+
+  const toolsSupported =
+    !config.capabilities || supportsOpenRouterParameter(config.capabilities, "tools");
+  if (options?.tools && toolsSupported) {
+    body.tools = anthropicToolsToOpenRouter(options.tools);
+  }
+
+  const supportsStructuredOutput =
+    supportsOpenRouterParameter(config.capabilities, "structured_outputs") ||
+    supportsOpenRouterParameter(config.capabilities, "response_format");
+  if (options?.responseSchema && supportsStructuredOutput) {
+    body.response_format = {
+      type: "json_schema",
+      json_schema: {
+        name: options.responseSchema.name,
+        strict: true,
+        schema: options.responseSchema.schema,
+      },
+    };
+    if (config.label === "OpenRouter") {
+      body.provider = { require_parameters: true };
+    }
+  }
+
+  const reasoning = getReasoningRequest(config, options, recoveringFromEmptyOutput);
+  if (reasoning) {
+    body.reasoning = reasoning;
+  }
+
+  return body;
+}
+
+function getReasoningRequest(
+  config: OpenAICompatibleConfig,
+  options: OpenAICompatibleRequestOptions | undefined,
+  recoveringFromEmptyOutput: boolean
+): { effort: ManualReasoningEffort; exclude: true } | undefined {
+  const preference = getReasoningPreference();
+
+  if (recoveringFromEmptyOutput) {
+    // Do not introduce an unverified optional parameter during recovery. Local
+    // servers vary widely, and OpenRouter metadata may occasionally be
+    // unavailable. Increasing the output budget is still a safe retry in those
+    // cases.
+    if (
+      config.label === "Local model" ||
+      !config.capabilities ||
+      !supportsOpenRouterParameter(config.capabilities, "reasoning")
+    ) {
+      return undefined;
+    }
+
+    return {
+      effort: config.capabilities?.reasoning?.mandatory
+        ? getLowestSupportedReasoningEffort(config.capabilities)
+        : "none",
+      exclude: true,
+    };
+  }
+
+  if (preference !== "auto") {
+    const reasoningSupported =
+      config.label === "Local model" ||
+      !config.capabilities ||
+      supportsOpenRouterParameter(config.capabilities, "reasoning");
+    if (!reasoningSupported) return undefined;
+
+    if (preference === "none" && config.capabilities?.reasoning?.mandatory) {
+      return {
+        effort: getLowestSupportedReasoningEffort(config.capabilities),
+        exclude: true,
+      };
+    }
+
+    const supportedEfforts = config.capabilities?.reasoning?.supportedEfforts;
+    const effort =
+      preference !== "none" && supportedEfforts && !supportedEfforts.includes(preference)
+        ? getLowestSupportedReasoningEffort(config.capabilities)
+        : preference;
+    return { effort, exclude: true };
+  }
+
+  if (options?.requestKind !== "structured" || config.label !== "OpenRouter") {
+    return undefined;
+  }
+
+  if (!supportsOpenRouterParameter(config.capabilities, "reasoning")) {
+    return undefined;
+  }
+
+  return {
+    effort: config.capabilities?.reasoning?.mandatory
+      ? getLowestSupportedReasoningEffort(config.capabilities)
+      : "none",
+    exclude: true,
+  };
+}
+
 async function callOpenRouter(
   systemPrompt: string,
   messages: OpenRouterMessage[],
-  options?: { tools?: ToolDefinition[]; maxTokens?: number }
+  options?: OpenAICompatibleRequestOptions
 ) {
   const apiKey = getOpenRouterApiKey();
   if (!apiKey) throw new ClaudeError("OpenRouter API key not set");
+  const model = getOpenRouterModel();
+  let capabilities: OpenRouterModelCapabilities | undefined;
+  try {
+    capabilities = await getOpenRouterModelCapabilities(model);
+  } catch (err) {
+    console.warn(
+      "OpenRouter model capability lookup failed; using conservative compatibility defaults:",
+      err instanceof Error ? err.message : String(err)
+    );
+  }
   return callOpenAICompatible(
     {
       label: "OpenRouter",
       url: "https://openrouter.ai/api/v1/chat/completions",
-      model: getOpenRouterModel(),
+      model,
       apiKey,
+      capabilities,
     },
     systemPrompt,
     messages,
@@ -612,7 +825,7 @@ async function callOpenRouter(
 async function callLocalModel(
   systemPrompt: string,
   messages: OpenRouterMessage[],
-  options?: { tools?: ToolDefinition[]; maxTokens?: number }
+  options?: OpenAICompatibleRequestOptions
 ) {
   return callOpenAICompatible(
     {
@@ -620,7 +833,6 @@ async function callLocalModel(
       url: getLocalChatCompletionsUrl(),
       model: getLocalModel(),
       apiKey: getLocalApiKey(),
-      allowToolFallback: true,
     },
     systemPrompt,
     messages,
@@ -631,11 +843,42 @@ async function callLocalModel(
 function callConfiguredOpenAICompatible(
   systemPrompt: string,
   messages: OpenRouterMessage[],
-  options?: { tools?: ToolDefinition[]; maxTokens?: number }
+  options?: OpenAICompatibleRequestOptions
 ) {
   return getLLMProvider() === "local"
     ? callLocalModel(systemPrompt, messages, options)
     : callOpenRouter(systemPrompt, messages, options);
+}
+
+function buildNoFinalAnswerError(
+  subject: string,
+  result: OpenAICompatibleResult
+): ClaudeError {
+  const metadata = result.metadata;
+  const model = metadata.responseModel ?? metadata.requestedModel;
+  const observations: string[] = [];
+
+  if (metadata.reasoningPresent) {
+    observations.push(
+      metadata.reasoningTokens !== undefined
+        ? `${metadata.reasoningTokens} reasoning tokens were reported`
+        : "reasoning was returned separately"
+    );
+  }
+  if (metadata.finishReason) {
+    observations.push(`finish reason: ${metadata.finishReason}`);
+  }
+
+  const detail = observations.length > 0 ? ` (${observations.join(", ")})` : "";
+  const recovery = metadata.recoveryAttempted
+    ? " Tama retried once with compatibility settings, but the response was still empty."
+    : isAutomaticModelRecoveryEnabled()
+      ? " Tama could not produce a compatible retry."
+      : " Automatic model recovery is turned off.";
+
+  return new ClaudeError(
+    `${model} returned no final text for ${subject}${detail}.${recovery} Try again or change Reasoning under Settings > LLM Provider.`
+  );
 }
 
 // ── Public API ───────────────────────────────────────────────────
@@ -663,7 +906,7 @@ export async function sendMessage(
       orMessages = [{ role: "user", content: "会話を始めてください。" }];
     }
     const result = await callConfiguredOpenAICompatible(systemPrompt, orMessages);
-    if (!result.text) throw new ClaudeError("No text content in response");
+    if (!result.text) throw buildNoFinalAnswerError("the conversation", result);
     return result.text;
   }
 
@@ -747,7 +990,7 @@ async function sendMessageWithToolsOR(
     });
 
     if (!result.isToolUse) {
-      if (!result.text) throw new ClaudeError("No text content in response");
+      if (!result.text) throw buildNoFinalAnswerError("the conversation", result);
       if (shouldTrackVocabulary) {
         await trackVocabularyUsage(result.text);
       }
@@ -919,6 +1162,138 @@ Objectives for the student: ${scenario.objectives.join(", ")}${customBlock}${per
 ${suffix}`;
 }
 
+const SHADOW_SCRIPT_RESPONSE_SCHEMA: JsonSchemaRequest = {
+  name: "tama_shadow_script",
+  schema: {
+    type: "object",
+    properties: {
+      turns: {
+        type: "array",
+        minItems: 2,
+        items: {
+          type: "object",
+          properties: {
+            speaker: { type: "string", enum: ["assistant", "user"] },
+            speaker_label: { type: "string" },
+            text: { type: "string" },
+            reading: { type: "string" },
+          },
+          required: ["speaker", "speaker_label", "text", "reading"],
+          additionalProperties: false,
+        },
+      },
+      focus_phrases: {
+        type: "array",
+        minItems: 3,
+        maxItems: 6,
+        items: { type: "string" },
+      },
+    },
+    required: ["turns", "focus_phrases"],
+    additionalProperties: false,
+  },
+};
+
+const CUSTOM_SCENARIO_RESPONSE_SCHEMA: JsonSchemaRequest = {
+  name: "tama_custom_scenario",
+  schema: {
+    type: "object",
+    properties: {
+      title_ja: { type: "string" },
+      setting: { type: "string" },
+      character_role: { type: "string" },
+      objectives: {
+        type: "array",
+        minItems: 1,
+        items: { type: "string" },
+      },
+      custom_prompt: { type: "string" },
+    },
+    required: ["title_ja", "setting", "character_role", "objectives", "custom_prompt"],
+    additionalProperties: false,
+  },
+};
+
+const STUDY_PLAN_RESPONSE_SCHEMA: JsonSchemaRequest = {
+  name: "tama_study_plan",
+  schema: {
+    type: "object",
+    properties: {
+      focusSummary: { type: "string" },
+      reasoningSummary: { type: "string" },
+      tasks: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            title: { type: "string" },
+            description: { type: "string" },
+            ctaLabel: { type: "string" },
+          },
+          required: ["id", "title", "description", "ctaLabel"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["focusSummary", "reasoningSummary", "tasks"],
+    additionalProperties: false,
+  },
+};
+
+const FEEDBACK_RESPONSE_SCHEMA: JsonSchemaRequest = {
+  name: "tama_session_feedback",
+  schema: {
+    type: "object",
+    properties: {
+      grammar_points: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            issue: { type: "string" },
+            correction: { type: "string" },
+            explanation: { type: "string" },
+          },
+          required: ["issue", "correction", "explanation"],
+          additionalProperties: false,
+        },
+      },
+      vocabulary: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            word: { type: "string" },
+            reading: { type: "string" },
+            meaning: { type: "string" },
+            example: { type: "string" },
+            source_session: { type: "string" },
+          },
+          required: ["word", "reading", "meaning", "example", "source_session"],
+          additionalProperties: false,
+        },
+      },
+      fluency_notes: { type: "array", items: { type: "string" } },
+      summary: {
+        type: "object",
+        properties: {
+          topics_covered: { type: "array", items: { type: "string" } },
+          performance_rating: {
+            type: "string",
+            enum: ["needs_work", "good", "excellent"],
+          },
+          next_session_hint: { type: "string" },
+        },
+        required: ["topics_covered", "performance_rating", "next_session_hint"],
+        additionalProperties: false,
+      },
+    },
+    required: ["grammar_points", "vocabulary", "fluency_notes", "summary"],
+    additionalProperties: false,
+  },
+};
+
 function getShadowTurnCountInstruction(responseLength: ResponseLength): string {
   switch (responseLength) {
     case "short":
@@ -1001,13 +1376,26 @@ Assistant role: ${scenario.character_role}
 Objectives: ${scenario.objectives.join(", ")}${customBlock}${personalContextBlock}`;
 
   const provider = getLLMProvider();
-  const responseText =
-    provider !== "anthropic"
-      ? (await callConfiguredOpenAICompatible(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 2400 })).text
-      : (await callAnthropic(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 2400 })).text;
-
-  if (!responseText) {
-    throw new ClaudeError("No text content in shadow script response");
+  let responseText: string;
+  if (provider !== "anthropic") {
+    const result = await callConfiguredOpenAICompatible(
+      systemPrompt,
+      [{ role: "user", content: userMessage }],
+      {
+        maxTokens: 2400,
+        requestKind: "structured",
+        responseSchema: SHADOW_SCRIPT_RESPONSE_SCHEMA,
+      }
+    );
+    if (!result.text) throw buildNoFinalAnswerError("the practice script", result);
+    responseText = result.text;
+  } else {
+    responseText = (
+      await callAnthropic(systemPrompt, [{ role: "user", content: userMessage }], {
+        maxTokens: 2400,
+      })
+    ).text;
+    if (!responseText) throw new ClaudeError("The AI returned no practice script text. Try again.");
   }
 
   let parsed: unknown;
@@ -1132,13 +1520,26 @@ Title: ${title.trim()}
 Description: ${description.trim()}`;
 
   const provider = getLLMProvider();
-  const responseText =
-    provider !== "anthropic"
-      ? (await callConfiguredOpenAICompatible(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1400 })).text
-      : (await callAnthropic(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1400 })).text;
-
-  if (!responseText) {
-    throw new ClaudeError("No text content in custom scenario response");
+  let responseText: string;
+  if (provider !== "anthropic") {
+    const result = await callConfiguredOpenAICompatible(
+      systemPrompt,
+      [{ role: "user", content: userMessage }],
+      {
+        maxTokens: 1400,
+        requestKind: "structured",
+        responseSchema: CUSTOM_SCENARIO_RESPONSE_SCHEMA,
+      }
+    );
+    if (!result.text) throw buildNoFinalAnswerError("the scenario draft", result);
+    responseText = result.text;
+  } else {
+    responseText = (
+      await callAnthropic(systemPrompt, [{ role: "user", content: userMessage }], {
+        maxTokens: 1400,
+      })
+    ).text;
+    if (!responseText) throw new ClaudeError("The AI returned no scenario draft text. Try again.");
   }
 
   let parsed: unknown;
@@ -1210,13 +1611,26 @@ PLAN SEED:
 ${JSON.stringify(request, null, 2)}`;
 
   const provider = getLLMProvider();
-  const responseText =
-    provider !== "anthropic"
-      ? (await callConfiguredOpenAICompatible(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1200 })).text
-      : (await callAnthropic(systemPrompt, [{ role: "user", content: userMessage }], { maxTokens: 1200 })).text;
-
-  if (!responseText) {
-    throw new ClaudeError("No text content in study plan response");
+  let responseText: string;
+  if (provider !== "anthropic") {
+    const result = await callConfiguredOpenAICompatible(
+      systemPrompt,
+      [{ role: "user", content: userMessage }],
+      {
+        maxTokens: 1200,
+        requestKind: "structured",
+        responseSchema: STUDY_PLAN_RESPONSE_SCHEMA,
+      }
+    );
+    if (!result.text) throw buildNoFinalAnswerError("the study plan", result);
+    responseText = result.text;
+  } else {
+    responseText = (
+      await callAnthropic(systemPrompt, [{ role: "user", content: userMessage }], {
+        maxTokens: 1200,
+      })
+    ).text;
+    if (!responseText) throw new ClaudeError("The AI returned no study plan text. Try again.");
   }
 
   let parsed: unknown;
@@ -1291,7 +1705,7 @@ export async function translateJapaneseText(
     const result = await callConfiguredOpenAICompatible(systemPrompt, [
       { role: "user", content: japaneseText },
     ]);
-    if (!result.text) throw new ClaudeError("No text content in translation response");
+    if (!result.text) throw buildNoFinalAnswerError("the translation", result);
     return result.text;
   }
 
@@ -1368,9 +1782,13 @@ Be encouraging but honest.`;
     const result = await callConfiguredOpenAICompatible(
       systemPrompt,
       [{ role: "user", content: userMessage }],
-      { maxTokens: 4096 }
+      {
+        maxTokens: 4096,
+        requestKind: "structured",
+        responseSchema: FEEDBACK_RESPONSE_SCHEMA,
+      }
     );
-    if (!result.text) throw new ClaudeError("No text content in feedback response");
+    if (!result.text) throw buildNoFinalAnswerError("the session feedback", result);
     return result.text;
   }
 
@@ -1477,7 +1895,7 @@ Return ONLY the summary text, no headers or formatting. Keep it under 500 words.
       [{ role: "user", content: userMessage }],
       { maxTokens: 1024 }
     );
-    if (!result.text) throw new ClaudeError("Failed to generate summary");
+    if (!result.text) throw buildNoFinalAnswerError("the conversation summary", result);
     return result.text;
   }
 
@@ -1520,7 +1938,7 @@ Return ONLY the summary text, no headers or markdown. Keep it under 500 words an
       [{ role: "user", content: userMessage }],
       { maxTokens: 1024 }
     );
-    if (!result.text) throw new ClaudeError("Failed to generate Sensei summary");
+    if (!result.text) throw buildNoFinalAnswerError("the Sensei summary", result);
     return result.text;
   }
 
