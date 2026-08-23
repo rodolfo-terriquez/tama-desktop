@@ -18,15 +18,18 @@ changing the project, and update it when the facts below change.
 
 ## Current production state
 
-- Latest public release: [`v1.3.6`](https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/v1.3.6),
-  published from commit `58459522bdd864b536c507bb8e77d6334817abc0` on
-  2026-08-21.
-- The [`v1.3.6` release workflow](https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/32551087138)
+- Latest public release: [`v1.3.7`](https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/v1.3.7),
+  published from commit `ad92d3cc72f93dab46ab1d7e3345ad0c0899ca39` on
+  2026-08-22.
+- The [`v1.3.7` release workflow](https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/32616207876)
   passed on macOS, Windows, and Linux. GitHub reports 14 uploaded assets,
   including installers, updater packages, detached signatures, and
-  `latest.json`. The published updater manifest reports version `1.3.6`, has
-  nine platform entries, points every URL at the `v1.3.6` release, and includes
+  `latest.json`. The published updater manifest reports version `1.3.7`, has
+  nine platform entries, points every URL at the `v1.3.7` release, and includes
   a non-empty signature for every entry.
+- The public Apple Silicon DMG matches GitHub's SHA-256 digest. Its Tama app is
+  validly Developer ID signed, accepted by Gatekeeper as notarized, and has a
+  valid stapled notarization ticket.
 - Settings includes discoverable VOICEVOX and selected voice-library credits,
   official terms and source links, and selected-speaker policy loading when the
   local VOICEVOX engine is running.
@@ -63,7 +66,7 @@ also queried directly to confirm 琴詠ニア's normal talk style. Frontend lint
 build, Rust formatting, all six Rust tests, Cargo check, and diff checks pass as
 of 2026-08-21.
 
-## v1.3.7 changes
+## v1.3.7 release
 
 - OpenRouter requests now look up and cache the selected model's reported
   reasoning, structured-output, and tool capabilities. The shared local-model
@@ -87,6 +90,9 @@ of 2026-08-21.
   diff checks pass. The capability card, reasoning selector, and recovery toggle
   were also visually checked in the native desktop app with the selected
   DeepSeek model metadata loaded.
+- The [production-equivalent preflight](https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/32615898248)
+  and the production release workflow passed for the exact release commit on
+  macOS, Windows, and Linux.
 
 The exact v1.3.2 installer currently published on GitHub was downloaded and
 verified on 2026-08-12:
