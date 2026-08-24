@@ -507,8 +507,17 @@ VOICEVOX:四国めたん
 - [VOICEVOX characters and voice terms](https://voicevox.hiroshiba.jp/)
 - [VOICEVOX engine source and license](https://github.com/VOICEVOX/voicevox_engine)
 
-## License
+## License And Trademarks
 
-This project is licensed under the GNU General Public License v3.0.
+Copyright © 2026 Rodolfo Alberto Lopez Terriquez and Tama contributors.
 
-If you distribute the app or a modified version, you must also make the source available under the same license. See [LICENSE](./LICENSE).
+The source code is licensed under the GNU General Public License v3.0 only
+(`GPL-3.0-only`). If you distribute the app or a modified version, you must
+also make the corresponding source available under the same license. See
+[LICENSE](./LICENSE).
+
+The Tama name, wordmark, pixel logo, and official app icon are brand
+identifiers and are not licensed for use as the identity of a modified or
+unrelated product. Forks remain welcome under the GPL, but public modified
+versions must use their own name and branding. See [Tama Trademark
+Policy](./TRADEMARKS.md).

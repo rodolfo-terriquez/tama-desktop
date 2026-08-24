@@ -85,6 +85,18 @@ changing the project, and update it when the facts below change.
 - Before a managed beta is implemented, tighten the feedback contract so every
   detected learner correction appears in `grammar_points`.
 
+## Licensing and brand
+
+- Tama's source code remains `GPL-3.0-only`. The project README, npm package
+  metadata, and Rust package metadata identify that exact license.
+- The Tama/TAMA names, stylized wordmark, pixel logo, and official app icon are
+  covered by the separate [`TRADEMARKS.md`](./TRADEMARKS.md) policy. They are
+  described as claimed unregistered marks; no formal registration is claimed.
+- Public modified distributions may use the GPL-covered code but must adopt a
+  distinct product name and their own branding. Ordinary references, reviews,
+  contributions, and clearly identified unmodified redistribution remain
+  allowed under the policy.
+
 ## v1.3.6 release
 
 The `v1.3.6` release includes changes that:
