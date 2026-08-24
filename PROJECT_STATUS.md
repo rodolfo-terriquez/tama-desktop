@@ -18,14 +18,17 @@ changing the project, and update it when the facts below change.
 
 ## Current production state
 
-- Latest public release: [`v1.3.7`](https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/v1.3.7),
-  published from commit `ad92d3cc72f93dab46ab1d7e3345ad0c0899ca39` on
-  2026-08-22.
-- The [`v1.3.7` release workflow](https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/32616207876)
+- Latest public release: [`v1.3.8`](https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/v1.3.8),
+  published from commit `a0b685bb0b1fcb48db2749e3d6738c9c86972fbc` on
+  2026-08-23.
+- The [`v1.3.8` release workflow](https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/32659357252)
   passed on macOS, Windows, and Linux. GitHub reports 14 uploaded assets,
   including installers, updater packages, detached signatures, and
-  `latest.json`. The published updater manifest reports version `1.3.7`, has
-  nine platform entries, points every URL at the `v1.3.7` release, and includes
+  `latest.json`. The public release includes primary installers for macOS,
+  Windows, and Linux plus alternate MSI, DEB, and RPM packages. The landing
+  page release selector resolves these assets from the latest GitHub release.
+  The published updater manifest reports version `1.3.8`, has nine platform
+  entries, points every URL at the `v1.3.8` release, and includes
   a non-empty signature for every entry.
 - The public Apple Silicon DMG matches GitHub's SHA-256 digest. Its Tama app is
   validly Developer ID signed, accepted by Gatekeeper as notarized, and has a
@@ -54,6 +57,33 @@ changing the project, and update it when the facts below change.
   Cargo check, and diff checks pass as of 2026-08-23. A native visual smoke test
   is still pending because the browser-only preview cannot initialize Tauri's
   SQL plugin.
+
+## Managed-access validation
+
+- The full TAMA landing page is live at
+  [`madebyrodolfo.com/tama/`](https://madebyrodolfo.com/tama/) using current app
+  screenshots and the production `v1.3.8` release assets. The website code,
+  analytics, and reservation plumbing live in the separate public
+  `personal-page` repository; this desktop repository remains the source of
+  truth for the free local/BYOK app and its releases.
+- The working validation offer is optional managed AI access at $8/month while
+  local models and user-provided API keys remain free. The first candidate is
+  GPT-5.6 Luna, chosen after two blind model comparisons and one real in-app
+  acceptance session.
+- The landing page records first-party aggregate acquisition events and accepts
+  price-confirming beta reservations. Reservation delivery is auditable and a
+  notification failure does not discard the stored reservation.
+- Launch verification recorded 3 testing page views and 0 reservations. These
+  views are not qualified demand evidence.
+- The GitHub README is the first attributable qualified-audience channel. Its
+  managed-beta link uses `utm_source=github`, `utm_medium=readme`, and
+  `utm_campaign=managed-beta`.
+- Do not add billing, accounts, managed model routing, or managed service code
+  to this repository before the demand test reaches at least 100 qualified
+  unique visitors, 5 price-affirming signups, and 3 explicit paid-beta
+  reservations.
+- Before a managed beta is implemented, tighten the feedback contract so every
+  detected learner correction appears in `grammar_points`.
 
 ## v1.3.6 release
 
@@ -286,18 +316,21 @@ release artifacts use the production updater key and were verified above.
 ## What we are waiting for
 
 1. Microsoft's determination on the Defender false-positive submission.
+2. Qualified-audience results from the public $8 managed-access validation.
 
 ## Next decisions
 
-1. After `v1.3.7`, observe OpenRouter model compatibility, structured practice
+1. Run the qualified-audience landing-page test before considering managed
+   infrastructure. Do not treat page polish or backend construction as demand.
+2. After `v1.3.8`, observe OpenRouter model compatibility, structured practice
    generation, and automatic recovery in normal use. Keep pitch outside that
    work unless it is explicitly brought into scope.
-2. If Windows transcription needs a larger future improvement, evaluate the
+3. If Windows transcription needs a larger future improvement, evaluate the
    optional Vulkan GPU path described above with CPU fallback. Alternative
    backends or models such as Parakeet remain separate experiments.
-3. If Defender blocks a future executable, collect the exact detection name
+4. If Defender blocks a future executable, collect the exact detection name
    and screenshot. Do not advise users to bypass Defender.
-4. Update `actions/checkout` and `actions/setup-node` when suitable to remove
+5. Update `actions/checkout` and `actions/setup-node` when suitable to remove
    GitHub's non-blocking Node.js 20 deprecation warning.
 
 ## Code-signing status

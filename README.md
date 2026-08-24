@@ -6,6 +6,10 @@ Tama Desktop is a Japanese speaking and listening practice app for people who wa
 
 It helps you practice real conversations, repeat useful lines out loud, review vocabulary, get feedback on your mistakes, and keep your study history in one place.
 
+## Optional Managed Beta
+
+Prefer not to configure API keys or a local model? [Join the proposed $8/month managed beta](https://madebyrodolfo.com/tama/?utm_source=github&utm_medium=readme&utm_campaign=managed-beta). Tama's free local and bring-your-own-key options remain available, and joining the beta list is a reservation signal—not a charge.
+
 ## Start Here
 
 If you just want to use the app, this is the section to read.
