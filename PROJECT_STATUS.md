@@ -18,17 +18,17 @@ changing the project, and update it when the facts below change.
 
 ## Current production state
 
-- Latest public release: [`v1.3.8`](https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/v1.3.8),
-  published from commit `a0b685bb0b1fcb48db2749e3d6738c9c86972fbc` on
-  2026-08-23.
-- The [`v1.3.8` release workflow](https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/32659357252)
+- Latest public release: [`v1.3.9`](https://github.com/rodolfo-terriquez/tama-desktop/releases/tag/v1.3.9),
+  published from commit `5e5a7f5ffe356e218b35b21ada21b36e14671a8e` on
+  2026-09-20.
+- The [`v1.3.9` release workflow](https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/35552449165)
   passed on macOS, Windows, and Linux. GitHub reports 14 uploaded assets,
   including installers, updater packages, detached signatures, and
   `latest.json`. The public release includes primary installers for macOS,
   Windows, and Linux plus alternate MSI, DEB, and RPM packages. The landing
   page release selector resolves these assets from the latest GitHub release.
-  The published updater manifest reports version `1.3.8`, has nine platform
-  entries, points every URL at the `v1.3.8` release, and includes
+  The published updater manifest reports version `1.3.9`, has nine platform
+  entries, points every URL at the `v1.3.9` release, and includes
   a non-empty signature for every entry.
 - The public Apple Silicon DMG matches GitHub's SHA-256 digest. Its Tama app is
   validly Developer ID signed, accepted by Gatekeeper as notarized, and has a
@@ -58,7 +58,7 @@ changing the project, and update it when the facts below change.
   is still pending because the browser-only preview cannot initialize Tauri's
   SQL plugin.
 
-## v1.3.9 changes
+## v1.3.9 release
 
 - Practice mode now holds on the reviewed learner line after speech detection
   and transcription instead of automatically moving forward after 500 ms. A
@@ -72,12 +72,25 @@ changing the project, and update it when the facts below change.
   Rust formatting, all six Rust tests, Cargo check, and diff checks pass. The
   owner accepted this bounded practice-only fix for release without a separate
   native microphone session.
+- The [production-equivalent preflight](https://github.com/rodolfo-terriquez/tama-desktop/actions/runs/35551693916)
+  and the production release workflow passed for the exact release commit on
+  macOS, Windows, and Linux. All public updater signatures match the manifest;
+  representative macOS, Windows, and Linux packages also passed detached
+  signature verification against the embedded updater public key.
+- The public Apple Silicon updater archive and DMG match GitHub's SHA-256
+  digests. The DMG passed filesystem verification, its Tama app is validly
+  Developer ID signed, Gatekeeper accepted it as a notarized Developer ID app,
+  and its stapled notarization ticket is valid.
+- An installed `v1.3.6` app discovered `v1.3.9` through Settings and displayed
+  its install action. Installation and restart acceptance were not exercised
+  because installing newly downloaded software requires separate action-time
+  approval.
 
 ## Managed-access validation
 
 - The full TAMA landing page is live at
   [`madebyrodolfo.com/tama/`](https://madebyrodolfo.com/tama/) using current app
-  screenshots and the production `v1.3.8` release assets. The website code,
+  screenshots and the production `v1.3.9` release assets. The website code,
   analytics, and reservation plumbing live in the separate public
   `personal-page` repository; this desktop repository remains the source of
   truth for the free local/BYOK app and its releases.
