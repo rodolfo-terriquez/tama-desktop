@@ -1,6 +1,6 @@
 # Tama Project Status
 
-Last updated: 2026-08-23
+Last updated: 2026-09-20
 
 This is the handoff document for active work. Read it before investigating or
 changing the project, and update it when the facts below change.
@@ -57,6 +57,21 @@ changing the project, and update it when the facts below change.
   Cargo check, and diff checks pass as of 2026-08-23. A native visual smoke test
   is still pending because the browser-only preview cannot initialize Tauri's
   SQL plugin.
+
+## v1.3.9 changes
+
+- Practice mode now holds on the reviewed learner line after speech detection
+  and transcription instead of automatically moving forward after 500 ms. A
+  primary Continue action advances when the learner is ready; the final turn's
+  action still completes and saves the session.
+- The separate pre-review action is labeled Skip This Turn and remains recorded
+  as a skipped attempt. A reviewed attempt is no longer routed through that skip
+  handler.
+- Focused progression tests cover holding after review, explicit advancement,
+  and final-turn completion. `npm test`, frontend lint, the production build,
+  Rust formatting, all six Rust tests, Cargo check, and diff checks pass. The
+  owner accepted this bounded practice-only fix for release without a separate
+  native microphone session.
 
 ## Managed-access validation
 

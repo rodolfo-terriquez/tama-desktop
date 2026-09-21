@@ -14,6 +14,10 @@ import {
   getShadowPairs,
   summarizeShadowAttempts,
 } from "@/services/shadow";
+import {
+  resolveShadowProgression,
+  type ShadowProgressionPhase,
+} from "@/services/shadow-progression";
 import { initializeTTS, speak, stopCurrentAudio } from "@/services/tts";
 import { getTranscriptionEngine } from "@/services/transcription";
 import { getUserProfile, saveSession, updateUserProfile } from "@/services/storage";
@@ -26,7 +30,7 @@ import type {
 } from "@/types";
 import { Loader2, LogOut, Mic, RefreshCcw, SkipForward, Volume2 } from "lucide-react";
 
-type ShadowPhase = "playing" | "waiting" | "transcribing" | "result" | "complete";
+type ShadowPhase = ShadowProgressionPhase;
 
 interface ShadowModeScreenProps {
   scenario: Scenario;
@@ -129,7 +133,15 @@ export function ShadowModeScreen({
           timestamp: new Date().toISOString(),
         },
       ]);
-      setPhase("result");
+      const progression = resolveShadowProgression(
+        {
+          currentPairIndex: currentPairIndexRef.current,
+          phase: phaseRef.current,
+        },
+        "attempt-reviewed",
+        pairs.length
+      );
+      setPhase(progression.phase);
     },
     onAmplitude: () => {},
     onError: (message) => {
@@ -285,14 +297,25 @@ export function ShadowModeScreen({
 
   const moveToNextTurn = useCallback(async () => {
     stopCurrentAudio();
-    if (currentPairIndex + 1 >= pairs.length) {
+    const progression = resolveShadowProgression(
+      {
+        currentPairIndex,
+        phase,
+      },
+      "continue",
+      pairs.length
+    );
+
+    if (progression.phase === "complete") {
       pauseVADRef.current();
       setPhase("complete");
       return;
     }
 
-    await startPair(currentPairIndex + 1);
-  }, [currentPairIndex, pairs.length, startPair]);
+    if (progression.currentPairIndex !== currentPairIndex) {
+      await startPair(progression.currentPairIndex);
+    }
+  }, [currentPairIndex, pairs.length, phase, startPair]);
 
   const handleManualAdvance = useCallback(async () => {
     if (!currentPair) return;
@@ -361,21 +384,6 @@ export function ShadowModeScreen({
       void stopVAD();
     };
   }, [resetSession, script.id, stopVAD]);
-
-  useEffect(() => {
-    const activeAttempt = lastAttempt?.turnIndex === currentPairIndex ? lastAttempt : null;
-    if (phase !== "result" || !activeAttempt) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      void moveToNextTurn();
-    }, 500);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [currentPairIndex, lastAttempt, moveToNextTurn, phase]);
 
   useEffect(() => {
     const pair = pairs[currentPairIndex] ?? null;
@@ -674,14 +682,19 @@ export function ShadowModeScreen({
         </Card>
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={() => void handleManualAdvance()}>
-            <SkipForward className="mr-1 size-4" />
-            {phase === "result" && currentPairIndex + 1 >= pairs.length
-              ? t("shadow.finishSession")
-              : phase === "result"
-                ? t("shadow.nextTurn")
-                : t("shadow.advanceManually")}
-          </Button>
+          {phase === "result" ? (
+            <Button onClick={() => void moveToNextTurn()}>
+              <SkipForward className="mr-1 size-4" />
+              {currentPairIndex + 1 >= pairs.length
+                ? t("shadow.finishSession")
+                : t("shadow.nextTurn")}
+            </Button>
+          ) : (
+            <Button variant="ghost" onClick={() => void handleManualAdvance()}>
+              <SkipForward className="mr-1 size-4" />
+              {t("shadow.advanceManually")}
+            </Button>
+          )}
         </div>
       </div>
     </div>
